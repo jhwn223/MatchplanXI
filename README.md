@@ -1,32 +1,30 @@
-# React + TypeScript + Vite
+# 고지대 컨디션 전술보드 (Altitude Tactics)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+**🔗 Live: https://jhwn223.github.io/altitude-tactics/**
 
-Currently, two official plugins are available:
+2026 월드컵 실제 데이터를 활용한 드래그 앤 드롭 전술보드입니다. 경기장 고도, 팀 휴식일, 최근 출전 시간, 국가대표 경험(caps)을 반영해 실시간으로 "고지대 컨디션 지수"를 계산하고, 실제 대진을 따라 조별리그부터 결승까지 플레이할 수 있습니다.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 핵심 기능
 
-## React Compiler
+- **국가 선택 → 조별리그 → 토너먼트**: 48개 팀 중 하나를 골라 실제 2026 월드컵 대진을 그대로 플레이. 조별리그 3경기를 마치면 다른 11개 조도 자동 시뮬레이션되고, 32강 토너먼트 대진표가 열립니다.
+- **고지대 컨디션 지수**: 경기장 고도(0~2200m), 직전 경기 이후 휴식일, 최근 출전 분, A매치 caps를 조합해 선수별 컨디션 점수를 계산.
+- **역할 기반 자동 배치**: 실제 선수 데이터(득점, 신장, caps)로부터 ST/윙/DM/CB 등 세부 역할을 추정해 포지션에 맞는 최적 선발을 자동 구성.
+- **8가지 포메이션** + 자동 전술 프리셋(수비적/균형/공격적/초공격), 포메이션을 바꿔도 선수는 유지됩니다.
+- **2D 애니메이션 경기 진행**: 선발을 배치하고 킥오프하면 22명의 선수가 역할별로 다르게 움직이는 2D 경기가 실시간으로 진행되고, 골이 들어가면 GOAL 연출이 뜹니다.
+- **실제 결과와 비교**: 조별리그 경기는 실제 2026 대회 결과와 스코어/전술을 비교해줍니다.
+- **한국어 선수 이름**: 한국 대표팀 및 주요 스타는 실제 한글 표기, 나머지는 자동 음역.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 데이터 출처
 
-## Expanding the Oxlint configuration
+CC0 퍼블릭 도메인 — [FIFA World Cup 2026 Dataset by mominullptr](https://github.com/mominullptr/FIFA-World-Cup-2026-Dataset)
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## 개발
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev       # 개발 서버
+npm run build     # 프로덕션 빌드
+npx gh-pages -d dist   # GitHub Pages 배포
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Vite + React + TypeScript, 드래그앤드롭은 dnd-kit, 애니메이션은 Framer Motion을 사용합니다.
