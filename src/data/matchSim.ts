@@ -132,18 +132,31 @@ export function quickSimScore(
   return { home: poisson(userXg, rng), away: poisson(oppXg, rng) };
 }
 
-export function simulateMatch(input: SimInput): SimResult {
-  const rng = mulberry32(input.seed);
+export interface HalfResult {
+  goals: GoalEvent[];
+  userGoals: number;
+  oppGoals: number;
+  userXg: number;
+  oppXg: number;
+}
+
+/** Simulate one half (1 = 1'-45', 2 = 46'-90') using that half's lineup/tactics. */
+export function simulateHalf(input: SimInput, half: 1 | 2): HalfResult {
+  const rng = mulberry32((input.seed + half * 999983) >>> 0);
   const { userXg, oppXg } = computeXg(input);
+  const halfUserXg = userXg / 2;
+  const halfOppXg = oppXg / 2;
 
-  const userGoals = poisson(userXg, rng);
-  const oppGoals = poisson(oppXg, rng);
+  const userGoals = poisson(halfUserXg, rng);
+  const oppGoals = poisson(halfOppXg, rng);
 
+  const lo = half === 1 ? 1 : 46;
+  const hi = half === 1 ? 45 : 90;
   const used = new Set<number>();
   const randMinute = () => {
-    let m = 2 + Math.floor(rng() * 88);
+    let m = lo + Math.floor(rng() * (hi - lo));
     let guard = 0;
-    while (used.has(m) && guard++ < 30) m = 2 + Math.floor(rng() * 88);
+    while (used.has(m) && guard++ < 30) m = lo + Math.floor(rng() * (hi - lo));
     used.add(m);
     return m;
   };
@@ -155,14 +168,22 @@ export function simulateMatch(input: SimInput): SimResult {
     goals.push({ minute: randMinute(), side: "opp" });
   goals.sort((a, b) => a.minute - b.minute);
 
+  return { goals, userGoals, oppGoals, userXg: halfUserXg, oppXg: halfOppXg };
+}
+
+/** Combine both halves (using the final half's tactics for the verdict text) into a full-match result. */
+export function combineHalves(input: SimInput, h1: HalfResult, h2: HalfResult): SimResult {
+  const userGoals = h1.userGoals + h2.userGoals;
+  const oppGoals = h1.oppGoals + h2.oppGoals;
+  const goals = [...h1.goals, ...h2.goals].sort((a, b) => a.minute - b.minute);
   const simOutcome: "W" | "D" | "L" =
     userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
 
   return {
     userGoals,
     oppGoals,
-    userXg,
-    oppXg,
+    userXg: h1.userXg + h2.userXg,
+    oppXg: h1.oppXg + h2.oppXg,
     goals,
     comparison: buildComparison(input, userGoals, oppGoals, simOutcome),
   };

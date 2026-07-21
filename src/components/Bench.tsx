@@ -8,11 +8,12 @@ import { PlayerCard } from "./PlayerCard";
 interface Props {
   benchPlayers: Player[];
   conditions: Map<number, ConditionBreakdown>;
+  benchedOut?: Set<number>;
 }
 
 const POSITION_ORDER: Position[] = ["GK", "DEF", "MID", "FWD"];
 
-export function Bench({ benchPlayers, conditions }: Props) {
+export function Bench({ benchPlayers, conditions, benchedOut }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: BENCH_ZONE_ID });
 
   return (
@@ -33,6 +34,7 @@ export function Bench({ benchPlayers, conditions }: Props) {
                     condition={conditions.get(player.player_id)}
                     variant="bench"
                     dragFrom={BENCH_ZONE_ID}
+                    ineligible={benchedOut?.has(player.player_id)}
                   />
                 ))}
               </AnimatePresence>

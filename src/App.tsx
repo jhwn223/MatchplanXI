@@ -3,6 +3,8 @@ import "./App.css";
 import { useTournamentData } from "./hooks/useTournamentData";
 import { getTeamMatches, type PlayedMap, type PlayedResult, type TeamMatch } from "./data/tournament";
 import { KO_ROUND_EN, type KOMatch, type KOResults } from "./data/tournamentEngine";
+import { haversineKm } from "./data/geo";
+import { utcOffsetForCity } from "./data/timezones";
 import type { MatchDetailed } from "./data/types";
 import { CountrySelect } from "./components/CountrySelect";
 import { TeamHub } from "./components/TeamHub";
@@ -63,6 +65,30 @@ function App() {
     setView("match");
   }
 
+  // after a match ends: jump straight to the next group fixture, or back to
+  // the bracket to see/play the next knockout tie
+  function goToNextMatch() {
+    if (view === "match" && activeMatchId != null) {
+      const current = teamMatches.find((tm) => tm.match.match_id === activeMatchId);
+      if (current && current.match.stage_name === "Group Stage") {
+        const next = teamMatches.find(
+          (tm) => tm.match.stage_name === "Group Stage" && tm.order === current.order + 1
+        );
+        if (next) {
+          openMatch(next.match.match_id);
+          return;
+        }
+      }
+      setView("hub");
+      return;
+    }
+    if (view === "komatch") {
+      setView("bracket");
+      return;
+    }
+    setView("hub");
+  }
+
   function openKO(m: KOMatch) {
     setActiveKo(m);
     setKoLineups((prev) =>
@@ -95,6 +121,16 @@ function App() {
       status: "Scheduled",
       result_type: "",
     };
+    // approximate travel/jet-lag from the venue of the team's last known match
+    const prevVenue = teamMatches[teamMatches.length - 1]?.venue;
+    const travelKm = prevVenue
+      ? Math.round(
+          haversineKm(prevVenue.latitude, prevVenue.longitude, m.venue.latitude, m.venue.longitude)
+        )
+      : 0;
+    const tzShiftHours = prevVenue
+      ? utcOffsetForCity(m.venue.city) - utcOffsetForCity(prevVenue.city)
+      : 0;
     return {
       match,
       isHome: true,
@@ -103,6 +139,8 @@ function App() {
       venue: m.venue,
       elevation: m.venue.elevation_meters,
       restDays: 4,
+      travelKm,
+      tzShiftHours,
       order: 99,
     };
   }
@@ -157,6 +195,7 @@ function App() {
           onChangeLineup={(next) => setLineups((prev) => ({ ...prev, [activeMatchId]: next }))}
           onBack={() => setView("hub")}
           onPlayed={recordResult}
+          onNextMatch={goToNextMatch}
         />
       );
     }
@@ -181,6 +220,7 @@ function App() {
               [activeKo.id]: { userGoals: result.homeGoals, oppGoals: result.awayGoals },
             }))
           }
+          onNextMatch={goToNextMatch}
         />
       );
     }

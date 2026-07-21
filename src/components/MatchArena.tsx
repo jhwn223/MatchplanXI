@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { slotsOf, type FormationKey } from "../data/formation";
-import type { SimResult } from "../data/matchSim";
+import type { GoalEvent, SimComparison } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
 
+export interface ArenaSim {
+  goals: GoalEvent[];
+  userGoals: number;
+  oppGoals: number;
+  comparison?: SimComparison;
+}
+
 interface Props {
-  sim: SimResult;
+  sim: ArenaSim;
   userTeamName: string;
   userCode: string;
   oppTeamName: string;
@@ -14,8 +21,15 @@ interface Props {
   formation: FormationKey;
   slots: Record<string, number | null>;
   playersById: Map<number, Player>;
+  startMinute?: number;
+  endMinute?: number;
+  startScore?: [number, number];
+  /** false = this segment ends at halftime, not full-time */
+  final?: boolean;
   onComplete: () => void;
+  onHalftimeContinue?: () => void;
   onClose: () => void;
+  onNext?: () => void;
 }
 
 interface Dot {
@@ -79,8 +93,14 @@ export function MatchArena({
   formation,
   slots,
   playersById,
+  startMinute = 0,
+  endMinute = 90,
+  startScore = [0, 0],
+  final = true,
   onComplete,
+  onHalftimeContinue,
   onClose,
+  onNext,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<ArenaState | null>(null);
@@ -90,7 +110,7 @@ export function MatchArena({
 
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [hud, setHud] = useState({ minute: 0, home: 0, away: 0, banner: null as string | null });
+  const [hud, setHud] = useState({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null as string | null });
   const [ended, setEnded] = useState(false);
 
   function buildState(): ArenaState {
@@ -108,11 +128,11 @@ export function MatchArena({
       dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 1, num: i + 1, role: s.position, react: 0.85 + rnd(i + 20) * 0.4, nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28 });
     });
     return {
-      clock: 0,
+      clock: startMinute,
       phase: "play",
       celebrateT: 0,
       actionT: 0.5,
-      score: [0, 0],
+      score: [...startScore],
       nextGoal: 0,
       dots,
       ball: { x: 50, y: 50, owner: 8, flightTo: -1, lastTeam: 0 },
@@ -241,8 +261,8 @@ export function MatchArena({
       }
 
       s.clock += dt * MIN_PER_SEC;
-      if (s.clock >= 90) {
-        s.clock = 90;
+      if (s.clock >= endMinute) {
+        s.clock = endMinute;
         s.phase = "ended";
         s.score = [sim.userGoals, sim.oppGoals];
         if (!completedRef.current) {
@@ -474,7 +494,7 @@ export function MatchArena({
     stateRef.current = buildState();
     completedRef.current = true;
     setEnded(false);
-    setHud({ minute: 0, home: 0, away: 0, banner: null });
+    setHud({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null });
   }
 
   const cmp = sim.comparison;
@@ -540,11 +560,28 @@ export function MatchArena({
             <button
               type="button"
               className="arena-ctrl arena-ctrl--skip"
-              onClick={() => { stateRef.current!.clock = 90; }}
+              onClick={() => { stateRef.current!.clock = endMinute; }}
             >
               결과로 건너뛰기 ⏭
             </button>
           </div>
+        ) : !final ? (
+          <motion.div className="sim-compare" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="sim-compare__row">
+              <div className="sim-compare__col">
+                <span className="sim-compare__label">전반전 종료</span>
+                <span className="sim-compare__val">
+                  {sim.userGoals} - {sim.oppGoals}
+                </span>
+              </div>
+            </div>
+            <p className="sim-compare__verdict">하프타임 — 전술과 라인업을 조정할 수 있습니다.</p>
+            <div className="sim-compare__actions">
+              <button type="button" className="sim-btn" onClick={onHalftimeContinue}>
+                후반전 준비하기 →
+              </button>
+            </div>
+          </motion.div>
         ) : (
           <motion.div className="sim-compare" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <div className="sim-compare__row">
@@ -554,7 +591,7 @@ export function MatchArena({
                   {sim.userGoals} - {sim.oppGoals}
                 </span>
               </div>
-              {cmp.hasActual && (
+              {cmp?.hasActual && (
                 <div className="sim-compare__col">
                   <span className="sim-compare__label">실제 결과</span>
                   <span className="sim-compare__val">
@@ -563,8 +600,12 @@ export function MatchArena({
                 </div>
               )}
             </div>
-            <p className="sim-compare__verdict">{cmp.verdict}</p>
-            <p className="sim-compare__tactics">🧩 {cmp.tacticsNote}</p>
+            {cmp && (
+              <>
+                <p className="sim-compare__verdict">{cmp.verdict}</p>
+                <p className="sim-compare__tactics">🧩 {cmp.tacticsNote}</p>
+              </>
+            )}
             <div className="sim-compare__actions">
               <button type="button" className="sim-btn sim-btn--ghost" onClick={replay}>
                 다시 보기
@@ -572,6 +613,11 @@ export function MatchArena({
               <button type="button" className="sim-btn" onClick={onClose}>
                 확인
               </button>
+              {onNext && (
+                <button type="button" className="sim-btn sim-btn--accent" onClick={onNext}>
+                  다음 경기 →
+                </button>
+              )}
             </div>
           </motion.div>
         )}

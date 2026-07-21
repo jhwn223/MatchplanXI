@@ -218,6 +218,19 @@
   z-index: 50;
 }
 
+.player-card[data-ineligible] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.player-card__ineligible {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #f87171;
+  white-space: nowrap;
+}
+
 .player-card__ring {
   width: 40px;
   height: 40px;
@@ -333,11 +346,34 @@
   padding: 16px;
 }
 
+.gauge__title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
 .gauge__title {
   display: block;
   font-size: 12px;
   color: var(--text-dim);
-  margin-bottom: 10px;
+}
+
+.gauge__subindices {
+  display: flex;
+  gap: 6px;
+}
+
+.subindex {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 7px;
 }
 
 .gauge__track {
@@ -606,6 +642,16 @@
 .elev-badge--mid  { background: #78350f; color: #fed7aa; }
 .elev-badge--low  { background: #14532d; color: #bbf7d0; }
 
+.travel-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: #1e3a5f;
+  color: #bfdbfe;
+}
+
 /* ============ Match Board ============ */
 .board {
   min-height: 100vh;
@@ -760,6 +806,11 @@
   color: #0b0e14;
   border-color: var(--accent);
 }
+.preset-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.preset-btn:disabled:hover { border-color: var(--border); }
 .preset-btn__emoji { font-size: 16px; }
 .preset-btn__label { font-size: 12px; font-weight: 700; }
 .preset-btn__form { font-size: 10px; opacity: 0.7; }
@@ -798,6 +849,47 @@
   cursor: pointer;
 }
 .autofill-btn:hover { border-color: var(--accent); }
+.autofill-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.autofill-btn:disabled:hover { border-color: var(--border); }
+
+.sub-tracker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+.sub-tracker__label { font-weight: 700; color: var(--text-dim); white-space: nowrap; }
+.sub-tracker__cards { display: flex; gap: 4px; }
+.sub-card {
+  width: 10px;
+  height: 14px;
+  border-radius: 2px;
+  background: #4fd1c5;
+  display: inline-block;
+}
+.sub-card[data-used] {
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+.sub-tracker__count { margin-left: auto; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
+
+.halftime-banner {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(79, 209, 197, 0.14);
+  color: #7ee7db;
+  border: 1px solid rgba(79, 209, 197, 0.4);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
 
 .kickoff-btn {
   padding: 14px;
@@ -953,6 +1045,10 @@
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
+}
+.sim-btn--accent {
+  background: linear-gradient(180deg, #4fd1c5, #2fb3a6);
+  color: #06231f;
 }
 
 /* ============ Hub banner + played/locked fixtures ============ */

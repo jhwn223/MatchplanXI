@@ -7,6 +7,10 @@ interface Props {
   onApplyPreset: (preset: TacticalPreset) => void;
   onAutoFill: () => void;
   activePresetKey: string | null;
+  /** true once kickoff has happened: auto-fill/presets could add unlimited new
+   *  faces, bypassing the substitution cap, so they're disabled after that —
+   *  only the (capped) manual bench drag and formation reshuffling remain. */
+  subsLocked?: boolean;
 }
 
 function biasLabel(bias: number): string {
@@ -23,7 +27,9 @@ export function TacticsPanel({
   onApplyPreset,
   onAutoFill,
   activePresetKey,
+  subsLocked = false,
 }: Props) {
+  const lockedTitle = "킥오프 이후에는 자동 배치를 쓸 수 없습니다 — 벤치에서 직접 교체하세요";
   return (
     <div className="tactics-panel">
       <div className="tactics-panel__section">
@@ -35,8 +41,9 @@ export function TacticsPanel({
               type="button"
               className="preset-btn"
               data-active={p.key === activePresetKey || undefined}
+              disabled={subsLocked}
               onClick={() => onApplyPreset(p)}
-              title={p.description}
+              title={subsLocked ? lockedTitle : p.description}
             >
               <span className="preset-btn__emoji">{p.emoji}</span>
               <span className="preset-btn__label">{p.label}</span>
@@ -63,7 +70,13 @@ export function TacticsPanel({
             </button>
           ))}
         </div>
-        <button type="button" className="autofill-btn" onClick={onAutoFill}>
+        <button
+          type="button"
+          className="autofill-btn"
+          disabled={subsLocked}
+          onClick={onAutoFill}
+          title={subsLocked ? lockedTitle : undefined}
+        >
           ⚡ 자동 배치 (최적 11인)
         </button>
       </div>

@@ -24,11 +24,23 @@ export function experienceOffset(caps: number, altPenalty: number): number {
   return Math.min(altPenalty, capFactor);
 }
 
+/** Travel fatigue from the flight distance since the team's previous match. */
+export function travelPenalty(travelKm: number): number {
+  return clamp((travelKm / 4200) * 12, 0, 12);
+}
+
+/** Jet lag from the timezone shift since the team's previous match. */
+export function jetLagPenalty(tzShiftHours: number): number {
+  return clamp(Math.abs(tzShiftHours) * 5, 0, 15);
+}
+
 export interface ConditionInputs {
   elevationMeters: number;
   restDays: number;
   recentMinutes: number;
   caps: number;
+  travelKm: number;
+  tzShiftHours: number;
 }
 
 export interface ConditionBreakdown {
@@ -37,14 +49,18 @@ export interface ConditionBreakdown {
   restPenalty: number;
   fatiguePenalty: number;
   experienceOffset: number;
+  travelPenalty: number;
+  jetLagPenalty: number;
 }
 
 export function computePlayerCondition(inputs: ConditionInputs): ConditionBreakdown {
   const alt = altitudePenalty(inputs.elevationMeters);
   const rest = restPenalty(inputs.restDays);
   const fatigue = fatiguePenalty(inputs.recentMinutes);
+  const travel = travelPenalty(inputs.travelKm);
+  const jetLag = jetLagPenalty(inputs.tzShiftHours);
   const offset = experienceOffset(inputs.caps, alt);
-  const score = clamp(100 - alt - rest - fatigue + offset, 0, 100);
+  const score = clamp(100 - alt - rest - fatigue - travel - jetLag + offset, 0, 100);
 
   return {
     score,
@@ -52,6 +68,8 @@ export function computePlayerCondition(inputs: ConditionInputs): ConditionBreakd
     restPenalty: rest,
     fatiguePenalty: fatigue,
     experienceOffset: offset,
+    travelPenalty: travel,
+    jetLagPenalty: jetLag,
   };
 }
 

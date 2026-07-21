@@ -192,6 +192,11 @@ function FixtureCard({
           ⛰ {tm.elevation}m · {elevationTag(tm.elevation)}
         </span>
         <span className="fixture__rest">휴식 {tm.restDays}일</span>
+        {tm.travelKm > 0 && (
+          <span className="travel-badge">
+            ✈ {tm.travelKm}km{tm.tzShiftHours !== 0 ? ` · 시차 ${Math.abs(tm.tzShiftHours)}h` : ""}
+          </span>
+        )}
         {statusNode}
       </div>
     </motion.button>
