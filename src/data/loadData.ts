@@ -22,14 +22,17 @@ async function parseCsv<T>(path: string): Promise<T[]> {
 }
 
 export async function loadTournamentData(): Promise<TournamentData> {
+  // BASE_URL accounts for deployments under a subpath (e.g. GitHub Pages
+  // project sites at /<repo-name>/) as well as local dev at "/".
+  const base = import.meta.env.BASE_URL;
   const [teams, venues, players, matches, lineups, predictionFeatures] =
     await Promise.all([
-      parseCsv<Team>("/data/teams.csv"),
-      parseCsv<Venue>("/data/venues.csv"),
-      parseCsv<Player>("/data/squads_and_players.csv"),
-      parseCsv<MatchDetailed>("/data/matches_detailed.csv"),
-      parseCsv<LineupRow>("/data/match_lineups.csv"),
-      parseCsv<PredictionFeatureRow>("/data/match_prediction_features.csv"),
+      parseCsv<Team>(`${base}data/teams.csv`),
+      parseCsv<Venue>(`${base}data/venues.csv`),
+      parseCsv<Player>(`${base}data/squads_and_players.csv`),
+      parseCsv<MatchDetailed>(`${base}data/matches_detailed.csv`),
+      parseCsv<LineupRow>(`${base}data/match_lineups.csv`),
+      parseCsv<PredictionFeatureRow>(`${base}data/match_prediction_features.csv`),
     ]);
 
   // display all player names in Korean
