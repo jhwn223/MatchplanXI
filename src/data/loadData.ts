@@ -22,6 +22,10 @@ async function parseCsv<T>(path: string): Promise<T[]> {
   return data;
 }
 
+function isKoreaPlayer(player: Player, teams: Team[]): boolean {
+  return teams.find((team) => team.team_id === player.team_id)?.fifa_code === "KOR";
+}
+
 export async function loadTournamentData(): Promise<TournamentData> {
   // BASE_URL accounts for deployments under a subpath (e.g. GitHub Pages
   // project sites at /<repo-name>/) as well as local dev at "/".

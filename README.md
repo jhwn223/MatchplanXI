@@ -1,4 +1,6 @@
-# 고지대 컨디션 전술보드 (Altitude Tactics)
+# 내가 감독이라면?
+
+**Altitude Tactics: 고도와 체력이 승부를 바꾸는 전술 시뮬레이터**
 
 **🔗 Live: https://jhwn223.github.io/altitude-tactics/**
 

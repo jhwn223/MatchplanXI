@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { slotsOf, type FormationKey } from "../data/formation";
 import type { GoalEvent, SimComparison } from "../data/matchSim";
@@ -26,6 +26,7 @@ interface Props {
   startScore?: [number, number];
   /** false = this segment ends at halftime, not full-time */
   final?: boolean;
+  halftimePanel?: ReactNode;
   onComplete: () => void;
   onHalftimeContinue?: () => void;
   onClose: () => void;
@@ -57,6 +58,7 @@ interface ArenaState {
   banner: string | null;
   goalSide: 0 | 1 | null;
   time: number;
+  halftimeTaken: boolean;
   pendingKick?: number | null;
   scoring?: { side: 0 | 1; scorer?: string; t: number } | null;
 }
@@ -97,6 +99,7 @@ export function MatchArena({
   endMinute = 90,
   startScore = [0, 0],
   final = true,
+  halftimePanel,
   onComplete,
   onHalftimeContinue,
   onClose,
@@ -112,6 +115,25 @@ export function MatchArena({
   const [speed, setSpeed] = useState(1);
   const [hud, setHud] = useState({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null as string | null });
   const [ended, setEnded] = useState(false);
+  const [halftime, setHalftime] = useState(false);
+
+  function applyUserFormationToState(s: ArenaState, snapToShape: boolean) {
+    const userSlots = slotsOf(formation);
+    userSlots.forEach((slot, i) => {
+      const dot = s.dots[i];
+      if (!dot || dot.team !== 0) return;
+      const pid = slots[slot.id];
+      const h = homeFor(slot.x, slot.y, 0);
+      dot.hx = h.x;
+      dot.hy = h.y;
+      dot.role = slot.position;
+      dot.num = pid != null ? ((playersById.get(pid)?.player_id ?? i) % 30) + 1 : i + 1;
+      if (snapToShape) {
+        dot.x = h.x;
+        dot.y = h.y;
+      }
+    });
+  }
 
   function buildState(): ArenaState {
     const dots: Dot[] = [];
@@ -139,13 +161,24 @@ export function MatchArena({
       banner: null,
       goalSide: null,
       time: 0,
+      halftimeTaken: false,
     };
   }
+
+  useEffect(() => {
+    const s = stateRef.current;
+    if (!s) return;
+    applyUserFormationToState(s, halftime || pausedRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formation, slots, playersById, halftime]);
 
   useEffect(() => {
     stateRef.current = buildState();
     completedRef.current = false;
     setEnded(false);
+    setHalftime(false);
+    setPaused(false);
+    pausedRef.current = false;
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
 
@@ -263,6 +296,17 @@ export function MatchArena({
       s.clock += dt * MIN_PER_SEC;
       if (s.clock >= endMinute) {
         s.clock = endMinute;
+      if (!s.halftimeTaken && s.clock >= 45) {
+        s.clock = 45;
+        s.halftimeTaken = true;
+        pausedRef.current = true;
+        setPaused(true);
+        setHalftime(true);
+        applyUserFormationToState(s, true);
+        return;
+      }
+      if (s.clock >= 90) {
+        s.clock = 90;
         s.phase = "ended";
         s.score = [sim.userGoals, sim.oppGoals];
         if (!completedRef.current) {
@@ -495,6 +539,35 @@ export function MatchArena({
     completedRef.current = true;
     setEnded(false);
     setHud({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null });
+    setHalftime(false);
+    setPaused(false);
+    pausedRef.current = false;
+    setHud({ minute: 0, home: 0, away: 0, banner: null });
+  }
+
+  function resumeFromHalftime() {
+    const s = stateRef.current;
+    if (s) {
+      applyUserFormationToState(s, true);
+      s.dots.forEach((d) => {
+        d.x = d.hx;
+        d.y = d.hy;
+      });
+      s.ball.x = 50;
+      s.ball.y = 50;
+      s.ball.owner = s.ball.lastTeam === 0 ? 8 : 19;
+      s.ball.flightTo = -1;
+      s.banner = null;
+      s.goalSide = null;
+      s.scoring = null;
+      s.phase = "play";
+      s.actionT = 0.6;
+      s.clock = 45;
+      s.halftimeTaken = true;
+    }
+    pausedRef.current = false;
+    setPaused(false);
+    setHalftime(false);
   }
 
   const cmp = sim.comparison;
@@ -542,19 +615,51 @@ export function MatchArena({
         </div>
 
         {!ended ? (
-          <div className="arena-controls">
-            <button type="button" className="arena-ctrl" onClick={() => { pausedRef.current = !paused; setPaused(!paused); }}>
-              {paused ? "▶ 재생" : "⏸ 일시정지"}
-            </button>
-            {[1, 2, 4].map((sp) => (
+          <>
+            {halftime && (
+              <div className="halftime-banner">
+                <div>
+                  <span className="halftime-banner__eyebrow">HALF TIME</span>
+                  <strong>45분 하프타임</strong>
+                </div>
+                <span>포메이션과 선수를 바꾼 뒤 후반을 시작하세요.</span>
+              </div>
+            )}
+            {halftime && halftimePanel && <div className="halftime-editor">{halftimePanel}</div>}
+            <div className="arena-controls">
+              {halftime ? (
+                <button type="button" className="arena-ctrl arena-ctrl--resume" onClick={resumeFromHalftime}>
+                  ▶ 후반 시작
+                </button>
+              ) : (
+                <button type="button" className="arena-ctrl" onClick={() => { pausedRef.current = !paused; setPaused(!paused); }}>
+                  {paused ? "▶ 재생" : "⏸ 일시정지"}
+                </button>
+              )}
+              {[1, 2, 4].map((sp) => (
+                <button
+                  key={sp}
+                  type="button"
+                  className="arena-ctrl"
+                  data-active={speed === sp || undefined}
+                  onClick={() => { speedRef.current = sp; setSpeed(sp); }}
+                >
+                  {sp}배속
+                </button>
+              ))}
               <button
-                key={sp}
                 type="button"
-                className="arena-ctrl"
-                data-active={speed === sp || undefined}
-                onClick={() => { speedRef.current = sp; setSpeed(sp); }}
+                className="arena-ctrl arena-ctrl--skip"
+                onClick={() => {
+                  const s = stateRef.current!;
+                  s.halftimeTaken = true;
+                  s.clock = 90;
+                  pausedRef.current = false;
+                  setPaused(false);
+                  setHalftime(false);
+                }}
               >
-                {sp}배속
+                결과로 건너뛰기 ⏭
               </button>
             ))}
             <button
@@ -582,6 +687,8 @@ export function MatchArena({
               </button>
             </div>
           </motion.div>
+            </div>
+          </>
         ) : (
           <motion.div className="sim-compare" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <div className="sim-compare__row">
