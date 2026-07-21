@@ -147,7 +147,9 @@ export function autoFillByRole(
       for (const p of players) {
         if (!available.has(p.player_id)) continue;
         const n = norms.get(p.player_id)!;
-        const score = roleAffinity(role, n) * 1.0 + n.condition * 0.6;
+        // a known fine-role dominates the heuristic: strong match bonus, mismatch penalty
+        const pref = p.preferredRole ? (p.preferredRole === role ? 2 : -0.7) : 0;
+        const score = roleAffinity(role, n) * 1.0 + n.condition * 0.6 + pref;
         if (score > bestScore) {
           bestScore = score;
           best = p;

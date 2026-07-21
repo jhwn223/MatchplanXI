@@ -33,6 +33,8 @@ export interface Player {
   date_of_birth: string;
   height_cm: number;
   goals: number;
+  /** optional fine-grained role (ST/W/CB/FB/DM/CM/AM/WM) for accurate auto-placement */
+  preferredRole?: string;
 }
 
 export interface MatchDetailed {

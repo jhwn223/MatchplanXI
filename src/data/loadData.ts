@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { koreanizeName } from "./koreanize";
+import { POSITION_OVERRIDES, ROLE_OVERRIDES } from "./playerOverrides";
 import type {
   LineupRow,
   MatchDetailed,
@@ -35,8 +36,13 @@ export async function loadTournamentData(): Promise<TournamentData> {
       parseCsv<PredictionFeatureRow>(`${base}data/match_prediction_features.csv`),
     ]);
 
-  // display all player names in Korean
+  // correct miscategorised positions/roles, then display names in Korean.
+  // (overrides are keyed by the original English name, so apply before renaming)
   for (const p of players) {
+    const posOv = POSITION_OVERRIDES[p.player_name];
+    if (posOv) p.position = posOv;
+    const roleOv = ROLE_OVERRIDES[p.player_name];
+    if (roleOv) p.preferredRole = roleOv;
     p.player_name = koreanizeName(p.player_name);
   }
 
