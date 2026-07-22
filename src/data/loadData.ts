@@ -25,7 +25,7 @@ async function parseCsv<T>(path: string): Promise<T[]> {
 export async function loadTournamentData(): Promise<TournamentData> {
   // BASE_URL accounts for deployments under a subpath (e.g. GitHub Pages
   // project sites at /<repo-name>/) as well as local dev at "/".
-  const base = import.meta.env.BASE_URL;
+  const base = ((import.meta as any).env?.BASE_URL as string) || "/";
   const [teams, venues, players, matches, lineups, predictionFeatures] =
     await Promise.all([
       parseCsv<Team>(`${base}data/teams.csv`),

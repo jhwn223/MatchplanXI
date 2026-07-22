@@ -372,9 +372,12 @@ export function MatchBoard({
 
   const activePlayer = activeDragId != null ? playersById.get(activeDragId) : null;
   const ready = placedIds.size === 11;
-
   const primaryAction =
-    phase === "halftime" ? startSecondHalf : phase === "etbreak" ? startExtraTime : kickoff;
+    phase === "halftime"
+      ? startSecondHalf
+      : phase === "etbreak"
+        ? startExtraTime
+        : kickoff;
   const primaryLabel = !ready
     ? `선발 ${placedIds.size}/11 배치 필요`
     : phase === "halftime"
@@ -472,7 +475,11 @@ export function MatchBoard({
           </main>
 
           <section className="board__bench">
-            <Bench benchPlayers={benchPlayers} conditions={conditions} benchedOut={benchedOut} />
+            <Bench
+              benchPlayers={benchPlayers}
+              conditions={conditions}
+              benchedOut={benchedOut}
+            />
           </section>
         </div>
       </div>
