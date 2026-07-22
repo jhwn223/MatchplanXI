@@ -139,8 +139,17 @@ function hashNum(id: string): number {
   return h >>> 0;
 }
 
-/** user KO results: koId -> {userGoals, oppGoals} */
-export type KOResults = Record<string, { userGoals: number; oppGoals: number }>;
+/** user KO results: koId -> {userGoals, oppGoals}, plus a shootout outcome if it went there */
+export type KOResults = Record<
+  string,
+  {
+    userGoals: number;
+    oppGoals: number;
+    wentToPenalties?: boolean;
+    userPenGoals?: number;
+    oppPenGoals?: number;
+  }
+>;
 
 function koSimWinner(seed: number, a: KOTeam, b: KOTeam) {
   const r = quickSimScore(seed, a.elo, b.elo);
@@ -193,7 +202,14 @@ export function buildBracket(
             bGoals = aUser ? res.oppGoals : res.userGoals;
             if (aGoals > bGoals) winner = a;
             else if (bGoals > aGoals) winner = b;
-            else { winner = mulberry32(hashNum(id))() < 0.5 ? a : b; pens = true; }
+            else if (res.wentToPenalties) {
+              pens = true;
+              const userWonPens = (res.userPenGoals ?? 0) > (res.oppPenGoals ?? 0);
+              winner = aUser ? (userWonPens ? a : b) : userWonPens ? b : a;
+            } else {
+              winner = mulberry32(hashNum(id))() < 0.5 ? a : b;
+              pens = true;
+            }
           }
         } else {
           const w = koSimWinner(hashNum(id) + a.elo + b.elo, a, b);

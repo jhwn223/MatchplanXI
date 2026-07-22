@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { slotsOf, type FormationKey } from "../data/formation";
+import { canPlaceInSlot } from "../data/tactics";
 import type { SimResult } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
+import { SubPanel, type OnPitchEntry } from "./SubPanel";
+import { topAssists, topScorers, type Leaderboard } from "../data/leaderboard";
+
+const MAX_SUBS = 5;
+const MAX_SUBS_ET = 6; // extra time grants one additional substitution
 
 interface Props {
   sim: SimResult;
@@ -14,6 +20,8 @@ interface Props {
   formation: FormationKey;
   slots: Record<string, number | null>;
   playersById: Map<number, Player>;
+  squad: Player[];
+  leaderboard: Leaderboard;
   onComplete: () => void;
   onClose: () => void;
 }
@@ -33,7 +41,7 @@ interface Dot {
 
 interface ArenaState {
   clock: number;
-  phase: "play" | "celebrate" | "ended";
+  phase: "play" | "celebrate" | "penalties" | "ended";
   celebrateT: number;
   actionT: number;
   score: [number, number];
@@ -44,7 +52,12 @@ interface ArenaState {
   goalSide: 0 | 1 | null;
   time: number;
   pendingKick?: number | null;
-  scoring?: { side: 0 | 1; scorer?: string; t: number } | null;
+  scoring?: { side: 0 | 1; scorer?: string; assist?: string; t: number } | null;
+  periodBanner: string | null;
+  periodBannerT: number;
+  announcedET1: boolean;
+  announcedET2: boolean;
+  penT: number;
 }
 
 const MIN_PER_SEC = 3.4; // 90' in ~26s at 1x
@@ -79,6 +92,8 @@ export function MatchArena({
   formation,
   slots,
   playersById,
+  squad,
+  leaderboard,
   onComplete,
   onClose,
 }: Props) {
@@ -90,8 +105,61 @@ export function MatchArena({
 
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [hud, setHud] = useState({ minute: 0, home: 0, away: 0, banner: null as string | null });
+  const [hud, setHud] = useState({
+    minute: 0,
+    home: 0,
+    away: 0,
+    banner: null as string | null,
+    periodBanner: null as string | null,
+  });
   const [ended, setEnded] = useState(false);
+
+  // --- substitutions (record-only: swaps who is on the pitch, up to MAX_SUBS) ---
+  const [lineupMap, setLineupMap] = useState<Record<string, number>>(() => {
+    const m: Record<string, number> = {};
+    for (const s of slotsOf(formation)) {
+      const pid = slots[s.id];
+      if (pid != null) m[s.id] = pid;
+    }
+    return m;
+  });
+  const [offIds, setOffIds] = useState<Set<number>>(() => new Set());
+  const [subsUsed, setSubsUsed] = useState(0);
+  const subLogRef = useRef<{ minute: number; outId: number; inId: number }[]>([]);
+
+  const fullDuration = sim.wentToExtraTime ? 120 : 90;
+  const maxSubs = sim.wentToExtraTime ? MAX_SUBS_ET : MAX_SUBS;
+
+  const onPitch: OnPitchEntry[] = slotsOf(formation)
+    .map((s) => {
+      const pid = lineupMap[s.id];
+      const player = pid != null ? playersById.get(pid) : undefined;
+      return player ? { slotId: s.id, label: s.label, position: s.position, player } : null;
+    })
+    .filter((e): e is OnPitchEntry => e != null);
+
+  const onPitchIds = new Set(Object.values(lineupMap));
+  const bench = squad.filter((p) => !onPitchIds.has(p.player_id) && !offIds.has(p.player_id));
+
+  function handleSub(slotId: string, inId: number) {
+    if (subsUsed >= maxSubs) return;
+    const outId = lineupMap[slotId];
+    if (outId == null || outId === inId) return;
+
+    setLineupMap((prev) => ({ ...prev, [slotId]: inId }));
+    setOffIds((prev) => new Set(prev).add(outId));
+    setSubsUsed((n) => n + 1);
+
+    const minute = Math.floor(stateRef.current?.clock ?? 0);
+    subLogRef.current.push({ minute, outId, inId });
+
+    // update the jersey number of the matching pitch dot so the swap shows on canvas
+    const idx = slotsOf(formation).findIndex((s) => s.id === slotId);
+    const st = stateRef.current;
+    if (st && idx >= 0 && st.dots[idx]) {
+      st.dots[idx].num = (inId % 30) + 1;
+    }
+  }
 
   function buildState(): ArenaState {
     const dots: Dot[] = [];
@@ -119,6 +187,11 @@ export function MatchArena({
       banner: null,
       goalSide: null,
       time: 0,
+      periodBanner: null,
+      periodBannerT: 0,
+      announcedET1: false,
+      announcedET2: false,
+      penT: 0,
     };
   }
 
@@ -177,7 +250,7 @@ export function MatchArena({
       s.actionT = 0.35 + rng() * 0.45;
     }
 
-    function triggerGoal(s: ArenaState, side: 0 | 1, scorer?: string) {
+    function triggerGoal(s: ArenaState, side: 0 | 1, scorer?: string, assist?: string) {
       s.phase = "celebrate";
       s.celebrateT = 1.9;
       s.goalSide = side;
@@ -189,7 +262,8 @@ export function MatchArena({
       s.ball.flightTo = -1;
       s.ball.x = gm.x;
       s.ball.y = gm.y;
-      s.banner = side === 0 ? `${scorer ?? userTeamName}` : oppTeamName;
+      s.banner =
+        side === 0 ? `${scorer ?? userTeamName}${assist ? ` (도움: ${assist})` : ""}` : oppTeamName;
     }
 
     function kickoff(s: ArenaState, toTeam: 0 | 1) {
@@ -210,9 +284,9 @@ export function MatchArena({
     }
 
     // begin a scripted attack toward goal; GOAL only fires once the ball arrives
-    function startScoring(s: ArenaState, side: 0 | 1, scorer?: string) {
+    function startScoring(s: ArenaState, side: 0 | 1, scorer?: string, assist?: string) {
       if (s.scoring) return;
-      s.scoring = { side, scorer, t: 0 };
+      s.scoring = { side, scorer, assist, t: 0 };
       const gm = goalMouth(side);
       let best = -1;
       let bmin = Infinity;
@@ -229,10 +303,31 @@ export function MatchArena({
       s.ball.flightTo = -1;
     }
 
+    function finishMatch(s: ArenaState) {
+      s.phase = "ended";
+      s.score = [sim.userGoals, sim.oppGoals];
+      if (!completedRef.current) {
+        completedRef.current = true;
+        onComplete();
+        setEnded(true);
+      }
+    }
+
     function update(dt: number) {
       const s = stateRef.current!;
       if (s.phase === "ended") return;
       s.time += dt;
+
+      if (s.periodBannerT > 0) {
+        s.periodBannerT -= dt;
+        if (s.periodBannerT <= 0) s.periodBanner = null;
+      }
+
+      if (s.phase === "penalties") {
+        s.penT -= dt;
+        if (s.penT <= 0) finishMatch(s);
+        return;
+      }
 
       if (s.phase === "celebrate") {
         s.celebrateT -= dt;
@@ -240,15 +335,29 @@ export function MatchArena({
         return;
       }
 
+      if (fullDuration > 90) {
+        if (!s.announcedET1 && s.clock >= 90) {
+          s.announcedET1 = true;
+          s.periodBanner = "연장 전반";
+          s.periodBannerT = 2.2;
+        }
+        if (!s.announcedET2 && s.clock >= 105) {
+          s.announcedET2 = true;
+          s.periodBanner = "연장 후반";
+          s.periodBannerT = 2.2;
+        }
+      }
+
       s.clock += dt * MIN_PER_SEC;
-      if (s.clock >= 90) {
-        s.clock = 90;
-        s.phase = "ended";
-        s.score = [sim.userGoals, sim.oppGoals];
-        if (!completedRef.current) {
-          completedRef.current = true;
-          onComplete();
-          setEnded(true);
+      if (s.clock >= fullDuration) {
+        s.clock = fullDuration;
+        if (sim.penalties) {
+          s.phase = "penalties";
+          s.penT = 3.6;
+          s.periodBanner = "승부차기";
+          s.periodBannerT = 3.6;
+        } else {
+          finishMatch(s);
         }
         return;
       }
@@ -257,7 +366,7 @@ export function MatchArena({
       if (!s.scoring && s.nextGoal < sim.goals.length && s.clock >= sim.goals[s.nextGoal].minute) {
         const g = sim.goals[s.nextGoal];
         s.nextGoal++;
-        startScoring(s, g.side === "user" ? 0 : 1, g.scorer);
+        startScoring(s, g.side === "user" ? 0 : 1, g.scorer, g.assist);
       }
 
       if (s.pendingKick != null) {
@@ -276,7 +385,7 @@ export function MatchArena({
         }
         const arrived = owner ? Math.abs(owner.x - gm.x) < 9 : Math.abs(s.ball.x - gm.x) < 9;
         if (arrived || s.scoring.t > 2.6) {
-          triggerGoal(s, s.scoring.side, s.scoring.scorer);
+          triggerGoal(s, s.scoring.side, s.scoring.scorer, s.scoring.assist);
           return;
         }
       } else {
@@ -452,11 +561,20 @@ export function MatchArena({
       if (hudAcc > 0.08) {
         hudAcc = 0;
         const s = stateRef.current!;
+        const periodBanner =
+          s.phase === "penalties"
+            ? s.penT > 2.1
+              ? "승부차기"
+              : `PK ${sim.penalties?.userGoals} : ${sim.penalties?.oppGoals}`
+            : s.periodBannerT > 0
+              ? s.periodBanner
+              : null;
         setHud({
           minute: Math.floor(s.clock),
           home: s.score[0],
           away: s.score[1],
           banner: s.phase === "celebrate" ? s.banner : null,
+          periodBanner,
         });
       }
       raf = requestAnimationFrame(step);
@@ -474,10 +592,12 @@ export function MatchArena({
     stateRef.current = buildState();
     completedRef.current = true;
     setEnded(false);
-    setHud({ minute: 0, home: 0, away: 0, banner: null });
+    setHud({ minute: 0, home: 0, away: 0, banner: null, periodBanner: null });
   }
 
   const cmp = sim.comparison;
+  const scorers = topScorers(leaderboard);
+  const assisters = topAssists(leaderboard);
 
   return (
     <motion.div className="sim-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -505,6 +625,19 @@ export function MatchArena({
         <div className="arena-canvas-wrap">
           <canvas ref={canvasRef} className="arena-canvas" />
           <AnimatePresence>
+            {hud.periodBanner && (
+              <motion.div
+                key={hud.periodBanner}
+                className="arena-banner"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
+                {hud.periodBanner}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
             {hud.banner && (
               <motion.div
                 key="goal"
@@ -518,7 +651,17 @@ export function MatchArena({
                 <span className="arena-goal__scorer">⚽ {hud.banner}</span>
               </motion.div>
             )}
-          </AnimatePresence>
+         </AnimatePresence>
+          {paused && !ended && (
+            <SubPanel
+              onPitch={onPitch}
+              bench={bench}
+              subsUsed={subsUsed}
+              maxSubs={maxSubs}
+              canPlaceInSlot={canPlaceInSlot}
+              onSub={handleSub}
+            />
+          )}
         </div>
 
         {!ended ? (
@@ -540,13 +683,22 @@ export function MatchArena({
             <button
               type="button"
               className="arena-ctrl arena-ctrl--skip"
-              onClick={() => { stateRef.current!.clock = 90; }}
+              onClick={() => { stateRef.current!.clock = fullDuration; }}
             >
               결과로 건너뛰기 ⏭
             </button>
           </div>
         ) : (
           <motion.div className="sim-compare" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            {sim.wentToExtraTime && (
+              <p className="sim-compare__et">
+                90분 {sim.regulationUserGoals}-{sim.regulationOppGoals} → 연장 {sim.userGoals}-{sim.oppGoals}
+                {sim.penalties &&
+                  ` → 승부차기 ${sim.penalties.userGoals}-${sim.penalties.oppGoals} (${
+                    sim.penalties.winner === "user" ? userTeamName : oppTeamName
+                  } 승)`}
+              </p>
+            )}
             <div className="sim-compare__row">
               <div className="sim-compare__col">
                 <span className="sim-compare__label">내 전술 결과</span>
@@ -565,6 +717,31 @@ export function MatchArena({
             </div>
             <p className="sim-compare__verdict">{cmp.verdict}</p>
             <p className="sim-compare__tactics">🧩 {cmp.tacticsNote}</p>
+
+            <div className="team-stats">
+              <h4 className="team-stats__title">팀 스탯</h4>
+              <TeamStatBar
+                label="패스 성공률"
+                userVal={sim.teamStats.user.passSuccessRate}
+                oppVal={sim.teamStats.opp.passSuccessRate}
+              />
+              <TeamStatBar
+                label="GK 선방률"
+                userVal={sim.teamStats.user.saveRate}
+                oppVal={sim.teamStats.opp.saveRate}
+                userSub={`${sim.teamStats.user.saves}/${sim.teamStats.user.shotsFaced} 선방`}
+                oppSub={`${sim.teamStats.opp.saves}/${sim.teamStats.opp.shotsFaced} 선방`}
+              />
+            </div>
+
+            <div className="leaderboard">
+              <h4 className="leaderboard__title">🏆 대회 누적 순위 — {userTeamName}</h4>
+              <div className="leaderboard__cols">
+                <LeaderboardCol title="⚽ 득점왕" rows={scorers} field="goals" />
+                <LeaderboardCol title="🎯 어시스트왕" rows={assisters} field="assists" />
+              </div>
+            </div>
+
             <div className="sim-compare__actions">
               <button type="button" className="sim-btn sim-btn--ghost" onClick={replay}>
                 다시 보기
@@ -577,6 +754,69 @@ export function MatchArena({
         )}
       </motion.div>
     </motion.div>
+  );
+}
+
+function TeamStatBar({
+  label,
+  userVal,
+  oppVal,
+  userSub,
+  oppSub,
+}: {
+  label: string;
+  userVal: number;
+  oppVal: number;
+  userSub?: string;
+  oppSub?: string;
+}) {
+  const total = userVal + oppVal;
+  const userShare = total > 0 ? (userVal / total) * 100 : 50;
+  return (
+    <div className="stat-bar">
+      <div className="stat-bar__nums">
+        <span className="stat-bar__val">
+          {userVal}%{userSub ? <span className="stat-bar__sub"> · {userSub}</span> : null}
+        </span>
+        <span className="stat-bar__label">{label}</span>
+        <span className="stat-bar__val stat-bar__val--opp">
+          {oppSub ? <span className="stat-bar__sub">{oppSub} · </span> : null}
+          {oppVal}%
+        </span>
+      </div>
+      <div className="stat-bar__track">
+        <div className="stat-bar__fill" style={{ width: `${userShare}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function LeaderboardCol({
+  title,
+  rows,
+  field,
+}: {
+  title: string;
+  rows: { name: string; goals: number; assists: number }[];
+  field: "goals" | "assists";
+}) {
+  return (
+    <div className="leaderboard__col">
+      <h5 className="leaderboard__col-title">{title}</h5>
+      {rows.length === 0 ? (
+        <p className="leaderboard__empty">아직 기록 없음</p>
+      ) : (
+        <ol className="leaderboard__list">
+          {rows.map((r, i) => (
+            <li key={r.name} className="leaderboard__row">
+              <span className="leaderboard__rank">{i + 1}</span>
+              <span className="leaderboard__name">{r.name}</span>
+              <span className="leaderboard__count">{r[field]}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 

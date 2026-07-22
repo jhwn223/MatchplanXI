@@ -14,12 +14,14 @@ import { computeTeamIndex } from "../data/conditionEngine";
 import { stageLabelKo, type TeamMatch } from "../data/tournament";
 import {
   autoFillBestXI,
+  canPlaceInSlot,
   remapFormation,
   type Slots,
   type TacticalPreset,
 } from "../data/tactics";
 import { simulateMatch, type SimResult } from "../data/matchSim";
 import type { PlayedResult } from "../data/tournament";
+import type { Leaderboard } from "../data/leaderboard";
 import { usePlayerConditions } from "../hooks/usePlayerConditions";
 import { useDropSound } from "../hooks/useDropSound";
 import type { Player, Team, TournamentData } from "../data/types";
@@ -49,6 +51,8 @@ interface Props {
   onChangeLineup: (next: Lineup) => void;
   onBack: () => void;
   onPlayed: (matchId: number, result: PlayedResult) => void;
+  onMatchSim: (sim: SimResult) => void;
+  leaderboard: Leaderboard;
 }
 
 export function MatchBoard({
@@ -60,6 +64,8 @@ export function MatchBoard({
   onChangeLineup,
   onBack,
   onPlayed,
+  onMatchSim,
+  leaderboard,
 }: Props) {
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
   const [soundOn, setSoundOn] = useState(false);
@@ -153,7 +159,7 @@ export function MatchBoard({
 
     const targetSlot = formationDef.find((s) => s.id === targetId);
     if (!targetSlot) return;
-    if (targetSlot.position !== player.position) return; // gate
+    if (!canPlaceInSlot(player.position, targetSlot.position)) return; // adjacent tiers only, GK is a wall
 
     const next = { ...lineup.slots };
     if (d.from !== BENCH_ZONE_ID) next[d.from] = null;
@@ -166,6 +172,7 @@ export function MatchBoard({
   const m = activeMatch.match;
   const opponent = data.teams.find((t) => t.team_name === activeMatch.opponentName);
   const hasActual = m.status === "Completed" && m.home_score != null && m.away_score != null;
+  const isKnockout = m.stage_name !== "Group Stage";
 
   function kickoff() {
     if (placedIds.size < 11 || teamIndex == null) return;
@@ -196,6 +203,7 @@ export function MatchBoard({
       actual: hasActual
         ? { userGoals: actualUserGoals, oppGoals: actualOppGoals, resultType: m.result_type }
         : null,
+      isKnockout,
     });
     setSim(result);
   }
@@ -295,10 +303,29 @@ export function MatchBoard({
             formation={lineup.formation}
             slots={lineup.slots}
             playersById={playersById}
+            squad={squad}
+            leaderboard={leaderboard}
             onComplete={() => {
               const homeGoals = activeMatch.isHome ? sim.userGoals : sim.oppGoals;
               const awayGoals = activeMatch.isHome ? sim.oppGoals : sim.userGoals;
-              onPlayed(m.match_id, { homeGoals, awayGoals });
+              const homePenGoals = sim.penalties
+                ? activeMatch.isHome
+                  ? sim.penalties.userGoals
+                  : sim.penalties.oppGoals
+                : undefined;
+              const awayPenGoals = sim.penalties
+                ? activeMatch.isHome
+                  ? sim.penalties.oppGoals
+                  : sim.penalties.userGoals
+                : undefined;
+              onPlayed(m.match_id, {
+                homeGoals,
+                awayGoals,
+                wentToPenalties: sim.penalties != null,
+                homePenGoals,
+                awayPenGoals,
+              });
+              onMatchSim(sim);
             }}
             onClose={() => setSim(null)}
           />
