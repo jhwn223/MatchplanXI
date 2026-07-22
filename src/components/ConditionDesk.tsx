@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { usePlayerConditions } from "../hooks/usePlayerConditions";
 import { conditionColor, computeTeamIndex } from "../data/conditionEngine";
-import { getTeamMatches, type TeamMatch } from "../data/tournament";
+import { getTeamMatches, type PlayedMap, type TeamMatch } from "../data/tournament";
 import type { Position, Team, TournamentData } from "../data/types";
 
 interface Props {
   data: TournamentData;
   team: Team;
+  played: PlayedMap;
   restBias: Record<number, number>;
   onChangeRestBias: (playerId: number, value: number) => void;
   onBack: () => void;
@@ -18,13 +19,16 @@ function formatEur(v: number): string {
   return `€${(v / 1_000_000).toFixed(1)}M`;
 }
 
-export function ConditionDesk({ data, team, restBias, onChangeRestBias, onBack }: Props) {
+export function ConditionDesk({ data, team, played, restBias, onChangeRestBias, onBack }: Props) {
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const teamMatches = useMemo(() => getTeamMatches(data, team.team_name), [data, team.team_name]);
   const refMatch: TeamMatch | null = useMemo(
-    () => teamMatches.find((tm) => tm.match.status !== "Completed") ?? teamMatches[0] ?? null,
-    [teamMatches]
+    () =>
+      teamMatches.find((tm) => !played[tm.match.match_id]) ??
+      teamMatches[teamMatches.length - 1] ??
+      null,
+    [teamMatches, played]
   );
   const restBiasMap = useMemo(() => {
     const m = new Map<number, number>();

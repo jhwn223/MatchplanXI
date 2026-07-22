@@ -161,6 +161,7 @@ function App() {
       <ConditionDesk
         data={data}
         team={team}
+        played={played}
         restBias={restBias}
         onChangeRestBias={changeRestBias}
         onBack={() => setView("hub")}
