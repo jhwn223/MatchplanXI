@@ -1,31 +1,30 @@
 {
-  "generatedAt": "2026-07-22T18:50:50.080Z",
-  "matched": 137,
-  "unmatched": 397,
+  "generatedAt": "2026-07-22T20:08:30.158Z",
+  "matched": 890,
+  "unmatched": 358,
+  "rosterPlayers": 1248,
+  "selectedPlayers": 412,
+  "completedPlayers": 412,
+  "addedThisRun": 54,
   "failures": [
+    {
+      "playerId": 18,
+      "playerName": "Obed Goméz Vargas",
+      "reason": "wikidata-match-not-found"
+    },
     {
       "playerId": 22,
       "playerName": "Guillermo Martinez",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 19,
-      "playerName": "Gilberto Rafael Mora",
+      "playerId": 28,
+      "playerName": "Tholo Thabang Matuludi",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 35,
-      "playerName": "Lyle Brent Foster",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 40,
-      "playerName": "Mbekezeli Mfanufikile Mbokazi",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 36,
-      "playerName": "Relebohile Mofokeng",
+      "playerId": 29,
+      "playerName": "Khulumani Ndamane",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -34,8 +33,8 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 41,
-      "playerName": "Iqraam Rayners",
+      "playerId": 31,
+      "playerName": "Thalente Wandile Mbatha",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -44,33 +43,88 @@
       "reason": "wikidata-match-not-found"
     },
     {
+      "playerId": 34,
+      "playerName": "Tshepang Moremi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 35,
+      "playerName": "Lyle Brent Foster",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 36,
+      "playerName": "Relebohile Mofokeng",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 37,
+      "playerName": "Themba Zwane",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 39,
+      "playerName": "Sphephelo S'miso Sithole",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 40,
+      "playerName": "Mbekezeli Mfanufikile Mbokazi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 41,
+      "playerName": "Iqraam Rayners",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 42,
+      "playerName": "Sipho Justin Chaine",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 43,
+      "playerName": "Sekotori Evidence Makgopa",
+      "reason": "wikidata-match-not-found"
+    },
+    {
       "playerId": 44,
       "playerName": "Samukele Alucious Kabini",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 31,
-      "playerName": "Thalente Wandile Mbatha",
+      "playerId": 45,
+      "playerName": "Nkosinathi Emmanuel Sibisi",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 32,
-      "playerName": "Aubrey Maphosa Modiba",
+      "playerId": 46,
+      "playerName": "Khuliso Johnson Mudau",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 75,
-      "playerName": "Jens Castrop",
+      "playerId": 47,
+      "playerName": "Ime Daniel Okon",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 58,
-      "playerName": "Inbeom Hwang",
+      "playerId": 48,
+      "playerName": "Stuart Ricardo Goss",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 74,
-      "playerName": "Youngwoo Seol",
+      "playerId": 51,
+      "playerName": "Kamogelo Michael Sebelebele",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 52,
+      "playerName": "Bradley Paul Cross",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 53,
+      "playerName": "Seunggyu Kim",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -79,8 +133,63 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 101,
-      "playerName": "Lukáš Hornicek",
+      "playerId": 55,
+      "playerName": "Gihyuk Lee",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 57,
+      "playerName": "Taehyeon Kim",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 58,
+      "playerName": "Inbeom Hwang",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 61,
+      "playerName": "Guesung Cho",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 65,
+      "playerName": "Taeseok Lee",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 66,
+      "playerName": "Wije Cho",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 68,
+      "playerName": "Jinseob Park",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 73,
+      "playerName": "Hyeonwoo Jo",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 74,
+      "playerName": "Youngwoo Seol",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 75,
+      "playerName": "Jens Castrop",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 76,
+      "playerName": "Jingyu Kim",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 79,
+      "playerName": "Mat ě j Kovar",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -94,23 +203,53 @@
       "reason": "wikidata-match-not-found"
     },
     {
+      "playerId": 90,
+      "playerName": "Lukáš Cerv",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 91,
+      "playerName": "Mojmír Chytil",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 92,
+      "playerName": "David Jurasek",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 94,
+      "playerName": "Jind ř ich Stanek",
+      "reason": "wikidata-match-not-found"
+    },
+    {
       "playerId": 95,
       "playerName": "Lukáš Provod",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 96,
-      "playerName": "Michal Sadilek",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Michal_Sad%C3%ADlek%2C_U21_CZE-GRE_2019-10-10_%282%29.jpg/330px-Michal_Sad%C3%ADlek%2C_U21_CZE-GRE_2019-10-10_%282%29.jpg"
+      "playerId": 101,
+      "playerName": "Lukáš Hornicek",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 80,
-      "playerName": "David Zima",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/David_Zima_CZE-KUW_2021-11-11_%28cropped%29.jpg/330px-David_Zima_CZE-KUW_2021-11-11_%28cropped%29.jpg"
+      "playerId": 102,
+      "playerName": "Alexandr Sojka",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 119,
-      "playerName": "Moïse Bombito Bombito",
+      "playerId": 103,
+      "playerName": "Hugo Sochurek",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 104,
+      "playerName": "Denis Visinsky",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 105,
+      "playerName": "Dayne Tristan St. Clair",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -119,14 +258,14 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 107,
-      "playerName": "Alfie Charles Jones",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Alfie_Jones_16082025_%281%29.jpg/330px-Alfie_Jones_16082025_%281%29.jpg"
+      "playerId": 132,
+      "playerName": "Nihad Mujakic",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 134,
-      "playerName": "Tarik Muharemovic",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/FC_Internazionale_Milano_v_US_Sassuolo_Calcio%2C_21_September_2025_-_08_%28Tarik_Muharemovi%C4%87%29.jpg/330px-FC_Internazionale_Milano_v_US_Sassuolo_Calcio%2C_21_September_2025_-_08_%28Tarik_Muharemovi%C4%87%29.jpg"
+      "playerId": 139,
+      "playerName": "Samed Bazdar",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 140,
@@ -134,34 +273,9 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 149,
-      "playerName": "Kerim Alajbegovic",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/Jahresbeginnfeier_FC_RB_Salzburg_%282026-01-25_RB_Arena%29_10.jpg/330px-Jahresbeginnfeier_FC_RB_Salzburg_%282026-01-25_RB_Arena%29_10.jpg"
-    },
-    {
-      "playerId": 137,
-      "playerName": "Amar Dedic",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/%282024-09-10_%29_FC_RB_Salzburg_gegen_SCR_Altach_24.jpg/330px-%282024-09-10_%29_FC_RB_Salzburg_gegen_SCR_Altach_24.jpg"
-    },
-    {
-      "playerId": 150,
-      "playerName": "Esmir Bajraktarevic",
+      "playerId": 142,
+      "playerName": "Mladen Jurkas",
       "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 156,
-      "playerName": "Ermin Mahmic",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/FC_Liefering_gegen_SV_Lafnitz_%282024-05-25%29_25_%28Ermin_Mahmi%C4%87%29.jpg/330px-FC_Liefering_gegen_SV_Lafnitz_%282024-05-25%29_25_%28Ermin_Mahmi%C4%87%29.jpg"
-    },
-    {
-      "playerId": 131,
-      "playerName": "Nikola Vasilj",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/2025-04-23_-_FC_St_Pauli_-_Nikola_Vasilj_%28cropped%29.jpg/330px-2025-04-23_-_FC_St_Pauli_-_Nikola_Vasilj_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 136,
-      "playerName": "Benjamin Tahirovic",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Benjamin_Tahirovi%C4%87_-_GAE_-_Ajax_%2853465349575%29.jpg/330px-Benjamin_Tahirovi%C4%87_-_GAE_-_Ajax_%2853465349575%29.jpg"
     },
     {
       "playerId": 145,
@@ -169,53 +283,18 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 135,
-      "playerName": "Sead Kolasinac",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/1_Sead_Kola%C5%A1inac_2018_%28cropped2%29.jpg/330px-1_Sead_Kola%C5%A1inac_2018_%28cropped2%29.jpg"
-    },
-    {
-      "playerId": 146,
-      "playerName": "Amir Hadziahmetovic",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Amir_Had%C5%BEiahmetovi%C4%87_playing_for_Be%C5%9Fikta%C5%9F_%28cropped%29.jpg/330px-Amir_Had%C5%BEiahmetovi%C4%87_playing_for_Be%C5%9Fikta%C5%9F_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 177,
-      "playerName": "Zakaria Salah Zakaria",
+      "playerId": 150,
+      "playerName": "Esmir Bajraktarevic",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 178,
-      "playerName": "Aissa Meshaal Barsham",
+      "playerId": 151,
+      "playerName": "Stjepan Radeljic",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 179,
-      "playerName": "Omer Assim Madibo",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 174,
-      "playerName": "Hussain Sultan",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 170,
-      "playerName": "Elamin Homam",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 171,
-      "playerName": "Abdurisag Yusuf Abdurisag",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 168,
-      "playerName": "Karim Karim Boudiaf",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 158,
-      "playerName": "Miguel Pedro",
+      "playerId": 152,
+      "playerName": "Martin Zlomislic",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -224,8 +303,23 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 181,
-      "playerName": "Alhussein Alhashmi",
+      "playerId": 158,
+      "playerName": "Miguel Pedro",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 159,
+      "playerName": "Michel Lucas",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 161,
+      "playerName": "Gaber Jassem",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 162,
+      "playerName": "Hatim Abdulaziz Hatem",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -234,68 +328,123 @@
       "reason": "wikidata-match-not-found"
     },
     {
+      "playerId": 164,
+      "playerName": "Junior Edmilson",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 166,
+      "playerName": "Khalid Hassan Alhaydos",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 167,
+      "playerName": "Hassan Akram",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 169,
+      "playerName": "Mohamed Ayoub Aloui",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 170,
+      "playerName": "Elamin Homam",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 172,
+      "playerName": "KHOUKHIBoualem Boualem",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 173,
+      "playerName": "Mohamed Ahmed Alganehi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 174,
+      "playerName": "Hussain Sultan",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 176,
+      "playerName": "Fathy Ahmed Fathy",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 180,
+      "playerName": "Mohammad Tahsin",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 181,
+      "playerName": "Alhussein Alhashmi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 182,
+      "playerName": "Naceur Mohamed Manai",
+      "reason": "wikidata-match-not-found"
+    },
+    {
       "playerId": 191,
       "playerName": "Johan Kula Manzambi",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 183,
-      "playerName": "Gregor Kobel",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/2023-08-12_TSV_Schott_Mainz_gegen_Borussia_Dortmund_%28DFB-Pokal_2023-24%29_by_Sandro_Halank%E2%80%93090.jpg/330px-2023-08-12_TSV_Schott_Mainz_gegen_Borussia_Dortmund_%28DFB-Pokal_2023-24%29_by_Sandro_Halank%E2%80%93090.jpg"
-    },
-    {
-      "playerId": 193,
-      "playerName": "Dan Ndoye",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Lens_-_Nice_%2823-01-2021%29_52.jpg/330px-Lens_-_Nice_%2823-01-2021%29_52.jpg"
-    },
-    {
-      "playerId": 196,
-      "playerName": "Ardon Jashari",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Ardon_Jashari.jpg/330px-Ardon_Jashari.jpg"
-    },
-    {
-      "playerId": 201,
-      "playerName": "Noah Arinzechukwu Okafor",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/FC_RB_Salzburg_gegen_FK_Austria_Wien_%282022-04-24%29_68.jpg/330px-FC_RB_Salzburg_gegen_FK_Austria_Wien_%282022-04-24%29_68.jpg"
-    },
-    {
-      "playerId": 187,
-      "playerName": "Manuel Obafemi Akanji",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/2023-10-04_Fu%C3%9Fball%2C_M%C3%A4nner%2C_UEFA_Champions_League%2C_RB_Leipzig_-_Manchester_City_FC_1DX_2792_%28Manuel_Akanji%29.jpg/330px-2023-10-04_Fu%C3%9Fball%2C_M%C3%A4nner%2C_UEFA_Champions_League%2C_RB_Leipzig_-_Manchester_City_FC_1DX_2792_%28Manuel_Akanji%29.jpg"
-    },
-    {
-      "playerId": 194,
-      "playerName": "Yvon Landry Mvogo",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/YB_vs._FCL_-_Mvogo_2b.jpg/330px-YB_vs._FCL_-_Mvogo_2b.jpg"
-    },
-    {
-      "playerId": 189,
-      "playerName": "Breel Donald Embolo",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/2022128160447_2022-05-08_Fussball_Eintracht_Frankfurt_vs_Borussia_M%C3%B6nchengladbach_-_Sven_-_1D_X_MK_II_-_1422_-_B70I7533_%28cropped%29.jpg/330px-2022128160447_2022-05-08_Fussball_Eintracht_Frankfurt_vs_Borussia_M%C3%B6nchengladbach_-_Sven_-_1D_X_MK_II_-_1422_-_B70I7533_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 195,
-      "playerName": "Ricardo Ivan Rodriguez",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/Ricardo_Rodr%C3%ADguez_2018.jpg/330px-Ricardo_Rodr%C3%ADguez_2018.jpg"
-    },
-    {
-      "playerId": 197,
-      "playerName": "Djibril Ibrahima Sow",
+      "playerId": 202,
+      "playerName": "Michel Aebischer",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 219,
-      "playerName": "Raphael Raphinha",
+      "playerId": 203,
+      "playerName": "Marvin Keller",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 217,
-      "playerName": "Matheus Matheus Cunha",
+      "playerId": 204,
+      "playerName": "Fabian Rieder",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 228,
-      "playerName": "Lucas Lucas Paqueta",
+      "playerId": 205,
+      "playerName": "Mohamed Zeki Amdouni",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 206,
+      "playerName": "Aurèle Florian Amenda",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 207,
+      "playerName": "Luca Antony Jaquez",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 209,
+      "playerName": "Ramsés Alisson",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 212,
+      "playerName": "MARQUINHOSMarcos",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 213,
+      "playerName": "Henrique",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 214,
+      "playerName": "Sandro Alex",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 215,
+      "playerName": "José Vinicius",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -304,13 +453,8 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 231,
-      "playerName": "Ederson Ederson",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 222,
-      "playerName": "Bremer Bremer",
+      "playerId": 219,
+      "playerName": "Raphael Raphinha",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -319,8 +463,18 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 230,
-      "playerName": "MARTINELLIGabriel Gabriel",
+      "playerId": 221,
+      "playerName": "Luiz Danilo",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 222,
+      "playerName": "Bremer Bremer",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 223,
+      "playerName": "PEREIRALeonardo Leo",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -334,239 +488,179 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 233,
-      "playerName": "Thiago Igor Thiago",
+      "playerId": 229,
+      "playerName": "Henrique André Luiz",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 236,
-      "playerName": "Achraf Hakimi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbgetentities&ids=Q26932598&props=claims%7Clabels&languages=en&format=json&origin=*"
+      "playerId": 230,
+      "playerName": "MARTINELLIGabriel Gabriel",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 240,
-      "playerName": "Ayyoub Bouaddi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ayyoub+Bouaddi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 231,
+      "playerName": "Ederson Ederson",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 244,
-      "playerName": "Brahim Diaz",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbgetentities&ids=Q26973015&props=claims%7Clabels&languages=en&format=json&origin=*"
+      "playerId": 232,
+      "playerName": "IBANEZRoger Roger",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 245,
-      "playerName": "Ismael Saibari",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ismael+Saibari&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 234,
+      "playerName": "Vitor Rayan",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 257,
-      "playerName": "Bilal El Khannouss",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Bilal+El+Khannouss&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 242,
+      "playerName": "Azz-Eddine Ounahi",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 241,
-      "playerName": "Chemsdine Talbi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Chemsdine+Talbi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 246,
+      "playerName": "Monir El Kajoui",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 258,
-      "playerName": "Neil Yoni El Aynaoui",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Neil+Yoni+El+Aynaoui&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 255,
+      "playerName": "Ayoube Amaimouni",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 249,
-      "playerName": "Samir El Mourabet",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Samir+El+Mourabet&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 263,
+      "playerName": "Keeto Thermoncy",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 237,
-      "playerName": "Noussair Mazraoui",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Noussair+Mazraoui&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 264,
+      "playerName": "Ricardo Ade",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 247,
-      "playerName": "Zakaria El Ouahdi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Zakaria+El+Ouahdi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 266,
+      "playerName": "Carl Fred Sainte",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 252,
-      "playerName": "Chadi Riad",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Chadi+Riad&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 278,
-      "playerName": "Wilson Isidor",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Wilson+Isidor&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 270,
-      "playerName": "Jean Ricner Bellegarde",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jean+Ricner+Bellegarde&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 265,
-      "playerName": "Hannes Piterson Delcroix",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Hannes+Piterson+Delcroix&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 268,
+      "playerName": "Martin Yves Roberns Didier Experience",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 271,
       "playerName": "Don Deedson Deedson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Don+Deedson+Deedson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 277,
-      "playerName": "Danley Jean Jacques",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Danley+Jean+Jacques&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 272,
+      "playerName": "Alexandre Jr Pierre",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 281,
-      "playerName": "Josue Jeremie Casimir",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Josue+Jeremie+Casimir&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 273,
+      "playerName": "Markhus Lacroix",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 267,
-      "playerName": "Derrick Burckley Etienne",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Derrick+Burckley+Etienne&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 274,
+      "playerName": "Garven-Michee Metusala",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 282,
-      "playerName": "Jean-Kévin Duverne",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jean-K%C3%A9vin+Duverne&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 275,
+      "playerName": "Ruben Fritzner Providence",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 262,
-      "playerName": "Carlens Jean Fedlaire Ruby Arcus",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Carlens+Jean+Fedlaire+Ruby+Arcus&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 276,
+      "playerName": "Lenny Alvin Pico Joseph",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 269,
-      "playerName": "Duckens Nazon",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Duckens+Nazon&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 279,
+      "playerName": "Yassin Enzo Fortune",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 280,
       "playerName": "Frantzdy Pierrot",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Frantzdy+Pierrot&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 288,
-      "playerName": "Aaron Buchanan Hickey",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Aaron+Buchanan+Hickey&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 281,
+      "playerName": "Josue Jeremie Casimir",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 305,
-      "playerName": "Lewis Ferguson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Lewis+Ferguson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 283,
+      "playerName": "Josue Duverger",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 304,
-      "playerName": "George David Eric Hirst",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=George+David+Eric+Hirst&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 284,
+      "playerName": "Wilguens Raphael Polynice Paugain",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 308,
-      "playerName": "Nathan Kenneth Patterson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Nathan+Kenneth+Patterson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 285,
+      "playerName": "Dominique Celidor Simon",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 292,
-      "playerName": "Kieran Tierney",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Kieran+Tierney&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 297,
-      "playerName": "Ryan Christie",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ryan+Christie&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 312,
-      "playerName": "Mc",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Mc&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 286,
+      "playerName": "Olivier Woodensky Pierre",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 290,
       "playerName": "Mc",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Mc&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 289,
-      "playerName": "Andrew Henry Robertson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Andrew+Henry+Robertson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 293,
       "playerName": "Mc",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Mc&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 296,
-      "playerName": "Che Sac Everton Fred Adams",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Che+Sac+Everton+Fred+Adams&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 300,
+      "playerName": "Ross Cameron Stewart",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 322,
-      "playerName": "Christian Mate Pulisic",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Christian+Mate+Pulisic&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 309,
+      "playerName": "Mc",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 332,
-      "playerName": "Folarin Jolaoluwa Balogun",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Folarin+Jolaoluwa+Balogun&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 312,
+      "playerName": "Mc",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 321,
-      "playerName": "Ricardo Daniel Pepi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ricardo+Daniel+Pepi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 329,
-      "playerName": "Malik Leon Tillman",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Malik+Leon+Tillman&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 315,
-      "playerName": "Christopher Jeffrey Richards",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Christopher+Jeffrey+Richards&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 316,
-      "playerName": "Tyler Shaan Adams",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Tyler+Shaan+Adams&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 317,
-      "playerName": "Antonee Robinson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Antonee+Robinson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 323,
-      "playerName": "Brenden Russell Aaronson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Brenden+Russell+Aaronson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 320,
+      "playerName": "Mc",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 334,
       "playerName": "Mc",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Mc&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 333,
-      "playerName": "Timothy Tarpeh Weah",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Timothy+Tarpeh+Weah&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 337,
+      "playerName": "Christopher Keith Brady",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 314,
-      "playerName": "Sergiño Gianni Dest",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Sergi%C3%B1o+Gianni+Dest&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 340,
+      "playerName": "Victor Gustavo Velazquez",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 360,
-      "playerName": "Gastón Hernán Olveira",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Gast%C3%B3n+Hern%C3%A1n+Olveira&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 361,
-      "playerName": "Matias Galarza",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Matias+Galarza&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 349,
+      "playerName": "Mauricio Mauricio",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 350,
@@ -579,13 +673,13 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 364,
-      "playerName": "Alexandro Maidana",
+      "playerId": 352,
+      "playerName": "Adrián Andrés Cubas",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 362,
-      "playerName": "Gustavo Ruben Caballero",
+      "playerId": 354,
+      "playerName": "Damián Josue Bobadilla",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -594,8 +688,23 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 377,
-      "playerName": "Aiden Connor Oneill",
+      "playerId": 359,
+      "playerName": "Gabriel Avalos",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 360,
+      "playerName": "Gastón Hernán Olveira",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 362,
+      "playerName": "Gustavo Ruben Caballero",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 364,
+      "playerName": "Alexandro Maidana",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -604,19 +713,9 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 401,
-      "playerName": "Kenan Yildiz",
+      "playerId": 393,
+      "playerName": "Merih Demiral",
       "reason": "compatible-commons-photo-not-found"
-    },
-    {
-      "playerId": 416,
-      "playerName": "Can Yılmaz Uzun",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 413,
-      "playerName": "Ugurcan Cakir",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/U%C4%9Furcan_%C3%87ak%C4%B1r_at_Antalyaspor_vs_Trabzonspor_20211211_%282%29_%28cropped%29.jpg/330px-U%C4%9Furcan_%C3%87ak%C4%B1r_at_Antalyaspor_vs_Trabzonspor_20211211_%282%29_%28cropped%29.jpg"
     },
     {
       "playerId": 394,
@@ -624,68 +723,38 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 431,
-      "playerName": "Nico Cédric Schlotterbeck",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/2023-08-12_TSV_Schott_Mainz_gegen_Borussia_Dortmund_%28DFB-Pokal_2023-24%29_by_Sandro_Halank%E2%80%93069.jpg/330px-2023-08-12_TSV_Schott_Mainz_gegen_Borussia_Dortmund_%28DFB-Pokal_2023-24%29_by_Sandro_Halank%E2%80%93069.jpg"
-    },
-    {
-      "playerId": 432,
-      "playerName": "Angelo Nicolas Stiller",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Angelo_Stiller_Ecuador_v_Germany_25_June_2026-233_%28cropped%29.jpg/330px-Angelo_Stiller_Ecuador_v_Germany_25_June_2026-233_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 440,
-      "playerName": "Malick Thiaw",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Malick_Thiaw_Ecuador_v_Germany_25_June_2026-230_%28cropped%29.jpg/330px-Malick_Thiaw_Ecuador_v_Germany_25_June_2026-230_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 425,
-      "playerName": "Jamie Jaleel Jeremy Leweling",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Jamie_Leweling_Ecuador_v_Germany_25_June_2026-162.jpg/330px-Jamie_Leweling_Ecuador_v_Germany_25_June_2026-162.jpg"
-    },
-    {
-      "playerId": 463,
-      "playerName": "Tahith Jose Girigorio Djorkaef Chong",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Tahith_Chong_%2838487929362%29.jpg/330px-Tahith_Chong_%2838487929362%29.jpg"
-    },
-    {
-      "playerId": 468,
-      "playerName": "Trevor Irving Doornbusch",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Austria_U-18_vs._Netherlands_U-18_2017-03-23_%28095%29_%28cropped%29.jpg/330px-Austria_U-18_vs._Netherlands_U-18_2017-03-23_%28095%29_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 457,
-      "playerName": "Jainel Archenir Martha",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 454,
-      "playerName": "Juniffer Naigelino Hansen",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 451,
-      "playerName": "Jürgen Leonardo Locadia",
+      "playerId": 401,
+      "playerName": "Kenan Yildiz",
       "reason": "compatible-commons-photo-not-found"
     },
     {
-      "playerId": 449,
-      "playerName": "Juninho Gracielo Bacuna",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Juninho_bacuna-1531777726.jpeg/330px-Juninho_bacuna-1531777726.jpeg"
-    },
-    {
-      "playerId": 458,
-      "playerName": "Jearl Erwin Margaritha",
+      "playerId": 404,
+      "playerName": "Abdülker Bardakci",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 465,
-      "playerName": "Riechedly Guillermo Bazoer",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Dnepr-Ajax_%282%29.jpg/330px-Dnepr-Ajax_%282%29.jpg"
+      "playerId": 406,
+      "playerName": "Ismailİsma Yuksek",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 466,
-      "playerName": "Deveron Lenny Fonville",
+      "playerId": 411,
+      "playerName": "Barı ş Alper Yilmaz",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 414,
+      "playerName": "Oguz Aydin",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 416,
+      "playerName": "Can Yılmaz Uzun",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 437,
+      "playerName": "Alexander Nuebel",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -694,28 +763,48 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 479,
-      "playerName": "Yan Diomande",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Yan_Diomande_Cote_D%27Ivoire_v_Ecuador_14_June_2026-17_%28cropped%29.jpg/330px-Yan_Diomande_Cote_D%27Ivoire_v_Ecuador_14_June_2026-17_%28cropped%29.jpg"
+      "playerId": 450,
+      "playerName": "Livano Shyron Liomar Comenencia",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 492,
-      "playerName": "Bazoumana Toure",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Bazoumana_Toure_Cote_D%27Ivoire_v_Ecuador_14_June_2026-50.jpg/330px-Bazoumana_Toure_Cote_D%27Ivoire_v_Ecuador_14_June_2026-50.jpg"
+      "playerId": 451,
+      "playerName": "Jürgen Leonardo Locadia",
+      "reason": "compatible-commons-photo-not-found"
     },
     {
-      "playerId": 489,
-      "playerName": "Obite Evan Ndicka",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Evan_Ndicka_Cote_D%27Ivoire_v_Ecuador_14_June_2026-59.jpg/330px-Evan_Ndicka_Cote_D%27Ivoire_v_Ecuador_14_June_2026-59.jpg"
+      "playerId": 453,
+      "playerName": "Jeremy Cornelis Jacobus Antonisse",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 490,
-      "playerName": "Evann Ludovic Vidjannagni Guessand",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Evann_Guessand_Cote_D%27Ivoire_v_Ecuador_14_June_2026-61.jpg/330px-Evann_Guessand_Cote_D%27Ivoire_v_Ecuador_14_June_2026-61.jpg"
+      "playerId": 454,
+      "playerName": "Juniffer Naigelino Hansen",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 473,
-      "playerName": "Wilfried Stephane Singo",
+      "playerId": 457,
+      "playerName": "Jainel Archenir Martha",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 458,
+      "playerName": "Jearl Erwin Margaritha",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 462,
+      "playerName": "Joshua Benjamin Brenet",
+      "reason": "compatible-commons-photo-not-found"
+    },
+    {
+      "playerId": 466,
+      "playerName": "Deveron Lenny Fonville",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 467,
+      "playerName": "Tyrick Jeremy Bodak",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -724,268 +813,48 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 478,
-      "playerName": "Simon Adingra",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Simon_Adingra_Cote_D%27Ivoire_v_Ecuador_14_June_2026-60.jpg/330px-Simon_Adingra_Cote_D%27Ivoire_v_Ecuador_14_June_2026-60.jpg"
-    },
-    {
-      "playerId": 485,
-      "playerName": "Guela Maho-Lewis Doue",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Guela_Doue_Cote_D%27Ivoire_v_Ecuador_14_June_2026-22_%28cropped%29.jpg/330px-Guela_Doue_Cote_D%27Ivoire_v_Ecuador_14_June_2026-22_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 520,
-      "playerName": "Yaimar Abel Medina",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Yaimar_Medina_Cote_D%27Ivoire_v_Ecuador_14_June_2026-36_%28cropped%29.jpg/330px-Yaimar_Medina_Cote_D%27Ivoire_v_Ecuador_14_June_2026-36_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 516,
-      "playerName": "Gonzalo Roberto Valle",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Gonzalo_Valle_Cote_D%27Ivoire_v_Ecuador_14_June_2026-4.jpg/330px-Gonzalo_Valle_Cote_D%27Ivoire_v_Ecuador_14_June_2026-4.jpg"
-    },
-    {
-      "playerId": 500,
-      "playerName": "Willian Joel Pacho",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Willian_Pacho_Cote_D%27Ivoire_v_Ecuador_14_June_2026-115.jpg/330px-Willian_Pacho_Cote_D%27Ivoire_v_Ecuador_14_June_2026-115.jpg"
-    },
-    {
-      "playerId": 506,
-      "playerName": "Wellington Moisés Ramirez",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Moises_Ramirez_Cote_D%27Ivoire_v_Ecuador_14_June_2026-3.jpg/330px-Moises_Ramirez_Cote_D%27Ivoire_v_Ecuador_14_June_2026-3.jpg"
-    },
-    {
-      "playerId": 496,
-      "playerName": "Félix Eduardo Torres",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/Felix_Torres_Cote_D%27Ivoire_v_Ecuador_14_June_2026-75.jpg/330px-Felix_Torres_Cote_D%27Ivoire_v_Ecuador_14_June_2026-75.jpg"
-    },
-    {
-      "playerId": 509,
-      "playerName": "Pedro Jeampierre Vite",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Pedro_Vite_Cote_D%27Ivoire_v_Ecuador_14_June_2026-42.jpg/330px-Pedro_Vite_Cote_D%27Ivoire_v_Ecuador_14_June_2026-42.jpg"
-    },
-    {
-      "playerId": 510,
-      "playerName": "Jordy Josue Caicedo",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Jordy_Caicedo_Cote_D%27Ivoire_v_Ecuador_14_June_2026-33.jpg/330px-Jordy_Caicedo_Cote_D%27Ivoire_v_Ecuador_14_June_2026-33.jpg"
-    },
-    {
-      "playerId": 501,
-      "playerName": "Pervis Josue Estupinan",
-      "reason": "Error: 429 Too Many Requests: https://commons.wikimedia.org/w/api.php?action=query&titles=File%3APervis+Estupinan+Cote+D%27Ivoire+v+Ecuador+14+June+2026-73.jpg&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=320&iiextmetadatalanguage=en&iiextmetadatafilter=LicenseShortName%7CLicenseUrl%7CArtist%7CCredit%7CAttributionRequired%7CUsageTerms%7CImageDescription&format=json&origin=*"
-    },
-    {
-      "playerId": 519,
-      "playerName": "Jackson Gabriel Porozo",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jackson+Gabriel+Porozo&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 528,
-      "playerName": "Ryan Jiro Gravenberch",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ryan+Jiro+Gravenberch&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 531,
-      "playerName": "Cody Mathès Gakpo",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Cody+Math%C3%A8s+Gakpo&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 534,
-      "playerName": "Tijjani Martinus Jan Reijnders",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Tijjani+Martinus+Jan+Reijnders&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 535,
-      "playerName": "Micky Van De Ven",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Micky+Van+De+Ven&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 538,
-      "playerName": "Donyell Malen",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Donyell+Malen&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 526,
-      "playerName": "Paul Jan-Paul Van Hecke",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Paul+Jan-Paul+Van+Hecke&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 521,
-      "playerName": "Bart Verbruggen",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Bart+Verbruggen&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 545,
-      "playerName": "Jorrel Evan Hato",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jorrel+Evan+Hato&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 541,
-      "playerName": "Frenkie De Jong",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Frenkie+De+Jong&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 544,
-      "playerName": "Crysencio Jilbert Sylverio Cir Summerville",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Crysencio+Jilbert+Sylverio+Cir+Summerville&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 539,
-      "playerName": "Brian Ebenezer Adjei Brobbey",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Brian+Ebenezer+Adjei+Brobbey&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 570,
-      "playerName": "Kaishu Sano",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Kaishu+Sano&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 563,
-      "playerName": "Yuito Suzuki",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Yuito+Suzuki&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 547,
-      "playerName": "Zion Suzuki",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Zion+Suzuki&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 554,
-      "playerName": "Takefusa Kubo",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Takefusa+Kubo&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 567,
-      "playerName": "Hiroki Ito",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Hiroki+Ito&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 556,
-      "playerName": "Ritsu Doan",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ritsu+Doan&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 564,
-      "playerName": "Ayase Ueda",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ayase+Ueda&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 553,
-      "playerName": "Ao Tanaka",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ao+Tanaka&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 557,
-      "playerName": "Daizen Maeda",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Daizen+Maeda&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 533,
+      "playerName": "Robin Gerardus Petrus Roefs",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 555,
       "playerName": "Keisuke Goto",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Keisuke+Goto&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 559,
-      "playerName": "Keito Nakamura",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Keito+Nakamura&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 562,
+      "playerName": "Tsuyoshi Watanabe",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 581,
-      "playerName": "Alexander Isak",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Alexander+Isak&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 569,
+      "playerName": "Tomoki Hayakawa",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 589,
-      "playerName": "Viktor Einar Gyokeres",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Viktor+Einar+Gyokeres&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 571,
+      "playerName": "Junnosuke Suzuki",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 579,
-      "playerName": "Lucas Erik Holger Bergvall",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Lucas+Erik+Holger+Bergvall&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 572,
+      "playerName": "Kento Shiogai",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 590,
-      "playerName": "Yasin Ayari",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Yasin+Ayari&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 599,
+      "playerName": "Abdelmouhib Chamakh",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 583,
-      "playerName": "Anthony David Junior Elanga",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Anthony+David+Junior+Elanga&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 576,
-      "playerName": "Isak Malcolm Kwaku Hien",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Isak+Malcolm+Kwaku+Hien&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 580,
-      "playerName": "Daniel Jonathan Svensson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Daniel+Jonathan+Svensson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 577,
-      "playerName": "Gabriel Johan Gudmundsson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Gabriel+Johan+Gudmundsson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 582,
-      "playerName": "Erik Benjamin Nygren",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Erik+Benjamin+Nygren&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 584,
-      "playerName": "Tobias Viktor Johansson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Tobias+Viktor+Johansson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 574,
-      "playerName": "Gustaf Johan Lagerbielke",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Gustaf+Johan+Lagerbielke&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 608,
-      "playerName": "Hannibal Mejbri",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Hannibal+Mejbri&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 600,
-      "playerName": "Ali Abdi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ali+Abdi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 601,
-      "playerName": "Montassar Omar Talbi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Montassar+Omar+Talbi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 609,
-      "playerName": "Ismael Seifallah Gharbi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ismael+Seifallah+Gharbi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 615,
-      "playerName": "Ellyes Joris Skhiri",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ellyes+Joris+Skhiri&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 624,
-      "playerName": "Sebastian Tounekti",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Sebastian+Tounekti&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 613,
-      "playerName": "Mohamed Hadj Mahmoud",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Mohamed+Hadj+Mahmoud&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 602,
+      "playerName": "Omar Rekik",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 603,
       "playerName": "Adam Arous",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 620,
-      "playerName": "Sabri Ben Hessen",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -994,53 +863,58 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 627,
-      "playerName": "Arthur Nicolas Theate",
+      "playerId": 612,
+      "playerName": "Khalil Ayari",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 647,
-      "playerName": "Nicolas Thierry Raskin",
+      "playerId": 613,
+      "playerName": "Mohamed Hadj Mahmoud",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 639,
-      "playerName": "Thomas Andre Meunier",
+      "playerId": 614,
+      "playerName": "Aymen Dahmen",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 648,
-      "playerName": "Amadou Ba Onana",
+      "playerId": 617,
+      "playerName": "Firas Chaouat",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 660,
-      "playerName": "Hamed Mahrous Mohamed Salah",
+      "playerId": 620,
+      "playerName": "Sabri Ben Hessen",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 661,
-      "playerName": "Mohamed Zaky Mostafa Zico",
+      "playerId": 621,
+      "playerName": "Moutaz Neffati",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 663,
-      "playerName": "Mohamed Aboelfetouh Ahmed Fatouh",
+      "playerId": 622,
+      "playerName": "Raed Chikhaoui",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 655,
-      "playerName": "Abdelaziz Moustafa Ramy Rabia",
+      "playerId": 624,
+      "playerName": "Sebastian Tounekti",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 671,
-      "playerName": "Saber Abdelmohsen Mahmoud",
+      "playerId": 637,
+      "playerName": "Mike Louis Penders",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 664,
-      "playerName": "Fathy Abdelhalim Hamdy Fathy",
+      "playerId": 651,
+      "playerName": "Elsayed Mohamed Mohamed Elshenawy",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 652,
+      "playerName": "Ahmed Ibrahim Yasser",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1049,28 +923,73 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 659,
-      "playerName": "Mohamed Abdelkarim Hamza",
-      "reason": "wikidata-match-not-found"
-    },
-    {
       "playerId": 656,
       "playerName": "Abdelmoneim Elsayed Mohamed",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 654,
-      "playerName": "Abdelmegeed Abdelsalam Hossam Abdelmaguid",
+      "playerId": 658,
+      "playerName": "Ashour Metwaly Emam",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 662,
-      "playerName": "Yousry Fouad Haissem Hassan",
+      "playerId": 659,
+      "playerName": "Mohamed Abdelkarim Hamza",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 679,
-      "playerName": "Ehsan Hajisafi",
+      "playerId": 663,
+      "playerName": "Mohamed Aboelfetouh Ahmed Fatouh",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 665,
+      "playerName": "Hafez Ramadan Karim Hafez",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 666,
+      "playerName": "Mohamed Soliman Mahdy Soliman",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 667,
+      "playerName": "Mostafa Ahmed Mohanad Lashin",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 668,
+      "playerName": "Aly Elmahdy Nabil",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 669,
+      "playerName": "Attia Fahim Marawan Attia",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 670,
+      "playerName": "Adel Aly Mohamed Ibrahim",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 671,
+      "playerName": "Saber Abdelmohsen Mahmoud",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 672,
+      "playerName": "Mohamed Abdelsalam Omar",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 673,
+      "playerName": "Abdelaziz Mohame Mostafa",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 675,
+      "playerName": "Mostafa Mohamed Zizo",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1079,13 +998,68 @@
       "reason": "wikidata-match-not-found"
     },
     {
+      "playerId": 678,
+      "playerName": "Saleh Hardani",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 679,
+      "playerName": "Ehsan Hajisafi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 684,
+      "playerName": "Mohammad Mohebbi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
       "playerId": 689,
       "playerName": "Mohammadhossein Kanani",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 678,
-      "playerName": "Saleh Hardani",
+      "playerId": 692,
+      "playerName": "Mahdi Torabi",
+      "reason": "compatible-commons-photo-not-found"
+    },
+    {
+      "playerId": 693,
+      "playerName": "Arya Yousefi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 695,
+      "playerName": "Ali Nemati",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 696,
+      "playerName": "Shahriyar Moghanloo",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 698,
+      "playerName": "Seyedhossein Hosseini",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 701,
+      "playerName": "Danial Iri",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 702,
+      "playerName": "Amirmohammad Razaghinia",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 714,
+      "playerName": "Alexander Noah Paulsen",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 717,
+      "playerName": "Nando Zen Pijnaker",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1094,38 +1068,8 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 710,
-      "playerName": "Marko Seufatu Nikola Stamenic",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/FC_Zenit_Saint_Petersburg_vs._Red_Star_Belgrade%2C_4_July_2023_%2850%29.jpg/330px-FC_Zenit_Saint_Petersburg_vs._Red_Star_Belgrade%2C_4_July_2023_%2850%29.jpg"
-    },
-    {
-      "playerId": 719,
-      "playerName": "Kosta Barbarouses",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/New_Zealand-Portugal_%2824%29_%28cropped%29.jpg/330px-New_Zealand-Portugal_%2824%29_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 713,
-      "playerName": "Elijah Henry Just",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Elijah_Just.jpg/330px-Elijah_Just.jpg"
-    },
-    {
-      "playerId": 715,
-      "playerName": "Liberato Gianpaolo Cacace",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Liberato_Cacace_30082025_%281%29.jpg/330px-Liberato_Cacace_30082025_%281%29.jpg"
-    },
-    {
-      "playerId": 721,
-      "playerName": "Benjamin Craig Old",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Ben_Old_playing_for_Wellington_v_Perth%2C_March_2022.jpg/330px-Ben_Old_playing_for_Wellington_v_Perth%2C_March_2022.jpg"
-    },
-    {
-      "playerId": 703,
-      "playerName": "Maxime Teremoana Crocombe",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Max_Crocombe.png/330px-Max_Crocombe.png"
-    },
-    {
-      "playerId": 747,
-      "playerName": "Lamine Yamal Yamal",
+      "playerId": 744,
+      "playerName": "Rodrigo Rodri",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1134,53 +1078,8 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 753,
-      "playerName": "Victor Munoz",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 732,
-      "playerName": "Eric Garcia",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Eric_Garcia_autographs_2022_%28cropped%29.jpg/330px-Eric_Garcia_autographs_2022_%28cropped%29.jpg"
-    },
-    {
-      "playerId": 764,
-      "playerName": "Gregory Jamiro Monteiro",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 771,
-      "playerName": "Johnson Willy",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 762,
-      "playerName": "Paulo Joao Paulo",
-      "reason": "wikidata-match-not-found"
-    },
-    {
       "playerId": 755,
       "playerName": "José Vozinha",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 767,
-      "playerName": "CABRALSidny Sidny Lopes",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 763,
-      "playerName": "BENCHIMOLGilson Gilson",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 779,
-      "playerName": "PIRESKelvin Kelvin",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 775,
-      "playerName": "Miguel Nuno Da Costa",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1189,48 +1088,88 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 776,
-      "playerName": "MOREIRASteven Steven",
-      "reason": "wikidata-match-not-found"
-    },
-    {
       "playerId": 757,
       "playerName": "Alberto Diney",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 806,
-      "playerName": "Waheeb Mohammed Abu Alshamat",
+      "playerId": 761,
+      "playerName": "Eduardo Jovane",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 797,
-      "playerName": "Essa Khalid Alghannam",
+      "playerId": 762,
+      "playerName": "Paulo Joao Paulo",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 799,
-      "playerName": "Abdulrahman Abdullah Alhamddan",
+      "playerId": 763,
+      "playerName": "BENCHIMOLGilson Gilson",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 786,
-      "playerName": "Essa Nasser Aldawsari",
+      "playerId": 765,
+      "playerName": "RODRIGUESGarry Garry",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 793,
-      "playerName": "Meshari Nawaf Bu Washl",
+      "playerId": 766,
+      "playerName": "Salomão Marcio",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 791,
-      "playerName": "Khalid Saleh",
+      "playerId": 767,
+      "playerName": "CABRALSidny Sidny Lopes",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 800,
-      "playerName": "Ahmed Sultan Mandash",
+      "playerId": 769,
+      "playerName": "Michael Laros Duarte",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 770,
+      "playerName": "SEMEDOJair Yannick",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 771,
+      "playerName": "Johnson Willy",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 772,
+      "playerName": "Emanuel Telmo",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 774,
+      "playerName": "Isaac Ryan",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 776,
+      "playerName": "MOREIRASteven Steven",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 778,
+      "playerName": "Fabricio Wagner Pina",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 779,
+      "playerName": "PIRESKelvin Kelvin",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 780,
+      "playerName": "Sandro Helio Varela",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 781,
+      "playerName": "Dhahi Nawaf Alaqidi",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1239,8 +1178,28 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 790,
-      "playerName": "Mohammed Salem Aldawsari",
+      "playerId": 783,
+      "playerName": "Mohammed Ali Lajami",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 784,
+      "playerName": "Ali Abdulelah Alamri",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 785,
+      "playerName": "Mohammed Hassan Altambakti",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 786,
+      "playerName": "Essa Nasser Aldawsari",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 787,
+      "playerName": "Fahad Musab Aljuwayr",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1249,23 +1208,93 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 792,
-      "playerName": "Abdullah Saud Abdulhamid",
+      "playerId": 789,
+      "playerName": "Tariq Feras",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 822,
-      "playerName": "Mathías Olivera",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Math%C3%ADas_Olivera_2017.jpg/330px-Math%C3%ADas_Olivera_2017.jpg"
+      "playerId": 790,
+      "playerName": "Mohammed Salem Aldawsari",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 813,
-      "playerName": "Diego Nicolás De La Cruz",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Nicol%C3%A1s_de_la_Cruz.jpg/330px-Nicol%C3%A1s_de_la_Cruz.jpg"
+      "playerId": 791,
+      "playerName": "Khalid Saleh",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 832,
-      "playerName": "Radrigo Zalazar",
+      "playerId": 793,
+      "playerName": "Meshari Nawaf Bu Washl",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 794,
+      "playerName": "Kadish Hassan",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 795,
+      "playerName": "Mohammed Abdullah Alkhaibari",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 796,
+      "playerName": "Mubarak Ziyad Aljohani",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 797,
+      "playerName": "Essa Khalid Alghannam",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 798,
+      "playerName": "Mohsen Ala Alhajji",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 799,
+      "playerName": "Abdulrahman Abdullah Alhamddan",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 800,
+      "playerName": "Ahmed Sultan Mandash",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 801,
+      "playerName": "Khalil Mohammed Alowais",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 802,
+      "playerName": "Ali Ahmed",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 803,
+      "playerName": "Ibrahim Mohamed",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 804,
+      "playerName": "Saad Moteb Alharbi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 805,
+      "playerName": "Abdullatif Jehad Thikri",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 806,
+      "playerName": "Waheeb Mohammed Abu Alshamat",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 825,
+      "playerName": "Rodrigo Sebastian Aguirre",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1274,283 +1303,148 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 818,
-      "playerName": "Santiago Andres Mele",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Santiago_Mele.png/330px-Santiago_Mele.png"
+      "playerId": 831,
+      "playerName": "Juan Manuel Sanabria",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 821,
-      "playerName": "Emiliano Martinez",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/c/c0/Emiliano_Martinez_%28dinamarca%29.jpg"
+      "playerId": 832,
+      "playerName": "Radrigo Zalazar",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 849,
-      "playerName": "William Alain André Gabriel Saliba",
-      "reason": "Error: 429 Too Many Requests: https://commons.wikimedia.org/w/api.php?action=query&titles=File%3AWilliam+Saliba+France+v+Senegal+16+June+2026-336+%28cropped%29.jpg&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=320&iiextmetadatalanguage=en&iiextmetadatafilter=LicenseShortName%7CLicenseUrl%7CArtist%7CCredit%7CAttributionRequired%7CUsageTerms%7CImageDescription&format=json&origin=*"
-    },
-    {
-      "playerId": 856,
-      "playerName": "Mathis Rayan Cherki",
-      "reason": "Error: 429 Too Many Requests: https://commons.wikimedia.org/w/api.php?action=query&titles=File%3ARayan+Cherki+France+v+Norway+26+June+26-114.jpg&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=320&iiextmetadatalanguage=en&iiextmetadatafilter=LicenseShortName%7CLicenseUrl%7CArtist%7CCredit%7CAttributionRequired%7CUsageTerms%7CImageDescription&format=json&origin=*"
-    },
-    {
-      "playerId": 850,
-      "playerName": "Warren Marie Jean-Pierre Zaire-Emery",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbgetentities&ids=Q111280241&props=claims%7Clabels&languages=en&format=json&origin=*"
-    },
-    {
-      "playerId": 836,
-      "playerName": "Dayotchanculle Oswald Upamecano",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Dayotchanculle+Oswald+Upamecano&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 840,
-      "playerName": "Aurélien Djani Tchouameni",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Aur%C3%A9lien+Djani+Tchouameni&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 844,
-      "playerName": "Bradley Jean-Manuel Essolisa Barcola",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Bradley+Jean-Manuel+Essolisa+Barcola&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 841,
-      "playerName": "Marcus Lilian Thuram",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Marcus+Lilian+Thuram&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 871,
-      "playerName": "Iliman Cheikh Baroy Ndiaye",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Iliman+Cheikh+Baroy+Ndiaye&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 866,
-      "playerName": "Lamine Camara",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Lamine+Camara&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 869,
-      "playerName": "Nicolas Jackson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Nicolas+Jackson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 876,
-      "playerName": "Ismaila Sarr",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ismaila+Sarr&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 884,
-      "playerName": "Pape Alassane Gueye",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Pape+Alassane+Gueye&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 865,
-      "playerName": "Assane Diao",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Assane+Diao&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 875,
-      "playerName": "Pape Matar Sarr",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Pape+Matar+Sarr&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 878,
-      "playerName": "Ibrahim Mbaye",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ibrahim+Mbaye&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 883,
-      "playerName": "El Hadji Malick Diouf",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=El+Hadji+Malick+Diouf&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 860,
-      "playerName": "Mamadou Sarr",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Mamadou+Sarr&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 838,
+      "playerName": "Emmanuel Boris Kone",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 867,
       "playerName": "Ahmadou Bamba Mbacke Dieng",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ahmadou+Bamba+Mbacke+Dieng&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 891,
-      "playerName": "Wali Faeq Youssef Amyn",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Wali+Faeq+Youssef+Amyn&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 883,
+      "playerName": "El Hadji Malick Diouf",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 902,
-      "playerName": "Hussein Ghadhban Aymen",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Hussein+Ghadhban+Aymen&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 887,
+      "playerName": "Haydar Hussein Hussein",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 900,
-      "playerName": "Fouad Aboud Amir Alammari",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Fouad+Aboud+Amir+Alammari&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 899,
-      "playerName": "Hasan Maknazi Ahmed Maknazi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Hasan+Maknazi+Ahmed+Maknazi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 904,
-      "playerName": "Hazar Anwar Aimar",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Hazar+Anwar+Aimar&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 907,
-      "playerName": "Ghazi Salih Merchas",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ghazi+Salih+Merchas&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 905,
-      "playerName": "Jabbar Hussein Marko Farji",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jabbar+Hussein+Marko+Farji&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 895,
-      "playerName": "Ihab Ahmed Ahmed",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ihab+Ahmed+Ahmed&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 908,
-      "playerName": "Ismael Khaleel Zaid Ismael",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ismael+Khaleel+Zaid+Ismael&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 888,
+      "playerName": "Tahseen Abd Zaid Zaid",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 889,
       "playerName": "Hashim Rahman Akam Hashim",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Hashim+Rahman+Akam+Hashim&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 890,
+      "playerName": "Younus Hashim Munaf Younus",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 892,
+      "playerName": "Bayesh Kamil Ibrahim Bayesh",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 893,
+      "playerName": "Ibrahim Karim Ali Alhamadi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 895,
+      "playerName": "Ihab Ahmed Ahmed",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 897,
+      "playerName": "Yousif Hashim Ali Yousif",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 898,
+      "playerName": "Aamar Iqbal Zidane",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 899,
+      "playerName": "Hasan Maknazi Ahmed Maknazi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 900,
+      "playerName": "Fouad Aboud Amir Alammari",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 901,
+      "playerName": "Jasim Elaibi Ali Jasim",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 902,
+      "playerName": "Hussein Ghadhban Aymen",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 904,
+      "playerName": "Hazar Anwar Aimar",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 905,
+      "playerName": "Jabbar Hussein Marko Farji",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 906,
+      "playerName": "Basil Fadhil Ahmed",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 908,
+      "playerName": "Ismael Khaleel Zaid Ismael",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 909,
+      "playerName": "Saadoon Abbood Mustafa",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 910,
       "playerName": "Dhia Jirjis Frans",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Dhia+Jirjis+Frans&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 919,
-      "playerName": "Erling Braut Haaland",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Erling+Braut+Haaland&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 930,
-      "playerName": "Antonio Eromonsele Nordby Nusa",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Antonio+Eromonsele+Nordby+Nusa&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 932,
-      "playerName": "Oscar Bobb",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Oscar+Bobb&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 918,
-      "playerName": "Sander Gard Bolin Berge",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Sander+Gard+Bolin+Berge&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 936,
-      "playerName": "Julian Ryerson",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Julian+Ryerson&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 913,
-      "playerName": "Kristoffer Vassbakk Köpp Ajer",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Kristoffer+Vassbakk+K%C3%B6pp+Ajer&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 924,
-      "playerName": "Fredrik Aursnes",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Fredrik+Aursnes&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 927,
-      "playerName": "Torbjørn Lysaker Heggem",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Torbj%C3%B8rn+Lysaker+Heggem&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 928,
-      "playerName": "Kristian Thorstvedt",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Kristian+Thorstvedt&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 933,
-      "playerName": "Jens Petter Hauge",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jens+Petter+Hauge&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 925,
-      "playerName": "Fredrik André Bjorkan",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Fredrik+Andr%C3%A9+Bjorkan&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 938,
-      "playerName": "Marcos Nicolás Senesi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Marcos+Nicol%C3%A1s+Senesi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 962,
-      "playerName": "Nahuel Molina",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Nahuel+Molina&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 945,
-      "playerName": "Julián Alvarez",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Juli%C3%A1n+Alvarez&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 954,
-      "playerName": "Nicolas Paz",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Nicolas+Paz&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 960,
-      "playerName": "Enzo Jeremías Fernandez",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Enzo+Jerem%C3%ADas+Fernandez&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 958,
-      "playerName": "Lautaro Javier Martinez",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Lautaro+Javier+Martinez&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 956,
-      "playerName": "Alexis Mac Allister",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Alexis+Mac+Allister&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 949,
-      "playerName": "Cristian Gabriel Romero",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Cristian+Gabriel+Romero&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 942,
-      "playerName": "Lisandro Martinez",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Lisandro+Martinez&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 944,
-      "playerName": "Valentin Barco",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Valentin+Barco&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 953,
-      "playerName": "Giuliano Simeone",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Giuliano+Simeone&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 984,
-      "playerName": "Ibrahim Maza",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ibrahim+Maza&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 980,
-      "playerName": "Mohammed Elamine Amoura",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 983,
-      "playerName": "Selmane Rami Bensebaini",
+      "playerId": 959,
+      "playerName": "Damián Emiliano Martinez",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 963,
+      "playerName": "Melvin Feycal Mastil",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 965,
+      "playerName": "Achref Abada",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 974,
+      "playerName": "Ahmed Nadhir Benbouali",
+      "reason": "compatible-commons-photo-not-found"
+    },
+    {
+      "playerId": 978,
+      "playerName": "Oussama Benbot",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1559,14 +1453,29 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1006,
-      "playerName": "Romano Schmid",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/FC_Liefering_versus_Blau_Wei%C3%9F_Linz_%2822._September_2017%29_41.jpg/330px-FC_Liefering_versus_Blau_Wei%C3%9F_Linz_%2822._September_2017%29_41.jpg"
+      "playerId": 986,
+      "playerName": "Yassine Titraoui",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1009,
-      "playerName": "Patrick Wimmer",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/UEFA_Euro_2023_Qualifiers_Austria_vs._Finland_%282022-06-03%29_29.jpg/330px-UEFA_Euro_2023_Qualifiers_Austria_vs._Finland_%282022-06-03%29_29.jpg"
+      "playerId": 987,
+      "playerName": "Fares Ghedjemis",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 988,
+      "playerName": "Samir Sophian Chergui",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1000,
+      "playerName": "Florian Wiegele",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1005,
+      "playerName": "Carney Chibueze Chukwuemeka",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 1014,
@@ -1574,48 +1483,23 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 992,
-      "playerName": "Xaver Schlager",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/FC_Liefering_gegen_Austria_Lustenau_SKY_GO_Liga_15.JPG/330px-FC_Liefering_gegen_Austria_Lustenau_SKY_GO_Liga_15.JPG"
-    },
-    {
-      "playerId": 1033,
-      "playerName": "Ahmad Salameh Saed",
+      "playerId": 1016,
+      "playerName": "Ali Hasan Mohammad",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1030,
-      "playerName": "Majed Jamil Mohammad Abualnadi",
+      "playerId": 1018,
+      "playerName": "Ali Mohammad Husam Abudahab",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1034,
-      "playerName": "Mahmoud Saleh Mohannad Abutaha",
+      "playerId": 1019,
+      "playerName": "Mousa Mahmoud Yazan Alarab",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1024,
-      "playerName": "Mohammad Mousa Mousa Altamari",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 1035,
-      "playerName": "Mahmoud Ahmed Nizar Alrashdan",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 1031,
-      "playerName": "Amer Saleem Saleem",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 1039,
-      "playerName": "Ratib Mohammad Mohammad Aldaoud",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 1029,
-      "playerName": "Mohammad Sami Ibrahim",
+      "playerId": 1020,
+      "playerName": "Rasem Adel Amer Jamous",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1624,23 +1508,103 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1023,
-      "playerName": "Iyad Ali Ali Olwan",
+      "playerId": 1022,
+      "playerName": "Mahmoud Ali Noor Alrawabdeh",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1017,
-      "playerName": "Mousa Musallam Abdallah Nasib",
+      "playerId": 1024,
+      "playerName": "Mohammad Mousa Mousa Altamari",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1055,
-      "playerName": "Pedro Joao Neves",
+      "playerId": 1025,
+      "playerName": "Burhan Shehadeh Odeh Fakhoury",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1063,
-      "playerName": "Vitor Vitinha",
+      "playerId": 1026,
+      "playerName": "Zaid Khaleel Nour Baniateyah",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1027,
+      "playerName": "Nayef Ahmad Mahmoud Almardi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1029,
+      "playerName": "Mohammad Sami Ibrahim",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1030,
+      "playerName": "Majed Jamil Mohammad Abualnadi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1031,
+      "playerName": "Amer Saleem Saleem",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1032,
+      "playerName": "Ahmed Mohammad Mohammad",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1033,
+      "playerName": "Ahmad Salameh Saed",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1034,
+      "playerName": "Mahmoud Saleh Mohannad Abutaha",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1035,
+      "playerName": "Mahmoud Ahmed Nizar Alrashdan",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1036,
+      "playerName": "Ra'ed Mahmoud Abdallah Alfakhori",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1037,
+      "playerName": "Manel Farhan Ehsan Haddad",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1038,
+      "playerName": "Ahmad Ali Ali Azaizeh",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1039,
+      "playerName": "Ratib Mohammad Mohammad Aldaoud",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1040,
+      "playerName": "Said Ghazi Anas Badawi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1042,
+      "playerName": "SEMEDONélson Nelson",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1046,
+      "playerName": "Luiz Matheus",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1048,
+      "playerName": "Miguel Bruno",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1649,18 +1613,18 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1043,
-      "playerName": "Rúben Ruben Dias",
+      "playerId": 1059,
+      "playerName": "Manuel Goncalo",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1052,
-      "playerName": "Pedro Jose Sa",
+      "playerId": 1061,
+      "playerName": "Diogo Ruben",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1045,
-      "playerName": "Diogo Diogo Dalot",
+      "playerId": 1063,
+      "playerName": "Vitor Vitinha",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1669,29 +1633,14 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1066,
-      "playerName": "Francisco Francisco Conceicao",
+      "playerId": 1068,
+      "playerName": "Wan Wan-Bissaka",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1044,
-      "playerName": "Tomás Tomas Araujo",
+      "playerId": 1069,
+      "playerName": "Steve Nkanu Kapuadi",
       "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 1057,
-      "playerName": "Alexandre Rafael Leao",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 1053,
-      "playerName": "Renato Renato Veiga",
-      "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 1080,
-      "playerName": "Noah Junior Sadiki",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/Noah_Sadiki_USG_2024.jpg/330px-Noah_Sadiki_USG_2024.jpg"
     },
     {
       "playerId": 1072,
@@ -1699,13 +1648,28 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1089,
-      "playerName": "Simon Bokote Banza",
+      "playerId": 1073,
+      "playerName": "Nathanaël Mbuku",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1087,
-      "playerName": "Matthieu Luka Epolo",
+      "playerId": 1075,
+      "playerName": "Kibambe Brian Cipenga",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1078,
+      "playerName": "Joris Kayembe",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1081,
+      "playerName": "Tshibola Tshibola",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1082,
+      "playerName": "Timothy Bruce Munzoko Fayulu",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1714,49 +1678,19 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1092,
-      "playerName": "Arthur Fuka Masuaku",
+      "playerId": 1087,
+      "playerName": "Matthieu Luka Epolo",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1070,
-      "playerName": "Axel Tuanzebe",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Axel_Tuanzebe_29112025_%281%29.jpg/330px-Axel_Tuanzebe_29112025_%281%29.jpg"
-    },
-    {
-      "playerId": 1081,
-      "playerName": "Tshibola Tshibola",
+      "playerId": 1091,
+      "playerName": "Edo Kayembe Kayembe",
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1068,
-      "playerName": "Wan Wan-Bissaka",
+      "playerId": 1097,
+      "playerName": "Rustamjon Ashurmatov",
       "reason": "wikidata-match-not-found"
-    },
-    {
-      "playerId": 1106,
-      "playerName": "Eldor Shomurodov",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/Rostov-DM18_%282%29.jpg/330px-Rostov-DM18_%282%29.jpg"
-    },
-    {
-      "playerId": 1114,
-      "playerName": "Abbosbek Fayzullaev",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Abbosbek_Fayzullaev_Cska_Moscow_player.png/330px-Abbosbek_Fayzullaev_Cska_Moscow_player.png"
-    },
-    {
-      "playerId": 1103,
-      "playerName": "Oston Urunov",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Oston_Urunov_2020.jpg/330px-Oston_Urunov_2020.jpg"
-    },
-    {
-      "playerId": 1111,
-      "playerName": "Azizjon Ganiev",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/5/5e/Azizjon_G%CA%BBaniyev.webp"
-    },
-    {
-      "playerId": 1099,
-      "playerName": "Otabek Shukurov",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Otabek_Shukurov.webp/330px-Otabek_Shukurov.webp.png"
     },
     {
       "playerId": 1104,
@@ -1764,39 +1698,19 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1098,
-      "playerName": "Akmal Mozgovoy",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Akmal_Mozgovoy_2.jpg/330px-Akmal_Mozgovoy_2.jpg"
+      "playerId": 1108,
+      "playerName": "Botirali Ergashev",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1113,
-      "playerName": "Igor Sergeev",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Igor_Sergeyev_%28cropped%29.jpg/330px-Igor_Sergeyev_%28cropped%29.jpg"
+      "playerId": 1110,
+      "playerName": "Abdulla Abdullaev",
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1134,
-      "playerName": "Jefferson Andrés Lerma",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Jefferson_Lerma_2018.png/330px-Jefferson_Lerma_2018.png"
-    },
-    {
-      "playerId": 1140,
-      "playerName": "Deiver Machado",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Lens_-_Reims_%2812-05-2023%29_33.jpg/330px-Lens_-_Reims_%2812-05-2023%29_33.jpg"
-    },
-    {
-      "playerId": 1129,
-      "playerName": "Jhon Adolfo Arias",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Jhon_Arias.jpg/330px-Jhon_Arias.jpg"
-    },
-    {
-      "playerId": 1143,
-      "playerName": "Luis Javier Suarez",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Luis_Javier_Su%C3%A1rez%2C_Colombia_NT_presidential_send-off%2C_Jun_2026.jpg/330px-Luis_Javier_Su%C3%A1rez%2C_Colombia_NT_presidential_send-off%2C_Jun_2026.jpg"
-    },
-    {
-      "playerId": 1121,
-      "playerName": "Jhon Janer Lucumi",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Jhon_Lucum%C3%AD_September_2019.jpg/330px-Jhon_Lucum%C3%AD_September_2019.jpg"
+      "playerId": 1117,
+      "playerName": "Avazbek Ulmasaliyev",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 1120,
@@ -1804,13 +1718,43 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1130,
-      "playerName": "Camilo Andres Vargas",
-      "reason": "Error: 429 Your bot is making too many requests. Please reduce your request rate or contact bot-traffic@wikimedia.org (f263c81): https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Camilo_Vargas_2022.jpeg/330px-Camilo_Vargas_2022.jpeg"
+      "playerId": 1133,
+      "playerName": "Juan Camilo Portilla",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1136,
+      "playerName": "Willer Emilio Ditta",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1137,
+      "playerName": "Juan Camilo Hernandez",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1139,
+      "playerName": "Jaminton Leandro Campaz",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 1147,
       "playerName": "Nico Oreilly",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1150,
+      "playerName": "Keaninkin Marc-Isreal Guehi",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1163,
+      "playerName": "George Arthur Watkins",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1164,
+      "playerName": "Azuka Tristan Madueke",
       "reason": "wikidata-match-not-found"
     },
     {
@@ -1819,174 +1763,39 @@
       "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1165,
-      "playerName": "Eberechi Oluchi Eze",
-      "reason": "Error: 429 Too Many Requests: https://commons.wikimedia.org/w/api.php?action=query&titles=File%3AEberechi+Eze+England+v+Ghana+23+June+2026-039.jpg&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=320&iiextmetadatalanguage=en&iiextmetadatafilter=LicenseShortName%7CLicenseUrl%7CArtist%7CCredit%7CAttributionRequired%7CUsageTerms%7CImageDescription&format=json&origin=*"
-    },
-    {
-      "playerId": 1153,
-      "playerName": "Harry Edward Kane",
-      "reason": "Error: 429 Too Many Requests: https://commons.wikimedia.org/w/api.php?action=query&titles=File%3AHarry+Kane+England+v+Ghana+23+June+2026-219+%28cropped%29.jpg&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=320&iiextmetadatalanguage=en&iiextmetadatafilter=LicenseShortName%7CLicenseUrl%7CArtist%7CCredit%7CAttributionRequired%7CUsageTerms%7CImageDescription&format=json&origin=*"
-    },
-    {
-      "playerId": 1192,
-      "playerName": "Luka Vuskovic",
-      "reason": "Error: 429 Too Many Requests: https://commons.wikimedia.org/w/api.php?action=query&titles=File%3ALuka+Vuskovic+Croatia+v+Portugal+2+July+2026-020.jpg&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=320&iiextmetadatalanguage=en&iiextmetadatafilter=LicenseShortName%7CLicenseUrl%7CArtist%7CCredit%7CAttributionRequired%7CUsageTerms%7CImageDescription&format=json&origin=*"
-    },
-    {
-      "playerId": 1172,
-      "playerName": "Josip Stanisic",
-      "reason": "Error: 429 Too Many Requests: https://commons.wikimedia.org/w/api.php?action=query&titles=File%3AJosip+Stanisic+Croatia+v+Portugal+2+July+2026-022.jpg&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=320&iiextmetadatalanguage=en&iiextmetadatafilter=LicenseShortName%7CLicenseUrl%7CArtist%7CCredit%7CAttributionRequired%7CUsageTerms%7CImageDescription&format=json&origin=*"
-    },
-    {
-      "playerId": 1187,
-      "playerName": "Petar Sucic",
-      "reason": "Error: 429 Too Many Requests: https://commons.wikimedia.org/w/api.php?action=query&titles=File%3APetar+Su%C4%8Di%C4%87.png&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=320&iiextmetadatalanguage=en&iiextmetadatafilter=LicenseShortName%7CLicenseUrl%7CArtist%7CCredit%7CAttributionRequired%7CUsageTerms%7CImageDescription&format=json&origin=*"
-    },
-    {
-      "playerId": 1186,
-      "playerName": "Martin Baturina",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Martin+Baturina&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1190,
-      "playerName": "Igor Matanovic",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Igor+Matanovic&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1176,
-      "playerName": "Josip Sutalo",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Josip+Sutalo&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1196,
-      "playerName": "Petar Musa",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Petar+Musa&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1178,
-      "playerName": "Mateo Kovacic",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Mateo+Kovacic&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1183,
-      "playerName": "Nikola Vlasic",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Nikola+Vlasic&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1191,
-      "playerName": "Luka Sucic",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Luka+Sucic&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1207,
-      "playerName": "Antoine Serlom Semenyo",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Antoine+Serlom+Semenyo&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1218,
-      "playerName": "Kamal Deen Sulemana",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Kamal+Deen+Sulemana&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1199,
-      "playerName": "Caleb Marfo Yirenkyi",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Caleb+Marfo+Yirenkyi&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1217,
-      "playerName": "Kojo Peprah Oppong",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Kojo+Peprah+Oppong&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1209,
-      "playerName": "Christopher Bonsu Bonsu Baah",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Christopher+Bonsu+Bonsu+Baah&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1203,
-      "playerName": "Abdul Fatawu Fatawu",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Abdul+Fatawu+Fatawu&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 1189,
+      "playerName": "Toni Fruk",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 1198,
       "playerName": "Alidu Seidu",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Alidu+Seidu&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1200,
-      "playerName": "Jonas Adjei Adjetey",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jonas+Adjei+Adjetey&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 1202,
+      "playerName": "Abdul Mumin Mumin",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 1209,
+      "playerName": "Christopher Bonsu Bonsu Baah",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 1213,
       "playerName": "Abdul Rahman Rahman",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Abdul+Rahman+Rahman&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     },
     {
-      "playerId": 1215,
-      "playerName": "Inaki Williams",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Inaki+Williams&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1214,
-      "playerName": "Jerome Opoku",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jerome+Opoku&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "playerId": 1225,
+      "playerName": "Jose Angel Cordoba",
+      "reason": "wikidata-match-not-found"
     },
     {
       "playerId": 1234,
       "playerName": "Cesar Jair Samudio",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Cesar+Jair+Samudio&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1223,
-      "playerName": "Luis Ricardo Mejia",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Luis+Ricardo+Mejia&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1235,
-      "playerName": "Jiovany Javier Ramos",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jiovany+Javier+Ramos&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1247,
-      "playerName": "Roderick Alonso Miller",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Roderick+Alonso+Miller&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1243,
-      "playerName": "Cesar Augusto Yanis",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Cesar+Augusto+Yanis&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1240,
-      "playerName": "Cecilio Alfonso Waterman",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Cecilio+Alfonso+Waterman&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1227,
-      "playerName": "Edgardo Issac Farina",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Edgardo+Issac+Farina&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1241,
-      "playerName": "Alberto Abdiel Quintero",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Alberto+Abdiel+Quintero&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1232,
-      "playerName": "Ismael Diaz",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Ismael+Diaz&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1248,
-      "playerName": "Jorge Abdiel Gutierrez",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Jorge+Abdiel+Gutierrez&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
-    },
-    {
-      "playerId": 1230,
-      "playerName": "Adalberto Eliecer Carrasquilla",
-      "reason": "Error: 429 Too Many Requests: https://www.wikidata.org/w/api.php?action=wbsearchentities&search=Adalberto+Eliecer+Carrasquilla&language=en&uselang=en&type=item&limit=8&format=json&origin=*"
+      "reason": "wikidata-match-not-found"
     }
   ]
 }

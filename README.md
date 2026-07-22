@@ -29,7 +29,8 @@ CC0 퍼블릭 도메인 — [FIFA World Cup 2026 Dataset by mominullptr](https:/
 npm install
 npm run dev       # 개발 서버
 npm run build     # 프로덕션 빌드
-npm run sync:player-photos -- --per-team=11   # Commons 선수 사진 및 출처 갱신
+npm run sync:player-photos                    # 전체 선수 Commons 사진 및 출처 갱신
+npm run sync:player-photos -- --team=KOR      # 특정 대표팀만 갱신
 npx gh-pages -d dist   # GitHub Pages 배포
 ```
 
