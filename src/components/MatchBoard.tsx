@@ -574,7 +574,7 @@ export function MatchBoard({
         </div>
       </div>
 
-      <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.2, 0, 0, 1)" }}>
+      <DragOverlay dropAnimation={null}>
         {activePlayer ? (
           <PlayerCardVisual
             player={activePlayer}
