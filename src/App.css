@@ -1018,6 +1018,15 @@
   padding: 16px;
   border-top: 1px solid var(--border);
   background: var(--panel);
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.sim-compare__et {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+  font-weight: 600;
 }
 .sim-compare__row {
   display: flex;
@@ -1037,6 +1046,63 @@
 .sim-compare__verdict { font-size: 13px; line-height: 1.5; margin: 0 0 8px; }
 .sim-compare__tactics { font-size: 12px; color: var(--text-dim); margin: 0 0 14px; }
 .sim-compare__actions { display: flex; gap: 8px; }
+
+/* ---- team stats (pass %, GK save %) ---- */
+.team-stats {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.team-stats__title { margin: 0 0 10px; font-size: 12px; color: var(--text-dim); font-weight: 700; }
+.stat-bar { margin-bottom: 10px; }
+.stat-bar:last-child { margin-bottom: 0; }
+.stat-bar__nums {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.stat-bar__val { font-weight: 800; font-size: 14px; color: var(--accent); }
+.stat-bar__val--opp { color: #e5484d; }
+.stat-bar__sub { font-size: 10px; font-weight: 500; color: var(--text-dim); }
+.stat-bar__label { color: var(--text-dim); font-size: 11px; }
+.stat-bar__track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(229,72,77,0.35);
+  overflow: hidden;
+}
+.stat-bar__fill { height: 100%; background: var(--accent); border-radius: 999px; }
+
+/* ---- cumulative scorer / assist leaderboard ---- */
+.leaderboard {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.leaderboard__title { margin: 0 0 10px; font-size: 12px; color: var(--text-dim); font-weight: 700; }
+.leaderboard__cols { display: flex; gap: 12px; }
+.leaderboard__col { flex: 1; min-width: 0; }
+.leaderboard__col-title { margin: 0 0 6px; font-size: 12px; font-weight: 700; }
+.leaderboard__empty { margin: 0; font-size: 12px; color: var(--text-dim); }
+.leaderboard__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.leaderboard__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: var(--panel);
+}
+.leaderboard__rank { color: var(--text-dim); font-weight: 700; width: 14px; flex-shrink: 0; }
+.leaderboard__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboard__count { font-weight: 800; color: var(--accent); }
 .sim-btn {
   flex: 1;
   padding: 10px;

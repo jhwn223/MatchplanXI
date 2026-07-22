@@ -166,6 +166,10 @@ export function computeGroupStandings(
 export interface PlayedResult {
   homeGoals: number;
   awayGoals: number;
+  /** knockout ties only: set when the scoreline was still level after extra time */
+  wentToPenalties?: boolean;
+  homePenGoals?: number;
+  awayPenGoals?: number;
 }
 export type PlayedMap = Record<number, PlayedResult>;
 

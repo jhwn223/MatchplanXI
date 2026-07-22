@@ -35,6 +35,17 @@ export interface GoalEvent {
   minute: number;
   side: "user" | "opp";
   scorer?: string;
+  assist?: string;
+}
+
+export interface TeamStats {
+  /** pass completion probability for this match, 0-100 */
+  passSuccessRate: number;
+  /** shots faced by this team's goalkeeper */
+  shotsFaced: number;
+  saves: number;
+  /** save probability among shots faced, 0-100 */
+  saveRate: number;
 }
 
 export interface SimActual {
@@ -55,6 +66,14 @@ export interface SimInput {
   elevation: number;
   placed: PlacedPlayerLite[];
   actual: SimActual | null;
+  /** knockout ties go to extra time + penalties when level after 90'; group games never do */
+  isKnockout: boolean;
+}
+
+export interface PenaltyResult {
+  userGoals: number;
+  oppGoals: number;
+  winner: "user" | "opp";
 }
 
 export interface SimComparison {
@@ -69,12 +88,19 @@ export interface SimComparison {
 }
 
 export interface SimResult {
+  /** final score, including extra time if it was played (not the shootout) */
   userGoals: number;
   oppGoals: number;
+  /** score at the 90' whistle, before any extra time */
+  regulationUserGoals: number;
+  regulationOppGoals: number;
   userXg: number;
   oppXg: number;
   goals: GoalEvent[];
   comparison: SimComparison;
+  teamStats: { user: TeamStats; opp: TeamStats };
+  wentToExtraTime: boolean;
+  penalties: PenaltyResult | null;
 }
 
 function pickScorer(placed: PlacedPlayerLite[], rng: () => number): string {
@@ -89,6 +115,84 @@ function pickScorer(placed: PlacedPlayerLite[], rng: () => number): string {
     if (r <= 0) return p.name;
   }
   return pool[pool.length - 1].name;
+}
+
+/** ~78% of goals have an assist; the rest are solo runs, set pieces, etc. */
+function pickAssist(placed: PlacedPlayerLite[], scorerName: string, rng: () => number): string | undefined {
+  if (rng() < 0.22) return undefined;
+  const weight = (p: PlacedPlayerLite) =>
+    p.position === "MID" ? 5 : p.position === "DEF" ? 2.2 : p.position === "FWD" ? 1.4 : 0;
+  const pool = placed.filter((p) => p.position !== "GK" && p.name !== scorerName);
+  if (pool.length === 0) return undefined;
+  const total = pool.reduce((s, p) => s + weight(p), 0);
+  if (total <= 0) return undefined;
+  let r = rng() * total;
+  for (const p of pool) {
+    r -= weight(p);
+    if (r <= 0) return p.name;
+  }
+  return pool[pool.length - 1].name;
+}
+
+/** Pass accuracy and GK save rate, derived probabilistically from the same match quality
+ *  inputs as xG (elo gap, condition, tactical directness) plus shot volume off xG. */
+function computeTeamStats(
+  input: { userElo: number; oppElo: number; conditionIndex: number; attackBias: number },
+  userXg: number,
+  oppXg: number,
+  userGoals: number,
+  oppGoals: number,
+  rng: () => number
+): { user: TeamStats; opp: TeamStats } {
+  const eloDiff = (input.userElo - input.oppElo) / 400;
+  const condFactor = (input.conditionIndex - 62) / 100;
+  const jitter = () => (rng() - 0.5) * 6;
+
+  const userPassPct = clamp(70 + eloDiff * 8 + condFactor * 9 - input.attackBias * 3 + jitter(), 55, 94);
+  const oppPassPct = clamp(70 - eloDiff * 6 - condFactor * 4 + input.attackBias * 1.5 + jitter(), 55, 94);
+
+  // shots faced by each GK; at least as many as the goals actually conceded
+  const shotsAgainstUser = Math.max(oppGoals, poisson(oppXg * 2.8, rng));
+  const shotsAgainstOpp = Math.max(userGoals, poisson(userXg * 2.8, rng));
+  const userSaves = Math.max(0, shotsAgainstUser - oppGoals);
+  const oppSaves = Math.max(0, shotsAgainstOpp - userGoals);
+
+  return {
+    user: {
+      passSuccessRate: Math.round(userPassPct),
+      shotsFaced: shotsAgainstUser,
+      saves: userSaves,
+      saveRate: shotsAgainstUser > 0 ? Math.round((userSaves / shotsAgainstUser) * 100) : 100,
+    },
+    opp: {
+      passSuccessRate: Math.round(oppPassPct),
+      shotsFaced: shotsAgainstOpp,
+      saves: oppSaves,
+      saveRate: shotsAgainstOpp > 0 ? Math.round((oppSaves / shotsAgainstOpp) * 100) : 100,
+    },
+  };
+}
+
+/** Penalty shootout: 5 rounds each, then sudden death. Mostly luck, with a small elo lean. */
+function simulatePenalties(rng: () => number, eloDiff: number): PenaltyResult {
+  const successProb = (bias: number) => clamp(0.76 + bias, 0.55, 0.92);
+  const uProb = successProb(eloDiff * 0.04);
+  const oProb = successProb(-eloDiff * 0.04);
+
+  let userGoals = 0;
+  let oppGoals = 0;
+  for (let i = 0; i < 5; i++) {
+    if (rng() < uProb) userGoals++;
+    if (rng() < oProb) oppGoals++;
+  }
+  let guard = 0;
+  while (userGoals === oppGoals && guard++ < 12) {
+    if (rng() < uProb) userGoals++;
+    if (rng() < oProb) oppGoals++;
+  }
+  const winner: "user" | "opp" =
+    userGoals === oppGoals ? (rng() < 0.5 ? "user" : "opp") : userGoals > oppGoals ? "user" : "opp";
+  return { userGoals, oppGoals, winner };
 }
 
 /** xG for the user side given elo gap, condition, attacking bias and home edge. */
@@ -140,6 +244,40 @@ export interface HalfResult {
   oppXg: number;
 }
 
+function makeMinutePicker(rng: () => number) {
+  const used = new Set<number>();
+  return (lo: number, hi: number) => {
+    let m = lo + Math.floor(rng() * (hi - lo + 1));
+    let guard = 0;
+    while (used.has(m) && guard++ < 30) m = lo + Math.floor(rng() * (hi - lo + 1));
+    used.add(m);
+    return m;
+  };
+}
+
+function genGoals(
+  count: number,
+  side: "user" | "opp",
+  lo: number,
+  hi: number,
+  placed: PlacedPlayerLite[],
+  nextMinute: (lo: number, hi: number) => number,
+  rng: () => number
+): GoalEvent[] {
+  const goals: GoalEvent[] = [];
+  for (let i = 0; i < count; i++) {
+    const minute = nextMinute(lo, hi);
+    if (side === "user") {
+      const scorer = pickScorer(placed, rng);
+      const assist = pickAssist(placed, scorer, rng);
+      goals.push({ minute, side, scorer, assist });
+    } else {
+      goals.push({ minute, side });
+    }
+  }
+  return goals;
+}
+
 /** Simulate one half (1 = 1'-45', 2 = 46'-90') using that half's lineup/tactics. */
 export function simulateHalf(input: SimInput, half: 1 | 2): HalfResult {
   const rng = mulberry32((input.seed + half * 999983) >>> 0);
@@ -152,40 +290,93 @@ export function simulateHalf(input: SimInput, half: 1 | 2): HalfResult {
 
   const lo = half === 1 ? 1 : 46;
   const hi = half === 1 ? 45 : 90;
-  const used = new Set<number>();
-  const randMinute = () => {
-    let m = lo + Math.floor(rng() * (hi - lo));
-    let guard = 0;
-    while (used.has(m) && guard++ < 30) m = lo + Math.floor(rng() * (hi - lo));
-    used.add(m);
-    return m;
-  };
+  const nextMinute = makeMinutePicker(rng);
 
-  const goals: GoalEvent[] = [];
-  for (let i = 0; i < userGoals; i++)
-    goals.push({ minute: randMinute(), side: "user", scorer: pickScorer(input.placed, rng) });
-  for (let i = 0; i < oppGoals; i++)
-    goals.push({ minute: randMinute(), side: "opp" });
-  goals.sort((a, b) => a.minute - b.minute);
+  const goals: GoalEvent[] = [
+    ...genGoals(userGoals, "user", lo, hi, input.placed, nextMinute, rng),
+    ...genGoals(oppGoals, "opp", lo, hi, input.placed, nextMinute, rng),
+  ].sort((a, b) => a.minute - b.minute);
 
   return { goals, userGoals, oppGoals, userXg: halfUserXg, oppXg: halfOppXg };
 }
 
-/** Combine both halves (using the final half's tactics for the verdict text) into a full-match result. */
+/** Combine both halves into a regulation-time result. Extra time (knockouts only,
+ *  when still level) is applied afterwards via `applyExtraTime`, once a lineup for
+ *  the extra-time period is known. */
 export function combineHalves(input: SimInput, h1: HalfResult, h2: HalfResult): SimResult {
   const userGoals = h1.userGoals + h2.userGoals;
   const oppGoals = h1.oppGoals + h2.oppGoals;
   const goals = [...h1.goals, ...h2.goals].sort((a, b) => a.minute - b.minute);
+  const userXg = h1.userXg + h2.userXg;
+  const oppXg = h1.oppXg + h2.oppXg;
   const simOutcome: "W" | "D" | "L" =
     userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
+
+  const rng = mulberry32((input.seed + 5_000003) >>> 0);
+  const teamStats = computeTeamStats(input, userXg, oppXg, userGoals, oppGoals, rng);
 
   return {
     userGoals,
     oppGoals,
-    userXg: h1.userXg + h2.userXg,
-    oppXg: h1.oppXg + h2.oppXg,
+    regulationUserGoals: userGoals,
+    regulationOppGoals: oppGoals,
+    userXg,
+    oppXg,
     goals,
     comparison: buildComparison(input, userGoals, oppGoals, simOutcome),
+    teamStats,
+    wentToExtraTime: false,
+    penalties: null,
+  };
+}
+
+/** Extend a level, regulation-time knockout result with extra time (+ penalties if still
+ *  level after that). `input` should reflect whatever lineup is current when extra time
+ *  kicks off, so a substitution made just before it can still affect who might score. */
+export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
+  if (!input.isKnockout || base.userGoals !== base.oppGoals) return base;
+
+  const rng = mulberry32((input.seed + 9_000029) >>> 0);
+  const { userXg, oppXg } = computeXg(input);
+  const etScale = 30 / 90; // two 15' extra-time periods
+  const etUserXg = userXg * etScale;
+  const etOppXg = oppXg * etScale;
+  const etUserGoals = poisson(etUserXg, rng);
+  const etOppGoals = poisson(etOppXg, rng);
+  const nextMinute = makeMinutePicker(rng);
+
+  const etGoals = [
+    ...genGoals(etUserGoals, "user", 91, 120, input.placed, nextMinute, rng),
+    ...genGoals(etOppGoals, "opp", 91, 120, input.placed, nextMinute, rng),
+  ];
+
+  const userGoals = base.userGoals + etUserGoals;
+  const oppGoals = base.oppGoals + etOppGoals;
+  const goals = [...base.goals, ...etGoals].sort((a, b) => a.minute - b.minute);
+
+  let penalties: PenaltyResult | null = null;
+  if (userGoals === oppGoals) {
+    const eloDiff = (input.userElo - input.oppElo) / 400;
+    penalties = simulatePenalties(rng, eloDiff);
+  }
+
+  const simOutcome: "W" | "D" | "L" =
+    userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
+  const totalUserXg = base.userXg + etUserXg;
+  const totalOppXg = base.oppXg + etOppXg;
+  const teamStats = computeTeamStats(input, totalUserXg, totalOppXg, userGoals, oppGoals, rng);
+
+  return {
+    ...base,
+    userGoals,
+    oppGoals,
+    userXg: totalUserXg,
+    oppXg: totalOppXg,
+    goals,
+    comparison: buildComparison(input, userGoals, oppGoals, simOutcome),
+    teamStats,
+    wentToExtraTime: true,
+    penalties,
   };
 }
 

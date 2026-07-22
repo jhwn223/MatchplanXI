@@ -3,6 +3,8 @@ import "./App.css";
 import { useTournamentData } from "./hooks/useTournamentData";
 import { getTeamMatches, type PlayedMap, type PlayedResult, type TeamMatch } from "./data/tournament";
 import { KO_ROUND_EN, type KOMatch, type KOResults } from "./data/tournamentEngine";
+import { applyMatchToLeaderboard, type Leaderboard } from "./data/leaderboard";
+import type { SimResult } from "./data/matchSim";
 import { haversineKm } from "./data/geo";
 import { utcOffsetForCity } from "./data/timezones";
 import type { MatchDetailed } from "./data/types";
@@ -28,6 +30,7 @@ function App() {
   const [activeMatchId, setActiveMatchId] = useState<number | null>(null);
   const [lineups, setLineups] = useState<Record<number, Lineup>>({});
   const [played, setPlayed] = useState<PlayedMap>({});
+  const [leaderboard, setLeaderboard] = useState<Leaderboard>({});
   // knockout state
   const [koResults, setKoResults] = useState<KOResults>({});
   const [koLineups, setKoLineups] = useState<Record<string, Lineup>>({});
@@ -53,11 +56,17 @@ function App() {
     setPlayed({});
     setKoResults({});
     setKoLineups({});
+    setLeaderboard({});
     setView("hub");
   }
 
   function recordResult(matchId: number, result: PlayedResult) {
     setPlayed((prev) => ({ ...prev, [matchId]: result }));
+  }
+
+  /** cumulative scorer/assist ranking, carried across the whole tournament */
+  function recordMatchStats(sim: SimResult) {
+    setLeaderboard((prev) => applyMatchToLeaderboard(prev, sim.goals));
   }
 
   function openMatch(matchId: number) {
@@ -198,6 +207,8 @@ function App() {
           onChangeLineup={(next) => setLineups((prev) => ({ ...prev, [activeMatchId]: next }))}
           onBack={() => setView("hub")}
           onPlayed={recordResult}
+          onMatchSim={recordMatchStats}
+          leaderboard={leaderboard}
           onNextMatch={goToNextMatch}
         />
       );
@@ -220,9 +231,17 @@ function App() {
           onPlayed={(_, result) =>
             setKoResults((prev) => ({
               ...prev,
-              [activeKo.id]: { userGoals: result.homeGoals, oppGoals: result.awayGoals },
+              [activeKo.id]: {
+                userGoals: result.homeGoals,
+                oppGoals: result.awayGoals,
+                wentToPenalties: result.wentToPenalties,
+                userPenGoals: result.homePenGoals,
+                oppPenGoals: result.awayPenGoals,
+              },
             }))
           }
+          onMatchSim={recordMatchStats}
+          leaderboard={leaderboard}
           onNextMatch={goToNextMatch}
         />
       );
