@@ -2,7 +2,7 @@ import { mulberry32, quickSimScore } from "./matchSim";
 import type { PlayedMap, StandingRow } from "./tournament";
 import type { TournamentData, Venue } from "./types";
 
-// ---------- group stage (fully simulated world; user results override) ----------
+// ---------- group stage ----------
 
 function eloOf(data: TournamentData): Map<string, { elo: number; code: string }> {
   const m = new Map<string, { elo: number; code: string }>();
@@ -10,26 +10,10 @@ function eloOf(data: TournamentData): Map<string, { elo: number; code: string }>
   return m;
 }
 
-/** result of a group match: the user's played score if any, else a deterministic sim */
-function resolveGroupMatch(
-  matchId: number,
-  homeName: string,
-  awayName: string,
-  played: PlayedMap,
-  elo: Map<string, { elo: number; code: string }>
-): { home: number; away: number } {
-  const p = played[matchId];
-  if (p) return { home: p.homeGoals, away: p.awayGoals };
-  const eh = elo.get(homeName)?.elo ?? 1600;
-  const ea = elo.get(awayName)?.elo ?? 1600;
-  return quickSimScore(matchId * 131 + 7, eh, ea);
-}
-
 export function groupStandingsSim(
   data: TournamentData,
   groupLetter: string,
-  played: PlayedMap,
-  elo = eloOf(data)
+  played: PlayedMap
 ): StandingRow[] {
   const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
   const names = new Set(groupTeams.map((t) => t.team_name));
@@ -44,9 +28,10 @@ export function groupStandingsSim(
   for (const m of data.matches) {
     if (m.stage_name !== "Group Stage") continue;
     if (!names.has(m.home_team_name) || !names.has(m.away_team_name)) continue;
-    const { home: hs, away: as } = resolveGroupMatch(
-      m.match_id, m.home_team_name, m.away_team_name, played, elo
-    );
+    const result = played[m.match_id];
+    if (!result) continue;
+    const hs = result.homeGoals;
+    const as = result.awayGoals;
     const h = table.get(m.home_team_name)!;
     const a = table.get(m.away_team_name)!;
     h.played++; a.played++;
@@ -64,9 +49,8 @@ export function groupStandingsSim(
 const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 
 export function allGroupStandings(data: TournamentData, played: PlayedMap): Record<string, StandingRow[]> {
-  const elo = eloOf(data);
   const out: Record<string, StandingRow[]> = {};
-  for (const g of GROUPS) out[g] = groupStandingsSim(data, g, played, elo);
+  for (const g of GROUPS) out[g] = groupStandingsSim(data, g, played);
   return out;
 }
 
