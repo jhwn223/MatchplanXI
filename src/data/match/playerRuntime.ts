@@ -3,20 +3,17 @@ import type { MatchSide, PlacedPlayerLite, SimInput } from "./types";
 
 /** Condition, stamina, altitude and playing out of position alter every individual action. */
 export function performanceFactor(player: PlacedPlayerLite, minute: number, elevation: number): number {
-  const condition = 0.82 + player.condition / 430;
-  const fatigueProgress = clamp(minute / 120, 0, 1);
-  const staminaProtection = clamp((player.stamina - 45) / 100, 0, 0.5);
-  const altitudeLoad = clamp((elevation - 800) / 9000, 0, 0.22);
-  const fatigue = 1 - fatigueProgress * (0.17 - staminaProtection * 0.18 + altitudeLoad);
+  const condition = currentCondition(player, minute, elevation);
+  const conditionFactor = 0.6 + condition / 185;
   const positionFit = player.naturalPosition === player.position ? 1 : 0.88;
-  return clamp(condition * fatigue * positionFit, 0.62, 1.12);
+  return clamp(conditionFactor * positionFit, 0.62, 1.12);
 }
 
 export function currentCondition(player: PlacedPlayerLite, minute: number, elevation: number): number {
   const elapsed = clamp(minute, 0, 120);
-  const staminaLoad = clamp((82 - player.stamina) / 55, 0.12, 0.82);
-  const altitudeLoad = clamp((elevation - 800) / 5000, 0, 0.35);
-  const fatigueLoss = elapsed * (0.13 + staminaLoad * 0.12 + altitudeLoad * 0.08);
+  const staminaLoad = clamp((100 - player.stamina) / 60, 0, 1);
+  const altitudeLoad = clamp((elevation - 800) / 4000, 0, 0.45);
+  const fatigueLoss = elapsed * (0.08 + staminaLoad * 0.14 + altitudeLoad * 0.1);
   return Math.round(clamp(player.condition - fatigueLoss, 5, 100));
 }
 
