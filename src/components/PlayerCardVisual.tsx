@@ -23,7 +23,7 @@ interface Props {
 
 const VARIANTS = {
   idle: { scale: 1, opacity: 1, rotate: 0, boxShadow: "0 2px 6px rgba(0,0,0,0.2)" },
-  "dragging-source": { scale: 1, opacity: 0.32, rotate: 0, boxShadow: "0 2px 6px rgba(0,0,0,0.2)" },
+  "dragging-source": { scale: 1, opacity: 0, rotate: 0, boxShadow: "none" },
   floating: { scale: 1.07, opacity: 1, rotate: -2, boxShadow: "0 16px 28px rgba(0,0,0,0.4)" },
 };
 
@@ -54,7 +54,7 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
         initial={false}
         animate={VARIANTS[state]}
         whileTap={state === "idle" && !ineligible ? { scale: 1.05 } : undefined}
-        transition={{ type: "spring", stiffness: 500, damping: 28 }}
+        transition={state === "dragging-source" ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 28 }}
       >
         <motion.div
           className="player-card__ring"
