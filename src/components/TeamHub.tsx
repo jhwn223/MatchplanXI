@@ -8,6 +8,7 @@ import {
   type TeamMatch,
 } from "../data/tournament";
 import { groupStandingsSim } from "../data/tournamentEngine";
+import { AppTopbar } from "./AppTopbar";
 
 interface Props {
   data: TournamentData;
@@ -17,13 +18,6 @@ interface Props {
   onBack: () => void;
   onOpenMatch: (matchId: number) => void;
   onOpenBracket: () => void;
-}
-
-function elevationTag(elev: number): string {
-  if (elev >= 2000) return "초고지대";
-  if (elev >= 1000) return "고지대";
-  if (elev >= 300) return "구릉지";
-  return "저지대";
 }
 
 interface UserResult {
@@ -47,6 +41,7 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
 
   const groupPlayedCount = groupMatches.filter((m) => played[m.match.match_id]).length;
   const groupComplete = groupPlayedCount === groupMatches.length;
+  const nextFixtureIndex = groupMatches.findIndex((m) => !played[m.match.match_id]);
   const pos = finishingPosition(standings, team.team_name);
   const qualified = groupComplete && pos <= 2;
 
@@ -64,6 +59,7 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
 
   return (
     <div className="hub">
+      <AppTopbar active="schedule" teamCode={team.fifa_code} onBrandClick={onBack} />
       <header className="hub__header">
         <button type="button" className="btn-back" onClick={onBack}>
           ← 국가 선택
@@ -76,6 +72,10 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
               그룹 {team.group_letter} · FIFA #{team.fifa_ranking_pre_tournament} · 감독 {team.manager_name}
             </p>
           </div>
+        </div>
+        <div className="hub__progress">
+          <div><span>대회 진행률</span><strong>{groupPlayedCount}/{groupMatches.length} MATCHES</strong></div>
+          <div className="hub__progress-track"><i style={{ width: `${(groupPlayedCount / Math.max(1, groupMatches.length)) * 100}%` }} /></div>
         </div>
       </header>
 
@@ -121,17 +121,26 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
             </tbody>
           </table>
           <p className="hub__hint">상위 2팀이 토너먼트 진출 · 아직 치르지 않은 경기는 순위에 반영되지 않습니다</p>
+          <div className="qualification-card">
+            <span>현재 대회 전망</span>
+            <div><strong>조 {pos}위</strong><em>{pos <= 2 ? "진출권" : "추격 필요"}</em></div>
+            <div className="qualification-card__track"><i style={{ width: `${Math.max(12, 100 - (pos - 1) * 24)}%` }} /></div>
+            <p>{groupComplete ? (qualified ? "토너먼트 진출 확정" : "조별리그 일정 종료") : `남은 경기 ${groupMatches.length - groupPlayedCount}회`}</p>
+          </div>
         </section>
 
         <section className="hub__fixtures">
           <h2 className="hub__section-title">조별리그 3경기 — 전술을 짜세요</h2>
           <div className="fixtures">
-            {groupMatches.map((tm) => (
+            {groupMatches.map((tm, index) => (
               <FixtureCard
                 key={tm.match.match_id}
                 tm={tm}
+                teamCode={team.fifa_code}
                 placed={lineupCounts[tm.match.match_id] ?? 0}
                 result={userResultOf(tm, played)}
+                featured={index === nextFixtureIndex}
+                matchday={index + 1}
                 onOpen={() => onOpenMatch(tm.match.match_id)}
               />
             ))}
@@ -144,60 +153,70 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
 
 function FixtureCard({
   tm,
+  teamCode,
   placed,
   result,
+  featured,
+  matchday,
   onOpen,
 }: {
   tm: TeamMatch;
+  teamCode: string;
   placed: number;
   result: UserResult | null;
+  featured: boolean;
+  matchday: number;
   onOpen: () => void;
 }) {
   const { match } = tm;
   const elevClass = tm.elevation >= 2000 ? "high" : tm.elevation >= 1000 ? "mid" : "low";
-
-  const statusNode = result ? (
-    <span className={`fixture__result fixture__result--${result.outcome.toLowerCase()}`}>
-      {result.outcome === "W" ? "승" : result.outcome === "D" ? "무" : "패"} {result.gf}-{result.ga} · 다시하기 ↻
-    </span>
-  ) : (
-    <span className="fixture__status">
-      {placed === 11 ? "✓ 라인업 완성 · 시작" : placed > 0 ? `${placed}/11 배치` : "전술 짜기 →"}
-    </span>
-  );
 
   return (
     <motion.button
       type="button"
       className="fixture"
       data-played={result ? true : undefined}
+      data-featured={featured || undefined}
       onClick={onOpen}
       whileHover={{ scale: 1.01, y: -2 }}
       whileTap={{ scale: 0.99 }}
     >
-      <div className="fixture__top">
-        <span className="fixture__stage">{stageLabelKo(match.stage_name)}</span>
-        <span className="fixture__date">{match.date}</span>
+      <div className="fixture__meta-panel">
+        <span className="fixture__matchday">MATCHDAY {String(matchday).padStart(2, "0")}</span>
+        <strong>{result ? "경기 종료" : match.date}</strong>
+        <p>Stadium<br />{match.stadium_name.replace(/\s*\(.*\)/, "")}</p>
       </div>
-      <div className="fixture__match">
-        <span className="fixture__vs">{tm.isHome ? "vs" : "@"}</span>
-        <span className="fixture__opponent">{tm.opponentName}</span>
-        <span className="fixture__code">({tm.opponentCode})</span>
-      </div>
-      <div className="fixture__venue">
-        {match.stadium_name.replace(/\s*\(.*\)/, "")} · {match.city}
-      </div>
-      <div className="fixture__bottom">
-        <span className={`elev-badge elev-badge--${elevClass}`}>
-          ⛰ {tm.elevation}m · {elevationTag(tm.elevation)}
-        </span>
-        <span className="fixture__rest">휴식 {tm.restDays}일</span>
-        {tm.travelKm > 0 && (
-          <span className="travel-badge">
-            ✈ {tm.travelKm}km{tm.tzShiftHours !== 0 ? ` · 시차 ${Math.abs(tm.tzShiftHours)}h` : ""}
-          </span>
+      <div className="fixture__content">
+        {featured && <span className="fixture__next-label">NEXT FIXTURE</span>}
+        <div className="fixture__match">
+          <span className="fixture__team-code">{teamCode}</span>
+          {result ? (
+            <strong className="fixture__score">{result.gf} — {result.ga}</strong>
+          ) : (
+            <span className="fixture__vs">VS</span>
+          )}
+          <span className="fixture__team-code fixture__team-code--opp">{tm.opponentCode}</span>
+        </div>
+        {!result && (
+          <div className="fixture__factors">
+            <span className={`elev-badge elev-badge--${elevClass}`}>⛰<small>ALTITUDE</small><strong>{tm.elevation}m</strong></span>
+            <span><b>▣</b><small>REST</small><strong>{tm.restDays} Days</strong></span>
+            <span><b>✈</b><small>TRAVEL</small><strong>{tm.travelKm}km</strong></span>
+            <span><b>◷</b><small>TIME ZONE</small><strong>{Math.abs(tm.tzShiftHours)}h Diff</strong></span>
+          </div>
         )}
-        {statusNode}
+        <div className="fixture__bottom">
+          <span>{stageLabelKo(match.stage_name)} · {match.city}</span>
+          <strong className={result ? `fixture__result fixture__result--${result.outcome.toLowerCase()}` : "fixture__status"}>
+            {result
+              ? `${result.outcome === "W" ? "승" : result.outcome === "D" ? "무" : "패"} · 다시보기`
+              : placed === 11
+                ? "라인업 완성 · 경기 시작"
+                : placed > 0
+                  ? `${placed}/11 배치 계속하기`
+                  : "전술 설정"}
+          </strong>
+        </div>
       </div>
     </motion.button>
   );

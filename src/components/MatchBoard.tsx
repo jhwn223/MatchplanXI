@@ -28,6 +28,7 @@ import { stageLabelKo, type TeamMatch } from "../data/tournament";
 import {
   autoFillBestXI,
   canPlaceInSlot,
+  emptySlots,
   remapFormation,
   type Slots,
   type TacticalPreset,
@@ -52,6 +53,7 @@ import { ConditionGauge, type ConditionSubIndices } from "./ConditionGauge";
 import { TacticsPanel } from "./TacticsPanel";
 import { MatchArena, type ArenaSim } from "./MatchArena";
 import { PlayerCardVisual } from "./PlayerCardVisual";
+import { AppTopbar } from "./AppTopbar";
 import { PlayerStatsModal } from "./PlayerStatsModal";
 
 type MatchPhase = "idle" | "half1" | "halftime" | "half2" | "etbreak" | "extratime";
@@ -68,7 +70,7 @@ export interface Lineup {
   presetKey?: string | null;
 }
 
-export { emptySlots } from "../data/tactics";
+export { emptySlots };
 
 interface Props {
   data: TournamentData;
@@ -170,6 +172,16 @@ export function MatchBoard({
     [data.players, opponent?.team_id]
   );
   const isKnockout = m.stage_name !== "Group Stage";
+  const winEstimate = Math.max(
+    8,
+    Math.min(
+      92,
+      Math.round(
+        (1 / (1 + Math.pow(10, ((opponent?.elo_rating ?? 1600) - team.elo_rating) / 400))) * 100 +
+          ((teamIndex ?? 62) - 62) * 0.22
+      )
+    )
+  );
   const tiedAfterRegulation =
     regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
 
@@ -196,7 +208,7 @@ export function MatchBoard({
   // memoized so MatchArena's effect (keyed on `sim`) doesn't reset mid-animation
   // just because MatchBoard re-renders for an unrelated reason
   const half1ArenaSim: ArenaSim | null = useMemo(
-    () => (half1 ? { goals: half1.goals, userGoals: half1.userGoals, oppGoals: half1.oppGoals } : null),
+    () => (half1 ? { goals: half1.goals, userGoals: half1.userGoals, oppGoals: half1.oppGoals, userXg: half1.userXg, oppXg: half1.oppXg } : null),
     [half1]
   );
   const half2ArenaSim: ArenaSim | null = useMemo(
@@ -206,6 +218,8 @@ export function MatchBoard({
             goals: half2.goals,
             userGoals: regSim.userGoals,
             oppGoals: regSim.oppGoals,
+            userXg: regSim.userXg,
+            oppXg: regSim.oppXg,
             comparison: regSim.comparison,
             teamStats: regSim.teamStats,
             wentToExtraTime: regSim.wentToExtraTime,
@@ -223,6 +237,8 @@ export function MatchBoard({
             goals: finalSim.goals.filter((g) => g.minute > 90),
             userGoals: finalSim.userGoals,
             oppGoals: finalSim.oppGoals,
+            userXg: finalSim.userXg,
+            oppXg: finalSim.oppXg,
             comparison: finalSim.comparison,
             teamStats: finalSim.teamStats,
             wentToExtraTime: finalSim.wentToExtraTime,
@@ -258,6 +274,11 @@ export function MatchBoard({
       slots: autoFillBestXI(lineup.formation, squad, conditions),
       presetKey: null,
     });
+  }
+
+  function resetLineup() {
+    if (startingXI) return;
+    onChangeLineup({ formation: lineup.formation, slots: emptySlots(lineup.formation), presetKey: null });
   }
 
   // --- drag/drop ---
@@ -457,6 +478,7 @@ export function MatchBoard({
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="board">
+        <AppTopbar active="tactics" teamCode={team.fifa_code} onBrandClick={onBack} />
         <header className="board__header">
           <button type="button" className="btn-back" onClick={onBack}>
             ← 일정
@@ -524,14 +546,6 @@ export function MatchBoard({
                 🔥 연장전 돌입 · 정규시간 {regSim.userGoals} - {regSim.oppGoals} · 교체 카드 1장 추가 지급
               </div>
             )}
-            <button
-              type="button"
-              className="kickoff-btn"
-              disabled={!ready}
-              onClick={primaryAction}
-            >
-              {primaryLabel}
-            </button>
           </aside>
 
           <main className="board__pitch">
@@ -572,6 +586,19 @@ export function MatchBoard({
             />
           </section>
         </div>
+        <footer className="board__actionbar">
+          <div className="board__action-metric">
+            <span>스쿼드 구성</span>
+            <strong>{placedIds.size} / 11</strong>
+          </div>
+          <div className="board__action-metric">
+            <span>예상 승률</span>
+            <strong>{winEstimate}%</strong>
+          </div>
+          <div className="board__action-spacer" />
+          <button type="button" className="board__reset" disabled={startingXI != null} onClick={resetLineup}>전술 초기화</button>
+          <button type="button" className="kickoff-btn" disabled={!ready} onClick={primaryAction}>{primaryLabel}</button>
+        </footer>
       </div>
 
       <DragOverlay dropAnimation={null}>
@@ -595,7 +622,7 @@ export function MatchBoard({
             userCode={team.fifa_code}
             oppTeamName={activeMatch.opponentName}
             oppCode={activeMatch.opponentCode}
-            userColor="#4fd1c5"
+            userColor="#7adb8c"
             formation={lineup.formation}
             formationLabel={detectedFormation}
             slots={lineup.slots}
@@ -620,7 +647,7 @@ export function MatchBoard({
             userCode={team.fifa_code}
             oppTeamName={activeMatch.opponentName}
             oppCode={activeMatch.opponentCode}
-            userColor="#4fd1c5"
+            userColor="#7adb8c"
             formation={lineup.formation}
             formationLabel={detectedFormation}
             slots={lineup.slots}
@@ -654,7 +681,7 @@ export function MatchBoard({
             userCode={team.fifa_code}
             oppTeamName={activeMatch.opponentName}
             oppCode={activeMatch.opponentCode}
-            userColor="#4fd1c5"
+            userColor="#7adb8c"
             formation={lineup.formation}
             formationLabel={detectedFormation}
             slots={lineup.slots}
