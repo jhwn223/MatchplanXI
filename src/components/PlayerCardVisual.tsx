@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { conditionColor } from "../data/conditionEngine";
 import type { ConditionBreakdown } from "../data/conditionEngine";
 import type { Player } from "../data/types";
+import { PlayerPhoto } from "./player-photo/PlayerPhoto";
 
 export type CardVisualState = "idle" | "dragging-source" | "floating";
 
@@ -61,7 +62,7 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
           animate={{ backgroundColor: color, borderColor: color }}
           transition={{ duration: 0.45, ease: "easeOut" }}
         >
-          <span className="player-card__initials">{initials(player.player_name)}</span>
+          <PlayerPhoto player={player} className="player-card__photo" />
         </motion.div>
         <div className="player-card__meta">
           <span className="player-card__name">{player.player_name}</span>
@@ -84,12 +85,6 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
   }
 );
 PlayerCardVisual.displayName = "PlayerCardVisual";
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const last = parts[parts.length - 1] ?? "";
-  return last.slice(0, 2).toUpperCase();
-}
 
 function keyAbilityStats(player: Player): string {
   const ability = player.ability!;

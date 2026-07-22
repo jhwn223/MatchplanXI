@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import type { ConditionBreakdown } from "../data/conditionEngine";
 import type { Player, PlayerAbility } from "../data/types";
+import { PlayerPhoto } from "./player-photo/PlayerPhoto";
+import { getPlayerPhoto } from "./player-photo/playerPhotoData";
 
 interface Props {
   player: Player;
@@ -24,6 +26,7 @@ const CORE_STATS: Array<{ label: string; key: keyof PlayerAbility }> = [
 
 export function PlayerStatsModal({ player, condition, onClose }: Props) {
   const ability = player.ability;
+  const photo = getPlayerPhoto(player.player_id);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -81,11 +84,21 @@ export function PlayerStatsModal({ player, condition, onClose }: Props) {
     <div className="player-stats-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="player-stats-modal" role="dialog" aria-modal="true" aria-labelledby="player-stats-title">
         <header className="player-stats-header">
-          <div className="player-stats-overall" aria-label={`오버롤 ${ability.overall}`}>{ability.overall}</div>
+          <div className="player-stats-portrait">
+            <PlayerPhoto player={player} className="player-stats-photo" />
+            <div className="player-stats-overall" aria-label={`오버롤 ${ability.overall}`}>{ability.overall}</div>
+          </div>
           <div className="player-stats-identity">
             <span className="player-stats-position">{player.position}</span>
             <h2 id="player-stats-title">{player.player_name}</h2>
             <p>{player.club_team} · {player.height_cm}cm · A매치 {player.caps}경기 · {player.goals}골</p>
+            {photo && (
+              <p className="player-photo-credit">
+                사진: <a href={photo.sourcePageUrl} target="_blank" rel="noreferrer">{photo.author}</a>
+                {" · "}<a href={photo.licenseUrl} target="_blank" rel="noreferrer">{photo.license}</a>
+                {" · Wikimedia Commons"}
+              </p>
+            )}
           </div>
           <button type="button" className="player-stats-close" onClick={onClose} aria-label="선수 능력치 닫기" title="닫기">×</button>
         </header>
