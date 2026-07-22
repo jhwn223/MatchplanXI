@@ -198,3 +198,152 @@ export const TACTICAL_PRESETS: TacticalPreset[] = [
 ];
 
 export const FORMATION_META = FORMATIONS;
+
+// ---- tactic style (playstyle) ----
+
+export type TacticStyleKey =
+  | "possession"
+  | "counter"
+  | "wing"
+  | "halfspace"
+  | "longball"
+  | "gegenpress";
+
+export interface TacticStyle {
+  key: TacticStyleKey;
+  label: string;
+  emoji: string;
+  description: string;
+  /** small nudge blended into the formation/position-derived attack bias */
+  attackBias: number;
+  /** -1..1, how aggressively the team presses/recovers the ball high up the pitch */
+  pressBias: number;
+  /** -1..1, how much fullbacks/wingers overlap and cross */
+  overlapBias: number;
+  /** -1..1, negative = short possession passing, positive = direct/long passing */
+  directnessBias: number;
+  /** -1..1, net tendency to create counters (positive) vs concede them (negative pressure) */
+  counterBias: number;
+}
+
+export const TACTIC_STYLES: TacticStyle[] = [
+  {
+    key: "possession",
+    label: "점유(패스) 전술",
+    emoji: "🎯",
+    description: "짧은 패스, 높은 점유율, 천천히 전개",
+    attackBias: -0.05,
+    pressBias: -0.3,
+    overlapBias: -0.2,
+    directnessBias: -0.9,
+    counterBias: -0.3,
+  },
+  {
+    key: "counter",
+    label: "역습 전술",
+    emoji: "⚡",
+    description: "공을 뺏으면 빠르게 전진",
+    attackBias: -0.15,
+    pressBias: -0.5,
+    overlapBias: -0.1,
+    directnessBias: 0.4,
+    counterBias: 0.9,
+  },
+  {
+    key: "wing",
+    label: "측면(크로스) 전술",
+    emoji: "↗",
+    description: "풀백·윙 활용, 크로스 비중 높음",
+    attackBias: 0.25,
+    pressBias: 0.0,
+    overlapBias: 0.9,
+    directnessBias: 0.1,
+    counterBias: 0.0,
+  },
+  {
+    key: "halfspace",
+    label: "중앙 침투 전술",
+    emoji: "🎯",
+    description: "원투패스, 스루패스, 하프스페이스 활용",
+    attackBias: 0.35,
+    pressBias: 0.1,
+    overlapBias: 0.1,
+    directnessBias: -0.4,
+    counterBias: 0.1,
+  },
+  {
+    key: "longball",
+    label: "롱볼 전술",
+    emoji: "🚀",
+    description: "긴 패스로 최전방 공략",
+    attackBias: 0.15,
+    pressBias: -0.1,
+    overlapBias: 0.0,
+    directnessBias: 0.9,
+    counterBias: 0.2,
+  },
+  {
+    key: "gegenpress",
+    label: "게겐프레싱",
+    emoji: "🔥",
+    description: "높은 압박 후 즉시 탈취",
+    attackBias: 0.45,
+    pressBias: 0.95,
+    overlapBias: 0.3,
+    directnessBias: 0.2,
+    counterBias: -0.4,
+  },
+];
+
+export function tacticStyleByKey(key: TacticStyleKey | null | undefined): TacticStyle {
+  return TACTIC_STYLES.find((s) => s.key === key) ?? TACTIC_STYLES[0];
+}
+
+export interface TacticStat {
+  label: string;
+  /** 0..100, for stat-bar rendering */
+  value: number;
+}
+
+/** bias is -1..1; convert to a 0..100 bar value. */
+function biasToStat(bias: number): number {
+  return Math.round(((bias + 1) / 2) * 100);
+}
+
+/**
+ * Attack/defense stat breakdown for a tactic style, meant to replace raw
+ * bias numbers with labeled bars a screen can render directly.
+ */
+export function tacticStatBreakdown(key: TacticStyleKey | null | undefined): {
+  attack: TacticStat[];
+  defense: TacticStat[];
+} {
+  const style = tacticStyleByKey(key);
+  return {
+    attack: [
+      { label: "공격 전개", value: biasToStat(style.attackBias) },
+      { label: "측면 오버래핑", value: biasToStat(style.overlapBias) },
+      { label: "직선적 전개(롱볼 성향)", value: biasToStat(style.directnessBias) },
+    ],
+    defense: [
+      { label: "전방 압박", value: biasToStat(style.pressBias) },
+      { label: "역습 전환", value: biasToStat(style.counterBias) },
+    ],
+  };
+}
+
+/** Which tactic styles suit each formation best, most-recommended first. */
+export const FORMATION_RECOMMENDED_STYLES: Record<FormationKey, TacticStyleKey[]> = {
+  "5-4-1": ["counter", "possession"],
+  "5-3-2": ["counter", "longball"],
+  "4-5-1": ["possession", "counter"],
+  "4-4-2": ["wing", "longball"],
+  "4-2-3-1": ["halfspace", "possession"],
+  "3-5-2": ["wing", "possession"],
+  "4-3-3": ["wing", "gegenpress"],
+  "3-4-3": ["gegenpress", "halfspace"],
+};
+
+export function recommendedStylesFor(formation: FormationKey): TacticStyleKey[] {
+  return FORMATION_RECOMMENDED_STYLES[formation] ?? [];
+}

@@ -17,7 +17,7 @@ import {
   autoFillBestXI,
   emptySlots,
   remapFormation,
-  type TacticalPreset,
+  type TacticStyleKey,
 } from "../data/tactics";
 import {
   applyExtraTime,
@@ -172,20 +172,16 @@ export function MatchBoard({
     });
   }
 
-  function applyPreset(preset: TacticalPreset) {
-    onChangeLineup({
-      formation: preset.formation,
-      slots: autoFillBestXI(preset.formation, squad, conditions),
-      presetKey: preset.key,
-    });
-  }
-
   function autoFill() {
     onChangeLineup({
       ...lineup,
       slots: autoFillBestXI(lineup.formation, squad, conditions),
       presetKey: null,
     });
+  }
+
+  function selectTacticStyle(key: TacticStyleKey) {
+    onChangeLineup({ ...lineup, tacticStyleKey: key });
   }
 
   function resetLineup() {
@@ -285,6 +281,8 @@ export function MatchBoard({
         formation={formation}
         detectedFormation={detectedFormation}
         effectiveAttackBias={effectiveAttackBias}
+        tacticStyleKey={lineup.tacticStyleKey ?? null}
+        onSelectTacticStyle={selectTacticStyle}
         teamIndex={teamIndex}
         conditionSubIndices={conditionSubIndices}
         conditions={conditions}
@@ -306,7 +304,6 @@ export function MatchBoard({
         onBack={onBack}
         onSoundChange={setSoundOn}
         onSelectFormation={selectFormation}
-        onApplyPreset={applyPreset}
         onAutoFill={autoFill}
         onResetPositions={() => onChangeLineup({ ...lineup, positions: {} })}
         onResetLineup={resetLineup}
