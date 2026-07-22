@@ -1,4 +1,4 @@
-import type { MatchEvent } from "../../data/matchSim";
+import type { LiveMatchSnapshot, MatchEvent } from "../../data/matchSim";
 
 const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = {
   pass: { icon: "↗", label: "패스" },
@@ -12,20 +12,34 @@ const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = 
   goal: { icon: "⚽", label: "득점" },
 };
 
-export function ArenaEventFeed({ events, minute }: { events: MatchEvent[]; minute: number }) {
+interface Props {
+  events: MatchEvent[];
+  minute: number;
+  live?: LiveMatchSnapshot | null;
+}
+
+export function ArenaEventFeed({ events, minute, live }: Props) {
   const elapsed = events.filter((event) => event.minute <= minute);
   const visible = elapsed
     .filter((event) => event.type !== "pass" && event.type !== "shot")
     .slice(-7)
     .reverse();
-  const completedPasses = elapsed.filter((event) => event.side === "user" && event.type === "pass").length;
-  const lostPasses = elapsed.filter((event) => event.side === "opp" && event.type === "interception").length;
-  const passRate = completedPasses + lostPasses
-    ? Math.round((completedPasses / (completedPasses + lostPasses)) * 100)
-    : 0;
-  const xg = elapsed
-    .filter((event) => event.side === "user" && event.type === "shot")
-    .reduce((sum, event) => sum + (event.xg ?? 0), 0);
+
+  let passRate = 0;
+  let xg = 0;
+  if (live) {
+    passRate = Math.round(live.teamStats.user.passSuccessRate);
+    xg = live.userXg;
+  } else {
+    const completedPasses = elapsed.filter((event) => event.side === "user" && event.type === "pass").length;
+    const lostPasses = elapsed.filter((event) => event.side === "opp" && event.type === "interception").length;
+    passRate = completedPasses + lostPasses
+      ? Math.round((completedPasses / (completedPasses + lostPasses)) * 100)
+      : 0;
+    xg = elapsed
+      .filter((event) => event.side === "user" && event.type === "shot")
+      .reduce((sum, event) => sum + (event.xg ?? 0), 0);
+  }
 
   return (
     <aside className="arena-events">

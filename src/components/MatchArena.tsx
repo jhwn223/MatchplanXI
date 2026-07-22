@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { slotsOf } from "../data/formation";
+import { snapshotAtMinute } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
 import { ArenaEventFeed } from "./match-arena/ArenaEventFeed";
 import { ArenaResultPanel } from "./match-arena/ArenaResultPanel";
@@ -30,6 +31,7 @@ export function MatchArena({
   userColor,
   formation,
   formationLabel,
+  tacticStyleKey,
   slots,
   positions,
   playersById,
@@ -42,6 +44,7 @@ export function MatchArena({
   interimLabel = "구간 종료",
   interimCta = "계속하기 →",
   onInterimContinue,
+  onTacticChange,
   onComplete,
   onClose,
   onNext,
@@ -70,6 +73,7 @@ export function MatchArena({
   function updateTeamTactics(next: TeamTactics) {
     liveIntensityRef.current = intensityFromTeamTactics(next);
     setTeamTactics(next);
+    onTacticChange?.(next);
   }
 
   function setTacticSelect<K extends TacticSelectKey>(key: K, value: TeamTactics[K]) {
@@ -264,7 +268,11 @@ export function MatchArena({
               )}
             </AnimatePresence>
           </div>
-          <ArenaEventFeed events={sim.events ?? []} minute={hud.minute} />
+          <ArenaEventFeed
+            events={sim.events ?? []}
+            minute={hud.minute}
+            live={snapshotAtMinute(sim.liveSnapshots ?? [], hud.minute)}
+          />
         </div>}
 
         {!ended ? (
@@ -306,6 +314,7 @@ export function MatchArena({
             interimCta={interimCta}
             userTeamName={userTeamName}
             oppTeamName={oppTeamName}
+            tacticStyleKey={tacticStyleKey}
             leaderboard={leaderboard}
             onInterimContinue={onInterimContinue}
             onReplay={replay}
