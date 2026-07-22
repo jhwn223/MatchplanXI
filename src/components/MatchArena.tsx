@@ -161,6 +161,10 @@ export function MatchArena({
       announcedET1: false,
       announcedET2: false,
       penT: 0,
+      pkSequence: [],
+      pkIndex: 0,
+      pkScore: [0, 0],
+      pkStage: "aim",
     };
   }
 

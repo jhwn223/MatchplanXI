@@ -1,10 +1,16 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { findEventDot, projectMatchEvent } from "./arenaEventProjector";
 import { drawArenaFrame } from "./arenaRenderer";
+import { displayArenaName } from "./names";
+import { buildPenaltySequence } from "./penaltyKicks";
 import { clamp as clampf, distanceSquared as d2, lerp } from "./runtimeMath";
 import type { ArenaHud, ArenaState } from "./runtimeTypes";
 import type { LiveIntensity } from "./tactics";
 import type { ArenaSim } from "./types";
+
+const PK_AIM_T = 0.5;
+const PK_STRIKE_T = 0.55;
+const PK_REVEAL_T = 1.1;
 
 const MIN_PER_SEC = 3.4;
 interface Options {
@@ -190,6 +196,52 @@ export function useArenaLoop({
       }
     }
 
+    const pkSpot = (team: 0 | 1) => {
+      const gm = goalMouth(team);
+      return { x: gm.x + (team === 0 ? -11 : 11), y: 50 };
+    };
+
+    const pkTarget = (team: 0 | 1, scored: boolean) => {
+      const gm = goalMouth(team);
+      return { x: gm.x, y: clampf(50 + (scored ? (team === 0 ? 7 : -7) : 0), 20, 80) };
+    };
+
+    function positionForKick(s: ArenaState) {
+      const kick = s.pkSequence[s.pkIndex];
+      if (!kick) return;
+      const kickNumber = Math.floor(s.pkIndex / 2);
+      const spot = pkSpot(kick.team);
+      const kickerPool = s.dots.filter((d) => d.team === kick.team && d.role !== "GK");
+      const keeperDot = s.dots.find((d) => d.team !== kick.team && d.role === "GK");
+      const kicker = kickerPool.length ? kickerPool[kickNumber % kickerPool.length] : null;
+      if (kicker) {
+        kicker.x = spot.x;
+        kicker.y = spot.y;
+      }
+      if (keeperDot) {
+        const gm = goalMouth(kick.team);
+        keeperDot.x = gm.x;
+        keeperDot.y = gm.y;
+      }
+      s.ball.x = spot.x;
+      s.ball.y = spot.y;
+      s.ball.owner = kicker ? s.dots.indexOf(kicker) : -1;
+      s.ball.flightTo = -1;
+    }
+
+    function startPenalties(s: ArenaState) {
+      s.phase = "penalties";
+      s.pkSequence = buildPenaltySequence(sim.penalties!, rng);
+      s.pkIndex = 0;
+      s.pkScore = [0, 0];
+      s.pkStage = "aim";
+      s.penT = PK_AIM_T;
+      s.banner = null;
+      s.periodBanner = "승부차기";
+      s.periodBannerT = PK_AIM_T + PK_STRIKE_T;
+      positionForKick(s);
+    }
+
     function update(dt: number) {
       const s = stateRef.current!;
       if (s.phase === "ended" || s.phase === "interim") return;
@@ -201,8 +253,48 @@ export function useArenaLoop({
       }
 
       if (s.phase === "penalties") {
+        const kick = s.pkSequence[s.pkIndex];
+        if (!kick) {
+          finishSegment(s);
+          return;
+        }
         s.penT -= dt;
-        if (s.penT <= 0) finishSegment(s);
+        if (s.pkStage === "aim") {
+          if (s.penT <= 0) {
+            s.pkStage = "strike";
+            s.penT = PK_STRIKE_T;
+          }
+          return;
+        }
+        if (s.pkStage === "strike") {
+          const spot = pkSpot(kick.team);
+          const target = pkTarget(kick.team, kick.scored);
+          const t = clampf(1 - s.penT / PK_STRIKE_T, 0, 1);
+          s.ball.x = spot.x + (target.x - spot.x) * t;
+          s.ball.y = spot.y + (target.y - spot.y) * t;
+          if (s.penT <= 0) {
+            if (kick.scored) s.pkScore[kick.team]++;
+            s.pkStage = "reveal";
+            s.penT = PK_REVEAL_T;
+            const kicker = s.ball.owner >= 0 ? s.dots[s.ball.owner] : null;
+            s.banner = kick.scored && kicker ? displayArenaName(kicker.name) : null;
+            s.periodBanner = `PK ${s.pkScore[0]} : ${s.pkScore[1]}${kick.scored ? "" : " · 실축"}`;
+            s.periodBannerT = PK_REVEAL_T;
+          }
+          return;
+        }
+        // reveal
+        if (s.penT <= 0) {
+          s.pkIndex++;
+          s.banner = null;
+          if (s.pkIndex >= s.pkSequence.length) {
+            finishSegment(s);
+            return;
+          }
+          positionForKick(s);
+          s.pkStage = "aim";
+          s.penT = PK_AIM_T;
+        }
         return;
       }
 
@@ -229,18 +321,9 @@ export function useArenaLoop({
       s.clock += dt * MIN_PER_SEC;
       if (s.clock >= endMinute) {
         s.clock = endMinute;
-        s.phase = "ended";
         s.score = [sim.userGoals, sim.oppGoals];
-        if (!completedRef.current) {
-          completedRef.current = true;
-          onComplete();
-          setEnded(true);
-        }
         if (sim.penalties) {
-          s.phase = "penalties";
-          s.penT = 3.6;
-          s.periodBanner = "승부차기";
-          s.periodBannerT = 3.6;
+          startPenalties(s);
           return;
         }
         finishSegment(s);
@@ -414,19 +497,12 @@ export function useArenaLoop({
       if (hudAcc > 0.08) {
         hudAcc = 0;
         const s = stateRef.current!;
-        const periodBanner =
-          s.phase === "penalties"
-            ? s.penT > 2.1
-              ? "승부차기"
-              : `PK ${sim.penalties?.userGoals} : ${sim.penalties?.oppGoals}`
-            : s.periodBannerT > 0
-              ? s.periodBanner
-              : null;
+        const periodBanner = s.periodBannerT > 0 ? s.periodBanner : null;
         setHud({
           minute: Math.floor(s.clock),
           home: s.score[0],
           away: s.score[1],
-          banner: s.phase === "celebrate" ? s.banner : null,
+          banner: s.phase === "celebrate" || s.phase === "penalties" ? s.banner : null,
           periodBanner,
         });
       }
