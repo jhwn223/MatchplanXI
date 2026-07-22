@@ -8,7 +8,7 @@ export { mulberry32 } from "./match/random";
 export { quickSimScore } from "./match/quickSim";
 export { simulateHalf } from "./match/eventEngine";
 export { applyExtraTime, combineHalves } from "./match/result";
-export { snapshotAtMinute } from "./match/liveStats";
+export { selectPlayerOfMatch, snapshotAtMinute } from "./match/liveStats";
 export { BALANCED_SIM_TACTICS, normalizeSimTactics } from "./match/tactics";
 export type {
   GoalEvent,

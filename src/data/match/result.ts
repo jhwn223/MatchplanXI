@@ -1,5 +1,5 @@
 import { simulatePeriod } from "./eventEngine";
-import { combineLiveSnapshots, combinePlayerStats } from "./liveStats";
+import { combineLiveSnapshots, combinePlayerStats, selectPlayerOfMatch } from "./liveStats";
 import { simulatePenalties } from "./penalties";
 import { mulberry32 } from "./random";
 import { combineTeamStatsPair } from "./stats";
@@ -14,6 +14,7 @@ export function combineHalves(input: SimInput, firstHalf: HalfResult, secondHalf
   const userXg = firstHalf.userXg + secondHalf.userXg;
   const oppXg = firstHalf.oppXg + secondHalf.oppXg;
   const outcome = userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
+  const playerStats = combinePlayerStats(firstHalf.playerStats, secondHalf.playerStats);
 
   return {
     userGoals,
@@ -26,7 +27,8 @@ export function combineHalves(input: SimInput, firstHalf: HalfResult, secondHalf
     events,
     comparison: buildComparison(input, userGoals, oppGoals, outcome),
     teamStats: combineTeamStatsPair(firstHalf.teamStats, secondHalf.teamStats),
-    playerStats: combinePlayerStats(firstHalf.playerStats, secondHalf.playerStats),
+    playerStats,
+    playerOfMatch: selectPlayerOfMatch(playerStats),
     liveSnapshots: combineLiveSnapshots(firstHalf.liveSnapshots, secondHalf.liveSnapshots),
     wentToExtraTime: false,
     penalties: null,
@@ -47,6 +49,7 @@ export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
   const outcome = userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
   const userXg = base.userXg + extraTime.userXg;
   const oppXg = base.oppXg + extraTime.oppXg;
+  const playerStats = combinePlayerStats(base.playerStats, extraTime.playerStats);
 
   return {
     ...base,
@@ -58,7 +61,8 @@ export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
     events,
     comparison: buildComparison(input, userGoals, oppGoals, outcome),
     teamStats: combineTeamStatsPair(base.teamStats, extraTime.teamStats),
-    playerStats: combinePlayerStats(base.playerStats, extraTime.playerStats),
+    playerStats,
+    playerOfMatch: selectPlayerOfMatch(playerStats),
     liveSnapshots: combineLiveSnapshots(base.liveSnapshots, extraTime.liveSnapshots),
     wentToExtraTime: true,
     penalties,

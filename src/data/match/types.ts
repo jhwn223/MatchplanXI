@@ -91,6 +91,7 @@ export interface PlayerMatchStats {
   position: Position;
   condition: number;
   rating: number;
+  minutesPlayed: number;
   touches: number;
   passesAttempted: number;
   passesCompleted: number;
@@ -102,6 +103,10 @@ export interface PlayerMatchStats {
   shotsOnTarget: number;
   goals: number;
   assists: number;
+  keyPasses: number;
+  blocks: number;
+  bigChancesMissed: number;
+  goalsConceded: number;
   saves: number;
   distanceKm: number;
 }
@@ -191,6 +196,7 @@ export interface SimResult {
   comparison: SimComparison;
   teamStats: { user: TeamStats; opp: TeamStats };
   playerStats: PlayerMatchStats[];
+  playerOfMatch: PlayerMatchStats | null;
   liveSnapshots: LiveMatchSnapshot[];
   wentToExtraTime: boolean;
   penalties: PenaltyResult | null;

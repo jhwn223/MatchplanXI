@@ -35,6 +35,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   };
   const playerStats = createPlayerStats(input);
   const snapshots = new Map<number, ReturnType<typeof createLiveSnapshot>>();
+  const periodStartMinute = Math.max(0, lo - 1);
   const duration = hi - lo + 1;
   const possessionCount = Math.max(24, Math.round(duration * 1.12));
   const userTactics = tacticsForSide(input, "user");
@@ -54,7 +55,10 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     0.36,
     0.64
   );
-  snapshots.set(Math.max(0, lo - 1), createLiveSnapshot(input, Math.max(0, lo - 1), running, playerStats, goals));
+  snapshots.set(
+    periodStartMinute,
+    createLiveSnapshot(input, periodStartMinute, running, playerStats, goals, periodStartMinute)
+  );
 
   const addEvent = (
     minute: number,
@@ -280,6 +284,13 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       running[side].xg += shotXg;
       const shooterStats = playerStat(playerStats, side, carrier);
       if (shooterStats) shooterStats.shots++;
+      if (lastPasser && lastPasser.name !== carrier.name) {
+        const creatorStats = playerStat(playerStats, side, lastPasser);
+        if (creatorStats) creatorStats.keyPasses++;
+      }
+      const recordBigChanceMiss = () => {
+        if (shotXg >= 0.18 && shooterStats) shooterStats.bigChancesMissed++;
+      };
       addEvent(minute, side, "shot", carrier.name, keeperPlayer.name, true, shotXg);
 
       const shootingTechnique = skill(carrier, minute, input.elevation, [
@@ -317,6 +328,11 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           const assisterStats = playerStat(playerStats, side, lastPasser);
           if (assisterStats) assisterStats.assists++;
         }
+        for (const defenderPlayer of sidePlayers(input, defendingSide)) {
+          if (defenderPlayer.position !== "GK" && defenderPlayer.position !== "DEF") continue;
+          const defenderStats = playerStat(playerStats, defendingSide, defenderPlayer);
+          if (defenderStats) defenderStats.goalsConceded++;
+        }
         goals.push({ minute, side, scorer: carrier.name, assist });
         addEvent(minute, side, "goal", carrier.name, assist, true, shotXg);
         break;
@@ -326,12 +342,14 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       if (rng() < blockChance) {
         running[defendingSide].tacklesWon++;
         const markerStats = playerStat(playerStats, defendingSide, marker);
-        if (markerStats) markerStats.tacklesWon++;
+        if (markerStats) markerStats.blocks++;
+        recordBigChanceMiss();
         addEvent(minute, defendingSide, "block", marker.name, carrier.name, true, shotXg);
         break;
       }
       const onTargetChance = clamp(0.4 + (shootingTechnique - 65) / 150, 0.24, 0.82);
       if (rng() >= onTargetChance) {
+        recordBigChanceMiss();
         addEvent(minute, side, "miss", carrier.name, undefined, false, shotXg);
         break;
       }
@@ -340,15 +358,16 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       if (shooterStats) shooterStats.shotsOnTarget++;
       const keeperStats = playerStat(playerStats, defendingSide, keeperPlayer);
       if (keeperStats) keeperStats.saves++;
+      recordBigChanceMiss();
       addEvent(minute, defendingSide, "save", keeperPlayer.name, carrier.name, true, shotXg);
       break;
     }
-    snapshots.set(minute, createLiveSnapshot(input, minute, running, playerStats, goals));
+    snapshots.set(minute, createLiveSnapshot(input, minute, running, playerStats, goals, periodStartMinute));
   }
 
   goals.sort((a, b) => a.minute - b.minute);
   events.sort((a, b) => a.minute - b.minute);
-  snapshots.set(hi, createLiveSnapshot(input, hi, running, playerStats, goals));
+  snapshots.set(hi, createLiveSnapshot(input, hi, running, playerStats, goals, periodStartMinute));
   return {
     goals,
     events,
@@ -357,7 +376,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     userXg: running.user.xg,
     oppXg: running.opp.xg,
     teamStats: finalizeTeamStatsPair(running),
-    playerStats: finalizePlayerStats(input, playerStats, hi),
+    playerStats: finalizePlayerStats(input, playerStats, hi, periodStartMinute),
     liveSnapshots: [...snapshots.values()].sort((a, b) => a.minute - b.minute),
   };
 }
