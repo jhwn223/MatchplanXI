@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import type { Team, TournamentData } from "../data/types";
 import {
@@ -7,7 +8,7 @@ import {
   type PlayedMap,
   type TeamMatch,
 } from "../data/tournament";
-import { groupStandingsSim } from "../data/tournamentEngine";
+import { groupStandingsSim, qualificationProbability } from "../data/tournamentEngine";
 import { AppTopbar } from "./AppTopbar";
 
 interface Props {
@@ -44,6 +45,10 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
   const nextFixtureIndex = groupMatches.findIndex((m) => !played[m.match.match_id]);
   const pos = finishingPosition(standings, team.team_name);
   const qualified = groupComplete && pos <= 2;
+  const advanceProbability = useMemo(
+    () => qualificationProbability(data, team.group_letter, played, team.team_name),
+    [data, team.group_letter, team.team_name, played]
+  );
 
   let banner: { text: string; tone: string };
   if (!groupComplete) {
@@ -122,10 +127,14 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
           </table>
           <p className="hub__hint">상위 2팀이 토너먼트 진출 · 아직 치르지 않은 경기는 순위에 반영되지 않습니다</p>
           <div className="qualification-card">
-            <span>현재 대회 전망</span>
-            <div><strong>조 {pos}위</strong><em>{pos <= 2 ? "진출권" : "추격 필요"}</em></div>
-            <div className="qualification-card__track"><i style={{ width: `${Math.max(12, 100 - (pos - 1) * 24)}%` }} /></div>
-            <p>{groupComplete ? (qualified ? "토너먼트 진출 확정" : "조별리그 일정 종료") : `남은 경기 ${groupMatches.length - groupPlayedCount}회`}</p>
+            <span>32강 진출 확률</span>
+            <div><strong>{advanceProbability}%</strong><em>{pos <= 2 ? "진출권" : "추격 필요"}</em></div>
+            <div className="qualification-card__track"><i style={{ width: `${advanceProbability}%` }} /></div>
+            <p>
+              {groupComplete
+                ? qualified ? "토너먼트 진출 확정" : "조별리그 일정 종료"
+                : `남은 경기 ${groupMatches.length - groupPlayedCount}회 · 상대 전력 기준 시뮬레이션`}
+            </p>
           </div>
         </section>
 
