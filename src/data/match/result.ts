@@ -2,7 +2,7 @@ import { simulatePeriod } from "./eventEngine";
 import { combineLiveSnapshots, combinePlayerStats } from "./liveStats";
 import { simulatePenalties } from "./penalties";
 import { mulberry32 } from "./random";
-import { combineTeamStats } from "./stats";
+import { combineTeamStatsPair } from "./stats";
 import type { HalfResult, SimComparison, SimInput, SimResult } from "./types";
 
 export function combineHalves(input: SimInput, firstHalf: HalfResult, secondHalf: HalfResult): SimResult {
@@ -24,10 +24,7 @@ export function combineHalves(input: SimInput, firstHalf: HalfResult, secondHalf
     goals,
     events,
     comparison: buildComparison(input, userGoals, oppGoals, outcome),
-    teamStats: {
-      user: combineTeamStats(firstHalf.teamStats.user, secondHalf.teamStats.user),
-      opp: combineTeamStats(firstHalf.teamStats.opp, secondHalf.teamStats.opp),
-    },
+    teamStats: combineTeamStatsPair(firstHalf.teamStats, secondHalf.teamStats),
     playerStats: combinePlayerStats(firstHalf.playerStats, secondHalf.playerStats),
     liveSnapshots: combineLiveSnapshots(firstHalf.liveSnapshots, secondHalf.liveSnapshots),
     wentToExtraTime: false,
@@ -59,10 +56,7 @@ export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
     goals,
     events,
     comparison: buildComparison(input, userGoals, oppGoals, outcome),
-    teamStats: {
-      user: combineTeamStats(base.teamStats.user, extraTime.teamStats.user, 3, 1),
-      opp: combineTeamStats(base.teamStats.opp, extraTime.teamStats.opp, 3, 1),
-    },
+    teamStats: combineTeamStatsPair(base.teamStats, extraTime.teamStats),
     playerStats: combinePlayerStats(base.playerStats, extraTime.playerStats),
     liveSnapshots: combineLiveSnapshots(base.liveSnapshots, extraTime.liveSnapshots),
     wentToExtraTime: true,

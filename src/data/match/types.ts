@@ -75,6 +75,8 @@ export interface TeamStats {
   saves: number;
   saveRate: number;
   possession: number;
+  possessionTouches: number;
+  totalPossessionTouches: number;
   passesAttempted: number;
   passesCompleted: number;
   shots: number;

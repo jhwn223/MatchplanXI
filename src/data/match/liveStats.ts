@@ -1,6 +1,6 @@
 import { currentCondition } from "./playerRuntime";
 import { clamp } from "./random";
-import { combineTeamStats, finalizeStats, type RunningStats } from "./stats";
+import { combineTeamStatsPair, finalizeTeamStatsPair, type RunningStats } from "./stats";
 import type {
   LiveMatchSnapshot,
   MatchSide,
@@ -106,10 +106,7 @@ export function createLiveSnapshot(
     oppGoals: goals.filter((goal) => goal.side === "opp").length,
     userXg: Math.round(running.user.xg * 100) / 100,
     oppXg: Math.round(running.opp.xg * 100) / 100,
-    teamStats: {
-      user: finalizeStats(running.user, running.opp),
-      opp: finalizeStats(running.opp, running.user),
-    },
+    teamStats: finalizeTeamStatsPair(running),
     players: finalizePlayerStats(input, stats, minute),
   };
 }
@@ -157,10 +154,7 @@ export function combineLiveSnapshots(
     oppGoals: base.oppGoals + snapshot.oppGoals,
     userXg: Math.round((base.userXg + snapshot.userXg) * 100) / 100,
     oppXg: Math.round((base.oppXg + snapshot.oppXg) * 100) / 100,
-    teamStats: {
-      user: combineTeamStats(base.teamStats.user, snapshot.teamStats.user),
-      opp: combineTeamStats(base.teamStats.opp, snapshot.teamStats.opp),
-    },
+    teamStats: combineTeamStatsPair(base.teamStats, snapshot.teamStats),
     players: combinePlayerStats(base.players, snapshot.players),
   }));
   return [...previous, ...cumulative.filter((snapshot) => snapshot.minute > base.minute)];

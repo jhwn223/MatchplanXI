@@ -27,7 +27,7 @@ export function emptyRunningStats(): RunningStats {
 }
 
 export function finalizeStats(running: RunningStats, other: RunningStats): TeamStats {
-  const totalTouches = Math.max(1, running.possessionTouches + other.possessionTouches);
+  const totalPossessionTouches = running.possessionTouches + other.possessionTouches;
   const shotsFaced = other.shotsOnTarget;
   return {
     passSuccessRate: running.passesAttempted
@@ -36,7 +36,11 @@ export function finalizeStats(running: RunningStats, other: RunningStats): TeamS
     shotsFaced,
     saves: running.saves,
     saveRate: shotsFaced ? Math.round((running.saves / shotsFaced) * 100) : 100,
-    possession: Math.round((running.possessionTouches / totalTouches) * 100),
+    possession: totalPossessionTouches
+      ? Math.round((running.possessionTouches / totalPossessionTouches) * 100)
+      : 50,
+    possessionTouches: running.possessionTouches,
+    totalPossessionTouches,
     passesAttempted: running.passesAttempted,
     passesCompleted: running.passesCompleted,
     shots: running.shots,
@@ -46,17 +50,23 @@ export function finalizeStats(running: RunningStats, other: RunningStats): TeamS
   };
 }
 
-export function combineTeamStats(a: TeamStats, b: TeamStats, aWeight = 1, bWeight = 1): TeamStats {
+export function combineTeamStats(a: TeamStats, b: TeamStats): TeamStats {
   const passesAttempted = a.passesAttempted + b.passesAttempted;
   const passesCompleted = a.passesCompleted + b.passesCompleted;
   const shotsFaced = a.shotsFaced + b.shotsFaced;
   const saves = a.saves + b.saves;
+  const possessionTouches = a.possessionTouches + b.possessionTouches;
+  const totalPossessionTouches = a.totalPossessionTouches + b.totalPossessionTouches;
   return {
     passSuccessRate: passesAttempted ? Math.round((passesCompleted / passesAttempted) * 100) : 0,
     shotsFaced,
     saves,
     saveRate: shotsFaced ? Math.round((saves / shotsFaced) * 100) : 100,
-    possession: Math.round((a.possession * aWeight + b.possession * bWeight) / (aWeight + bWeight)),
+    possession: totalPossessionTouches
+      ? Math.round((possessionTouches / totalPossessionTouches) * 100)
+      : 50,
+    possessionTouches,
+    totalPossessionTouches,
     passesAttempted,
     passesCompleted,
     shots: a.shots + b.shots,
@@ -64,4 +74,21 @@ export function combineTeamStats(a: TeamStats, b: TeamStats, aWeight = 1, bWeigh
     tacklesWon: a.tacklesWon + b.tacklesWon,
     interceptions: a.interceptions + b.interceptions,
   };
+}
+
+export function finalizeTeamStatsPair(running: Record<"user" | "opp", RunningStats>) {
+  const user = finalizeStats(running.user, running.opp);
+  const opp = finalizeStats(running.opp, running.user);
+  opp.possession = 100 - user.possession;
+  return { user, opp };
+}
+
+export function combineTeamStatsPair(
+  a: { user: TeamStats; opp: TeamStats },
+  b: { user: TeamStats; opp: TeamStats }
+) {
+  const user = combineTeamStats(a.user, b.user);
+  const opp = combineTeamStats(a.opp, b.opp);
+  opp.possession = 100 - user.possession;
+  return { user, opp };
 }
