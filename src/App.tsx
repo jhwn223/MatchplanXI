@@ -63,6 +63,18 @@ function App() {
     setPlayed((prev) => ({ ...prev, [matchId]: result }));
   }
 
+  function restartTournament() {
+    setTeamId(null);
+    setActiveMatchId(null);
+    setLineups({});
+    setPlayed({});
+    setLeaderboard({});
+    setKoResults({});
+    setKoLineups({});
+    setActiveKo(null);
+    setView("select");
+  }
+
   /** cumulative scorer/assist ranking, carried across the whole tournament */
   function recordMatchStats(sim: SimResult) {
     setLeaderboard((prev) => applyMatchToLeaderboard(prev, sim.goals));
@@ -186,8 +198,10 @@ function App() {
         team={team}
         played={played}
         koResults={koResults}
+        leaderboard={leaderboard}
         onBack={() => setView("hub")}
         onPlayKO={openKO}
+        onRestart={restartTournament}
       />
     );
   }
