@@ -122,6 +122,14 @@ export interface SimActual {
   resultType: string;
 }
 
+export interface SimTacticProfile {
+  attackBias: number;
+  pressBias: number;
+  overlapBias: number;
+  directnessBias: number;
+  counterBias: number;
+}
+
 export interface SimInput {
   seed: number;
   userTeamName: string;
@@ -130,6 +138,8 @@ export interface SimInput {
   oppElo: number;
   conditionIndex: number;
   attackBias: number;
+  userTactics?: SimTacticProfile;
+  oppTactics?: SimTacticProfile;
   isHome: boolean;
   elevation: number;
   placed: PlacedPlayerLite[];

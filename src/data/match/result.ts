@@ -3,6 +3,7 @@ import { combineLiveSnapshots, combinePlayerStats } from "./liveStats";
 import { simulatePenalties } from "./penalties";
 import { mulberry32 } from "./random";
 import { combineTeamStatsPair } from "./stats";
+import { tacticsForSide } from "./tactics";
 import type { HalfResult, SimComparison, SimInput, SimResult } from "./types";
 
 export function combineHalves(input: SimInput, firstHalf: HalfResult, secondHalf: HalfResult): SimResult {
@@ -70,12 +71,13 @@ function buildComparison(
   simulatedOppGoals: number,
   simulatedOutcome: "W" | "D" | "L"
 ): SimComparison {
+  const effectiveAttackBias = input.attackBias + tacticsForSide(input, "user").attackBias;
   const biasWord =
-    input.attackBias >= 0.7
+    effectiveAttackBias >= 0.7
       ? "초공격적"
-      : input.attackBias >= 0.3
+      : effectiveAttackBias >= 0.3
         ? "공격적"
-        : input.attackBias <= -0.5
+        : effectiveAttackBias <= -0.5
           ? "수비적"
           : "균형잡힌";
   const conditionWord =

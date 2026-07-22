@@ -9,6 +9,7 @@ export { quickSimScore } from "./match/quickSim";
 export { simulateHalf } from "./match/eventEngine";
 export { applyExtraTime, combineHalves } from "./match/result";
 export { snapshotAtMinute } from "./match/liveStats";
+export { BALANCED_SIM_TACTICS, normalizeSimTactics } from "./match/tactics";
 export type {
   GoalEvent,
   HalfResult,
@@ -22,6 +23,7 @@ export type {
   SimActual,
   SimComparison,
   SimInput,
+  SimTacticProfile,
   SimResult,
   TeamStats,
 } from "./match/types";
