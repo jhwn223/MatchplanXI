@@ -1,0 +1,51 @@
+import type { HalfResult, SimResult } from "../../data/matchSim";
+import type { ArenaSim } from "../match-arena/types";
+
+export function firstHalfArenaSim(half: HalfResult | null): ArenaSim | null {
+  if (!half) return null;
+  return {
+    goals: half.goals,
+    events: half.events,
+    userGoals: half.userGoals,
+    oppGoals: half.oppGoals,
+    userXg: half.userXg,
+    oppXg: half.oppXg,
+    teamStats: half.teamStats,
+  };
+}
+
+export function secondHalfArenaSim(half: HalfResult | null, regulation: SimResult | null): ArenaSim | null {
+  if (!half || !regulation) return null;
+  return {
+    goals: half.goals,
+    events: half.events,
+    userGoals: regulation.userGoals,
+    oppGoals: regulation.oppGoals,
+    userXg: regulation.userXg,
+    oppXg: regulation.oppXg,
+    comparison: regulation.comparison,
+    teamStats: regulation.teamStats,
+    wentToExtraTime: regulation.wentToExtraTime,
+    penalties: regulation.penalties,
+    regulationUserGoals: regulation.regulationUserGoals,
+    regulationOppGoals: regulation.regulationOppGoals,
+  };
+}
+
+export function extraTimeArenaSim(result: SimResult | null): ArenaSim | null {
+  if (!result) return null;
+  return {
+    goals: result.goals.filter((goal) => goal.minute > 90),
+    events: result.events.filter((event) => event.minute > 90),
+    userGoals: result.userGoals,
+    oppGoals: result.oppGoals,
+    userXg: result.userXg,
+    oppXg: result.oppXg,
+    comparison: result.comparison,
+    teamStats: result.teamStats,
+    wentToExtraTime: result.wentToExtraTime,
+    penalties: result.penalties,
+    regulationUserGoals: result.regulationUserGoals,
+    regulationOppGoals: result.regulationOppGoals,
+  };
+}

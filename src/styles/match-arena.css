@@ -1,0 +1,384 @@
+/* ============ 2D Match Arena ============ */
+.arena-modal {
+  width: 100%;
+  max-width: 940px;
+  max-height: 92vh;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: auto;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+}
+.arena-score {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.arena-score__side { font-weight: 800; font-size: 16px; }
+.arena-score__side--opp { color: #e5484d; }
+.arena-score__nums {
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.arena-score__clock {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.arena-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+}
+.arena-canvas-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0d2f18;
+}
+.arena-canvas { width: 100%; height: 100%; display: block; }
+.arena-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.7);
+  color: #fde047;
+  font-weight: 800;
+  font-size: 18px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  white-space: nowrap;
+  animation: banner-pop 0.3s ease;
+}
+@keyframes banner-pop {
+  from { transform: translateX(-50%) scale(0.6); opacity: 0; }
+  to { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+.arena-controls {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.arena-ctrl {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.arena-ctrl[data-active] { background: var(--accent); color: #06231f; border-color: var(--accent); }
+.arena-ctrl--skip { margin-left: auto; }
+.arena-ctrl--resume {
+  background: linear-gradient(180deg, #4fd1c5, #2fb3a6);
+  color: #06231f;
+  border-color: #4fd1c5;
+}
+.arena-team-tactics {
+  position: relative;
+  padding: 18px 20px 20px;
+  background: #111513;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.arena-team-tactics__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.arena-team-tactics__head strong {
+  font-size: 22px;
+  font-weight: 900;
+}
+.arena-team-tactics__head span {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 700;
+}
+.arena-team-tactics__formation {
+  margin-bottom: 10px;
+  padding: 12px;
+  background: #252925;
+  color: #d9ddd9;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 900;
+}
+.arena-team-tactics__section {
+  margin: 18px 0 8px;
+  color: #d9ddd9;
+  font-size: 17px;
+  font-weight: 900;
+}
+.tactic-row-wrap {
+  position: relative;
+}
+.tactic-row {
+  width: 100%;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 34px auto minmax(190px, 2fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.025);
+  background: #171c19;
+  color: #f3f5f3;
+  font: inherit;
+}
+.tactic-row + .tactic-row,
+.tactic-row-wrap + .tactic-row,
+.tactic-row + .tactic-row-wrap,
+.tactic-row-wrap + .tactic-row-wrap {
+  margin-top: 8px;
+}
+.tactic-row--select {
+  grid-template-columns: minmax(120px, 1fr) minmax(130px, 1fr) auto;
+  cursor: pointer;
+  text-align: left;
+}
+.tactic-row span:first-child {
+  font-size: 15px;
+  font-weight: 900;
+}
+.tactic-row strong {
+  font-size: 17px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.tactic-row--select strong {
+  justify-self: end;
+  color: #e8ece8;
+  font-size: 15px;
+}
+.tactic-row__chevron {
+  justify-self: end;
+  color: #d6d9d6;
+  font-size: 26px;
+  line-height: 1;
+}
+.tactic-step {
+  width: 28px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.34);
+  font-size: 27px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tactic-meter {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+  min-width: 210px;
+}
+.tactic-meter span {
+  height: 10px;
+  background: #252a27;
+}
+.tactic-meter span:first-child { border-radius: 999px 0 0 999px; }
+.tactic-meter span:last-child { border-radius: 0 999px 999px 0; }
+.tactic-meter span[data-on] {
+  background: #159dea;
+}
+.tactic-menu {
+  position: absolute;
+  z-index: 5;
+  left: 4.5%;
+  right: 4.5%;
+  top: calc(100% + 8px);
+  background: #f7f7f1;
+  color: #161817;
+  box-shadow: 0 18px 35px rgba(0,0,0,0.36);
+}
+.tactic-menu__title {
+  position: relative;
+  padding: 18px 58px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+}
+.tactic-menu__title button {
+  position: absolute;
+  right: 18px;
+  top: 12px;
+  border: 0;
+  background: transparent;
+  color: #111;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tactic-menu__option {
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 24px;
+  border: 0;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  background: #f7f7f1;
+  color: #171817;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.tactic-menu__option span {
+  grid-column: 2;
+  text-align: center;
+}
+.tactic-menu__option strong {
+  justify-self: start;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #00e676;
+  color: #06231f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.halftime-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(79, 209, 197, 0.35);
+  border-bottom: 1px solid rgba(79, 209, 197, 0.35);
+  background: rgba(79, 209, 197, 0.1);
+  color: var(--text);
+  font-size: 13px;
+}
+.halftime-banner > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.halftime-banner__eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+.halftime-editor {
+  padding: 14px 16px 4px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.halftime-grid {
+  display: grid;
+  grid-template-columns: 240px minmax(280px, 430px) minmax(220px, 280px);
+  gap: 14px;
+  align-items: start;
+}
+.halftime-grid__tactics {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.halftime-grid__pitch,
+.halftime-grid__bench {
+  min-width: 0;
+}
+.halftime-grid .pitch {
+  border-radius: 10px;
+  max-height: 560px;
+}
+.halftime-grid .bench {
+  max-height: 560px;
+  overflow: auto;
+}
+
+@media (max-width: 980px) {
+  .arena-modal {
+    max-height: 94vh;
+  }
+  .arena-ctrl--skip {
+    margin-left: 0;
+  }
+  .arena-team-tactics {
+    padding: 16px 12px 18px;
+  }
+  .tactic-row {
+    grid-template-columns: minmax(86px, 1fr) 28px auto minmax(116px, 1.4fr) auto;
+    padding: 9px 10px;
+  }
+  .tactic-row--select {
+    grid-template-columns: minmax(98px, 1fr) minmax(104px, 1fr) auto;
+  }
+  .tactic-meter {
+    min-width: 116px;
+    gap: 2px;
+  }
+  .tactic-menu {
+    left: 2%;
+    right: 2%;
+  }
+  .halftime-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .halftime-grid {
+    grid-template-columns: 1fr;
+  }
+  .halftime-grid .pitch {
+    max-height: none;
+  }
+}
+
+/* ============ GOAL! overlay ============ */
+.arena-goal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(0,0,0,0.35), transparent 65%);
+}
+.arena-goal__big {
+  font-size: clamp(44px, 12vw, 92px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fde047;
+  text-shadow: 0 4px 0 #b45309, 0 0 26px rgba(253,224,71,0.6);
+  animation: goal-pulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes goal-pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+.arena-goal__scorer {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(0,0,0,0.55);
+  padding: 5px 16px;
+  border-radius: 999px;
+}
+
