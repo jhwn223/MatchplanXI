@@ -96,10 +96,26 @@ async function requestJson(baseUrl, parameters) {
   return (await request(url)).json();
 }
 
+const PLAYER_NAME_ALIASES = new Map([
+  ["Seunggyu Kim", ["Kim Seung-gyu", "Kim Seunggyu"]],
+  ["Hanbeom Lee", ["Lee Han-beom", "Lee Hanbeom"]],
+  ["Gihyuk Lee", ["Lee Gi-hyuk", "Lee Gihyuk"]],
+  ["Taehyeon Kim", ["Kim Tae-hyeon", "Kim Taehyeon"]],
+  ["Inbeom Hwang", ["Hwang In-beom", "Hwang Inbeom"]],
+  ["Guesung Cho", ["Cho Gue-sung", "Cho Guesung"]],
+  ["Taeseok Lee", ["Lee Tae-seok", "Lee Taeseok"]],
+  ["Wije Cho", ["Cho Wi-je", "Cho Wije"]],
+  ["Jinseob Park", ["Park Jin-seop", "Park Jinseob"]],
+  ["Hyeonwoo Jo", ["Jo Hyeon-woo", "Jo Hyeonwoo"]],
+  ["Youngwoo Seol", ["Seol Young-woo", "Seol Youngwoo"]],
+  ["Jingyu Kim", ["Kim Jin-gyu", "Kim Jingyu"]],
+]);
+
 function nameQueries(name) {
   const normalized = name.normalize("NFD").replace(/\p{Diacritic}/gu, "");
   const parts = normalized.trim().split(/\s+/).filter(Boolean);
   const firstAndLast = parts.length > 2 ? `${parts[0]} ${parts.at(-1)}` : normalized;
+  const reversed = parts.length > 1 ? [...parts].reverse().join(" ") : "";
   const adjacentPairs = parts
     .slice(0, -1)
     .map((part, index) => `${part} ${parts[index + 1]}`)
@@ -110,6 +126,8 @@ function nameQueries(name) {
       [
         name.trim(),
         normalized,
+        ...(PLAYER_NAME_ALIASES.get(name.trim()) ?? []),
+        reversed,
         parts.slice(-2).join(" "),
         firstAndLast,
         ...adjacentPairs,
@@ -262,6 +280,10 @@ async function mapConcurrent(items, worker, workerCount) {
 
 async function writeOutputs(records, failures, run = {}) {
   records.sort((a, b) => a.playerId - b.playerId);
+  const rosterPlayers = Number(run.rosterPlayers);
+  const unmatched = Number.isFinite(rosterPlayers)
+    ? Math.max(0, rosterPlayers - records.length)
+    : failures.length;
   await fs.writeFile(MANIFEST_PATH, `${JSON.stringify(records, null, 2)}\n`, "utf8");
   await fs.writeFile(
     REPORT_PATH,
@@ -269,7 +291,8 @@ async function writeOutputs(records, failures, run = {}) {
       {
         generatedAt: new Date().toISOString(),
         matched: records.length,
-        unmatched: failures.length,
+        unmatched,
+        runFailureCount: failures.length,
         ...run,
         failures: failures.map(({ player, reason }) => ({
           playerId: Number(player.player_id),
