@@ -24,7 +24,26 @@ const args = new Map(
 const teamFilter = args.get("team")?.toUpperCase();
 const limit = Number(args.get("limit") ?? Number.POSITIVE_INFINITY);
 const perTeam = Number(args.get("per-team") ?? Number.POSITIVE_INFINITY);
-const concurrency = Math.max(1, Math.min(8, Number(args.get("concurrency") ?? 4)));
+const concurrency = Math.max(1, Math.min(4, Number(args.get("concurrency") ?? 2)));
+const requestDelayMs = Math.max(100, Number(args.get("request-delay") ?? 300));
+const checkpointSize = Math.max(1, Number(args.get("checkpoint-size") ?? 25));
+
+let requestQueue = Promise.resolve();
+let nextRequestAt = 0;
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForRequestSlot() {
+  const slot = requestQueue.then(async () => {
+    const waitMs = Math.max(0, nextRequestAt - Date.now());
+    if (waitMs > 0) await sleep(waitMs);
+    nextRequestAt = Date.now() + requestDelayMs;
+  });
+  requestQueue = slot.catch(() => undefined);
+  await slot;
+}
 
 function parseCsv(text) {
   return Papa.parse(text, { header: true, skipEmptyLines: true }).data;
@@ -51,14 +70,22 @@ function claimDate(entity, property) {
   return typeof value?.time === "string" ? value.time.slice(1, 11) : null;
 }
 
-async function request(url, attempts = 4) {
+async function request(url, attempts = 8) {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    await waitForRequestSlot();
     const response = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
     if (response.ok) return response;
     if (![429, 500, 502, 503, 504].includes(response.status) || attempt === attempts) {
       throw new Error(`${response.status} ${response.statusText}: ${url}`);
     }
-    await new Promise((resolve) => setTimeout(resolve, attempt * 750));
+    const retryAfterSeconds = Number(response.headers.get("retry-after"));
+    const serverDelay = Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 0;
+    const backoff = Math.min(60_000, 2_000 * 2 ** (attempt - 1));
+    const retryDelay = Math.max(serverDelay, backoff) + Math.floor(Math.random() * 500);
+    if (response.status === 429) {
+      nextRequestAt = Math.max(nextRequestAt, Date.now() + retryDelay);
+    }
+    await sleep(retryDelay);
   }
   throw new Error(`Request failed: ${url}`);
 }
@@ -69,35 +96,67 @@ async function requestJson(baseUrl, parameters) {
   return (await request(url)).json();
 }
 
+function nameQueries(name) {
+  const normalized = name.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+  const parts = normalized.trim().split(/\s+/).filter(Boolean);
+  const firstAndLast = parts.length > 2 ? `${parts[0]} ${parts.at(-1)}` : normalized;
+  const adjacentPairs = parts
+    .slice(0, -1)
+    .map((part, index) => `${part} ${parts[index + 1]}`)
+    .reverse();
+  const lastToken = parts.length > 2 && parts.at(-1)?.length >= 5 ? parts.at(-1) : "";
+  return [
+    ...new Set(
+      [
+        name.trim(),
+        normalized,
+        parts.slice(-2).join(" "),
+        firstAndLast,
+        ...adjacentPairs,
+        parts.slice(0, 2).join(" "),
+        lastToken,
+      ].filter(Boolean)
+    ),
+  ];
+}
+
 async function findWikidataEntity(player) {
-  const search = await requestJson("https://www.wikidata.org/w/api.php", {
-    action: "wbsearchentities",
-    search: player.player_name,
-    language: "en",
-    uselang: "en",
-    type: "item",
-    limit: 8,
-    format: "json",
-    origin: "*",
-  });
-  const ids = search.search?.map((entry) => entry.id).filter(Boolean) ?? [];
-  if (!ids.length) return null;
+  const seenIds = new Set();
 
-  const entitiesResponse = await requestJson("https://www.wikidata.org/w/api.php", {
-    action: "wbgetentities",
-    ids: ids.join("|"),
-    props: "claims|labels",
-    languages: "en",
-    format: "json",
-    origin: "*",
-  });
+  for (const query of nameQueries(player.player_name)) {
+    const search = await requestJson("https://www.wikidata.org/w/api.php", {
+      action: "wbsearchentities",
+      search: query,
+      language: "en",
+      uselang: "en",
+      type: "item",
+      limit: 12,
+      format: "json",
+      origin: "*",
+    });
+    const ids = (search.search?.map((entry) => entry.id).filter(Boolean) ?? []).filter(
+      (id) => !seenIds.has(id)
+    );
+    ids.forEach((id) => seenIds.add(id));
+    if (!ids.length) continue;
 
-  const entities = ids.map((id) => entitiesResponse.entities?.[id]).filter(Boolean);
-  return (
-    entities.find(
+    const entitiesResponse = await requestJson("https://www.wikidata.org/w/api.php", {
+      action: "wbgetentities",
+      ids: ids.join("|"),
+      props: "claims|labels",
+      languages: "en",
+      format: "json",
+      origin: "*",
+    });
+
+    const entities = ids.map((id) => entitiesResponse.entities?.[id]).filter(Boolean);
+    const matched = entities.find(
       (entity) => claimDate(entity, "P569") === player.date_of_birth && claimValue(entity, "P18")
-    ) ?? null
-  );
+    );
+    if (matched) return matched;
+  }
+
+  return null;
 }
 
 async function getCommonsPhoto(fileName) {
@@ -201,7 +260,7 @@ async function mapConcurrent(items, worker, workerCount) {
   return results;
 }
 
-async function writeOutputs(records, failures) {
+async function writeOutputs(records, failures, run = {}) {
   records.sort((a, b) => a.playerId - b.playerId);
   await fs.writeFile(MANIFEST_PATH, `${JSON.stringify(records, null, 2)}\n`, "utf8");
   await fs.writeFile(
@@ -211,6 +270,7 @@ async function writeOutputs(records, failures) {
         generatedAt: new Date().toISOString(),
         matched: records.length,
         unmatched: failures.length,
+        ...run,
         failures: failures.map(({ player, reason }) => ({
           playerId: Number(player.player_id),
           playerName: player.player_name,
@@ -278,15 +338,42 @@ async function main() {
     .filter((player) => !existingById.has(String(player.player_id)))
     .slice(0, limit);
 
-  console.log(`Syncing ${selected.length} players with concurrency ${concurrency}`);
-  const results = await mapConcurrent(
-    selected,
-    (player) => syncPlayer(player, teamCodeById.get(player.team_id) ?? ""),
-    concurrency
+  console.log(
+    `Syncing ${selected.length} players with concurrency ${concurrency}, ` +
+      `${requestDelayMs}ms request delay, checkpoints every ${checkpointSize}`
   );
-  const added = results.filter((result) => result.ok).map((result) => result.record);
-  const failures = results.filter((result) => !result.ok);
-  await writeOutputs([...existing, ...added], failures);
+
+  const added = [];
+  const failures = [];
+  for (let start = 0; start < selected.length; start += checkpointSize) {
+    const batch = selected.slice(start, start + checkpointSize);
+    const results = await mapConcurrent(
+      batch,
+      (player) => syncPlayer(player, teamCodeById.get(player.team_id) ?? ""),
+      concurrency
+    );
+    added.push(...results.filter((result) => result.ok).map((result) => result.record));
+    failures.push(...results.filter((result) => !result.ok));
+    const completed = Math.min(start + batch.length, selected.length);
+    await writeOutputs([...existing, ...added], failures, {
+      rosterPlayers: players.length,
+      selectedPlayers: selected.length,
+      completedPlayers: completed,
+      addedThisRun: added.length,
+    });
+    console.log(
+      `Checkpoint ${completed}/${selected.length}: added ${added.length}, failed ${failures.length}`
+    );
+  }
+
+  if (!selected.length) {
+    await writeOutputs(existing, [], {
+      rosterPlayers: players.length,
+      selectedPlayers: 0,
+      completedPlayers: 0,
+      addedThisRun: 0,
+    });
+  }
   console.log(`Added ${added.length}; total ${existing.length + added.length}; unmatched ${failures.length}`);
 }
 
