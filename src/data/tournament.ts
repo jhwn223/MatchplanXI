@@ -1,3 +1,5 @@
+import { haversineKm } from "./geo";
+import { utcOffsetForCity } from "./timezones";
 import type { MatchDetailed, TournamentData, Venue } from "./types";
 
 /** Stadium name -> venue (for elevation lookup). */
@@ -15,6 +17,10 @@ export interface TeamMatch {
   venue: Venue | undefined;
   elevation: number;
   restDays: number;
+  /** flight distance (km) from the venue of the team's previous match */
+  travelKm: number;
+  /** timezone shift (hours, signed) from the venue of the team's previous match */
+  tzShiftHours: number;
   /** index in the team's chronological match list (0-based) */
   order: number;
 }
@@ -42,8 +48,15 @@ export function getTeamMatches(
   return rows.map((match, i) => {
     const isHome = match.home_team_name === teamName;
     const venue = venueByStadium.get(match.stadium_name);
+    const prevVenue = i === 0 ? undefined : venueByStadium.get(rows[i - 1].stadium_name);
     const restDays =
       i === 0 ? 7 : Math.max(1, daysBetween(rows[i - 1].date, match.date));
+    const travelKm =
+      venue && prevVenue
+        ? Math.round(haversineKm(prevVenue.latitude, prevVenue.longitude, venue.latitude, venue.longitude))
+        : 0;
+    const tzShiftHours =
+      venue && prevVenue ? utcOffsetForCity(venue.city) - utcOffsetForCity(prevVenue.city) : 0;
     return {
       match,
       isHome,
@@ -52,6 +65,8 @@ export function getTeamMatches(
       venue,
       elevation: venue?.elevation_meters ?? 0,
       restDays,
+      travelKm,
+      tzShiftHours,
       order: i,
     };
   });

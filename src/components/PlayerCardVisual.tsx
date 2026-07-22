@@ -17,6 +17,7 @@ interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   attributes?: Record<string, any>;
   useLayoutId?: boolean;
+  ineligible?: boolean;
 }
 
 const VARIANTS = {
@@ -27,7 +28,7 @@ const VARIANTS = {
 
 export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
   (
-    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = true },
+    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = true, ineligible },
     ref
   ) => {
     const color = condition ? conditionColor(condition.score) : "hsl(210, 10%, 55%)";
@@ -35,15 +36,16 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
     return (
       <motion.div
         ref={ref}
-        {...(listeners as object)}
+        {...(ineligible ? {} : (listeners as object))}
         {...(attributes as object)}
         style={style}
         className={`player-card player-card--${variant}`}
         data-dragging={state !== "idle" || undefined}
+        data-ineligible={ineligible || undefined}
         layoutId={useLayoutId ? `player-${player.player_id}` : undefined}
         initial={false}
         animate={VARIANTS[state]}
-        whileTap={state === "idle" ? { scale: 1.05 } : undefined}
+        whileTap={state === "idle" && !ineligible ? { scale: 1.05 } : undefined}
         transition={{ type: "spring", stiffness: 500, damping: 28 }}
       >
         <motion.div
@@ -59,6 +61,7 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
             {player.position} · {player.caps} caps
           </span>
         </div>
+        {ineligible && <span className="player-card__ineligible">교체 불가</span>}
         {condition && (
           <motion.span
             className="player-card__score"

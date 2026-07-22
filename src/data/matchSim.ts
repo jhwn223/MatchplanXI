@@ -236,87 +236,146 @@ export function quickSimScore(
   return { home: poisson(userXg, rng), away: poisson(oppXg, rng) };
 }
 
-export function simulateMatch(input: SimInput): SimResult {
-  const rng = mulberry32(input.seed);
-  const { userXg, oppXg } = computeXg(input);
+export interface HalfResult {
+  goals: GoalEvent[];
+  userGoals: number;
+  oppGoals: number;
+  userXg: number;
+  oppXg: number;
+}
 
-  const regulationUserGoals = poisson(userXg, rng);
-  const regulationOppGoals = poisson(oppXg, rng);
-
-  const usedMinutes = new Set<number>();
-  const nextMinute = (lo: number, hi: number) => {
+function makeMinutePicker(rng: () => number) {
+  const used = new Set<number>();
+  return (lo: number, hi: number) => {
     let m = lo + Math.floor(rng() * (hi - lo + 1));
     let guard = 0;
-    while (usedMinutes.has(m) && guard++ < 30) m = lo + Math.floor(rng() * (hi - lo + 1));
-    usedMinutes.add(m);
+    while (used.has(m) && guard++ < 30) m = lo + Math.floor(rng() * (hi - lo + 1));
+    used.add(m);
     return m;
   };
+}
 
+function genGoals(
+  count: number,
+  side: "user" | "opp",
+  lo: number,
+  hi: number,
+  placed: PlacedPlayerLite[],
+  nextMinute: (lo: number, hi: number) => number,
+  rng: () => number
+): GoalEvent[] {
   const goals: GoalEvent[] = [];
-  for (let i = 0; i < regulationUserGoals; i++) {
-    const minute = nextMinute(2, 89);
-    const scorer = pickScorer(input.placed, rng);
-    const assist = pickAssist(input.placed, scorer, rng);
-    goals.push({ minute, side: "user", scorer, assist });
-  }
-  for (let i = 0; i < regulationOppGoals; i++)
-    goals.push({ minute: nextMinute(2, 89), side: "opp" });
-
-  let userGoals = regulationUserGoals;
-  let oppGoals = regulationOppGoals;
-  let wentToExtraTime = false;
-  let penalties: PenaltyResult | null = null;
-
-  if (input.isKnockout && regulationUserGoals === regulationOppGoals) {
-    wentToExtraTime = true;
-    const etScale = 30 / 90; // two 15' extra-time periods
-    const etUserGoals = poisson(userXg * etScale, rng);
-    const etOppGoals = poisson(oppXg * etScale, rng);
-
-    for (let i = 0; i < etUserGoals; i++) {
-      const minute = nextMinute(91, 120);
-      const scorer = pickScorer(input.placed, rng);
-      const assist = pickAssist(input.placed, scorer, rng);
-      goals.push({ minute, side: "user", scorer, assist });
-    }
-    for (let i = 0; i < etOppGoals; i++)
-      goals.push({ minute: nextMinute(91, 120), side: "opp" });
-
-    userGoals += etUserGoals;
-    oppGoals += etOppGoals;
-
-    if (userGoals === oppGoals) {
-      const eloDiff = (input.userElo - input.oppElo) / 400;
-      penalties = simulatePenalties(rng, eloDiff);
+  for (let i = 0; i < count; i++) {
+    const minute = nextMinute(lo, hi);
+    if (side === "user") {
+      const scorer = pickScorer(placed, rng);
+      const assist = pickAssist(placed, scorer, rng);
+      goals.push({ minute, side, scorer, assist });
+    } else {
+      goals.push({ minute, side });
     }
   }
+  return goals;
+}
 
-  goals.sort((a, b) => a.minute - b.minute);
+/** Simulate one half (1 = 1'-45', 2 = 46'-90') using that half's lineup/tactics. */
+export function simulateHalf(input: SimInput, half: 1 | 2): HalfResult {
+  const rng = mulberry32((input.seed + half * 999983) >>> 0);
+  const { userXg, oppXg } = computeXg(input);
+  const halfUserXg = userXg / 2;
+  const halfOppXg = oppXg / 2;
 
+  const userGoals = poisson(halfUserXg, rng);
+  const oppGoals = poisson(halfOppXg, rng);
+
+  const lo = half === 1 ? 1 : 46;
+  const hi = half === 1 ? 45 : 90;
+  const nextMinute = makeMinutePicker(rng);
+
+  const goals: GoalEvent[] = [
+    ...genGoals(userGoals, "user", lo, hi, input.placed, nextMinute, rng),
+    ...genGoals(oppGoals, "opp", lo, hi, input.placed, nextMinute, rng),
+  ].sort((a, b) => a.minute - b.minute);
+
+  return { goals, userGoals, oppGoals, userXg: halfUserXg, oppXg: halfOppXg };
+}
+
+/** Combine both halves into a regulation-time result. Extra time (knockouts only,
+ *  when still level) is applied afterwards via `applyExtraTime`, once a lineup for
+ *  the extra-time period is known. */
+export function combineHalves(input: SimInput, h1: HalfResult, h2: HalfResult): SimResult {
+  const userGoals = h1.userGoals + h2.userGoals;
+  const oppGoals = h1.oppGoals + h2.oppGoals;
+  const goals = [...h1.goals, ...h2.goals].sort((a, b) => a.minute - b.minute);
+  const userXg = h1.userXg + h2.userXg;
+  const oppXg = h1.oppXg + h2.oppXg;
   const simOutcome: "W" | "D" | "L" =
     userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
 
-  const statsTimeScale = wentToExtraTime ? 120 / 90 : 1;
-  const teamStats = computeTeamStats(
-    input,
-    userXg * statsTimeScale,
-    oppXg * statsTimeScale,
-    userGoals,
-    oppGoals,
-    rng
-  );
+  const rng = mulberry32((input.seed + 5_000003) >>> 0);
+  const teamStats = computeTeamStats(input, userXg, oppXg, userGoals, oppGoals, rng);
 
   return {
     userGoals,
     oppGoals,
-    regulationUserGoals,
-    regulationOppGoals,
+    regulationUserGoals: userGoals,
+    regulationOppGoals: oppGoals,
     userXg,
     oppXg,
     goals,
     comparison: buildComparison(input, userGoals, oppGoals, simOutcome),
     teamStats,
-    wentToExtraTime,
+    wentToExtraTime: false,
+    penalties: null,
+  };
+}
+
+/** Extend a level, regulation-time knockout result with extra time (+ penalties if still
+ *  level after that). `input` should reflect whatever lineup is current when extra time
+ *  kicks off, so a substitution made just before it can still affect who might score. */
+export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
+  if (!input.isKnockout || base.userGoals !== base.oppGoals) return base;
+
+  const rng = mulberry32((input.seed + 9_000029) >>> 0);
+  const { userXg, oppXg } = computeXg(input);
+  const etScale = 30 / 90; // two 15' extra-time periods
+  const etUserXg = userXg * etScale;
+  const etOppXg = oppXg * etScale;
+  const etUserGoals = poisson(etUserXg, rng);
+  const etOppGoals = poisson(etOppXg, rng);
+  const nextMinute = makeMinutePicker(rng);
+
+  const etGoals = [
+    ...genGoals(etUserGoals, "user", 91, 120, input.placed, nextMinute, rng),
+    ...genGoals(etOppGoals, "opp", 91, 120, input.placed, nextMinute, rng),
+  ];
+
+  const userGoals = base.userGoals + etUserGoals;
+  const oppGoals = base.oppGoals + etOppGoals;
+  const goals = [...base.goals, ...etGoals].sort((a, b) => a.minute - b.minute);
+
+  let penalties: PenaltyResult | null = null;
+  if (userGoals === oppGoals) {
+    const eloDiff = (input.userElo - input.oppElo) / 400;
+    penalties = simulatePenalties(rng, eloDiff);
+  }
+
+  const simOutcome: "W" | "D" | "L" =
+    userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
+  const totalUserXg = base.userXg + etUserXg;
+  const totalOppXg = base.oppXg + etOppXg;
+  const teamStats = computeTeamStats(input, totalUserXg, totalOppXg, userGoals, oppGoals, rng);
+
+  return {
+    ...base,
+    userGoals,
+    oppGoals,
+    userXg: totalUserXg,
+    oppXg: totalOppXg,
+    goals,
+    comparison: buildComparison(input, userGoals, oppGoals, simOutcome),
+    teamStats,
+    wentToExtraTime: true,
     penalties,
   };
 }

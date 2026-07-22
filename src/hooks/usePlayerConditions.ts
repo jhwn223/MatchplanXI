@@ -30,6 +30,8 @@ export function usePlayerConditions(
           restDays: activeMatch.restDays,
           recentMinutes,
           caps: player.caps,
+          travelKm: activeMatch.travelKm,
+          tzShiftHours: activeMatch.tzShiftHours,
         })
       );
     }

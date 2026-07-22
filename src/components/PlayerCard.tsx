@@ -8,12 +8,14 @@ interface Props {
   condition?: ConditionBreakdown;
   variant: "bench" | "slot";
   dragFrom: string; // "bench" or slotId, carried in draggable data
+  ineligible?: boolean;
 }
 
-export function PlayerCard({ player, condition, variant, dragFrom }: Props) {
+export function PlayerCard({ player, condition, variant, dragFrom, ineligible }: Props) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `player-${player.player_id}`,
     data: { playerId: player.player_id, from: dragFrom },
+    disabled: ineligible,
   });
 
   return (
@@ -25,6 +27,7 @@ export function PlayerCard({ player, condition, variant, dragFrom }: Props) {
       state={isDragging ? "dragging-source" : "idle"}
       listeners={listeners}
       attributes={attributes}
+      ineligible={ineligible}
     />
   );
 }

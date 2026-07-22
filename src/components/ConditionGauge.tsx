@@ -2,12 +2,20 @@ import { useEffect, useState } from "react";
 import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 import { conditionColor } from "../data/conditionEngine";
 
+export interface ConditionSubIndices {
+  altitude: number;
+  travel: number;
+  jetlag: number;
+  rest: number;
+}
+
 interface Props {
   value: number | null;
   filledCount: number;
+  subIndices?: ConditionSubIndices;
 }
 
-export function ConditionGauge({ value, filledCount }: Props) {
+export function ConditionGauge({ value, filledCount, subIndices }: Props) {
   const motionValue = useMotionValue(0);
   const [display, setDisplay] = useState(0);
 
@@ -26,7 +34,29 @@ export function ConditionGauge({ value, filledCount }: Props) {
 
   return (
     <div className="gauge">
-      <span className="gauge__title">팀 고지대 컨디션 지수</span>
+      <div className="gauge__title-row">
+        <span className="gauge__title">팀 컨디션 지수</span>
+        {subIndices && (
+          <div className="gauge__subindices">
+            <span className="subindex" title="고지대 지수">
+              ⛰ {Math.round(subIndices.altitude)}
+            </span>
+            <span className="subindex" title="휴식 지수">
+              💤 {Math.round(subIndices.rest)}
+            </span>
+            {subIndices.travel < 100 && (
+              <span className="subindex" title="비행 지수">
+                ✈ {Math.round(subIndices.travel)}
+              </span>
+            )}
+            {subIndices.jetlag < 100 && (
+              <span className="subindex" title="시차 지수">
+                🕐 {Math.round(subIndices.jetlag)}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
       <div className="gauge__track">
         <motion.div
           className="gauge__fill"
