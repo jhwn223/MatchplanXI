@@ -8,14 +8,17 @@ export { mulberry32 } from "./match/random";
 export { quickSimScore } from "./match/quickSim";
 export { simulateHalf } from "./match/eventEngine";
 export { applyExtraTime, combineHalves } from "./match/result";
+export { snapshotAtMinute } from "./match/liveStats";
 export type {
   GoalEvent,
   HalfResult,
+  LiveMatchSnapshot,
   MatchEvent,
   MatchEventType,
   MatchSide,
   PenaltyResult,
   PlacedPlayerLite,
+  PlayerMatchStats,
   SimActual,
   SimComparison,
   SimInput,

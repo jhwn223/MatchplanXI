@@ -83,6 +83,37 @@ export interface TeamStats {
   interceptions: number;
 }
 
+export interface PlayerMatchStats {
+  side: MatchSide;
+  name: string;
+  position: Position;
+  condition: number;
+  rating: number;
+  touches: number;
+  passesAttempted: number;
+  passesCompleted: number;
+  dribblesAttempted: number;
+  dribblesCompleted: number;
+  tacklesWon: number;
+  interceptions: number;
+  shots: number;
+  shotsOnTarget: number;
+  goals: number;
+  assists: number;
+  saves: number;
+  distanceKm: number;
+}
+
+export interface LiveMatchSnapshot {
+  minute: number;
+  userGoals: number;
+  oppGoals: number;
+  userXg: number;
+  oppXg: number;
+  teamStats: { user: TeamStats; opp: TeamStats };
+  players: PlayerMatchStats[];
+}
+
 export interface SimActual {
   userGoals: number;
   oppGoals: number;
@@ -132,6 +163,8 @@ export interface HalfResult {
   userXg: number;
   oppXg: number;
   teamStats: { user: TeamStats; opp: TeamStats };
+  playerStats: PlayerMatchStats[];
+  liveSnapshots: LiveMatchSnapshot[];
 }
 
 export interface SimResult {
@@ -145,6 +178,8 @@ export interface SimResult {
   events: MatchEvent[];
   comparison: SimComparison;
   teamStats: { user: TeamStats; opp: TeamStats };
+  playerStats: PlayerMatchStats[];
+  liveSnapshots: LiveMatchSnapshot[];
   wentToExtraTime: boolean;
   penalties: PenaltyResult | null;
 }
