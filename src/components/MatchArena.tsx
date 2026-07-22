@@ -10,6 +10,8 @@ export interface ArenaSim {
   goals: GoalEvent[];
   userGoals: number;
   oppGoals: number;
+  userXg?: number;
+  oppXg?: number;
   comparison?: SimComparison;
   teamStats?: { user: TeamStats; opp: TeamStats };
   wentToExtraTime?: boolean;
@@ -205,6 +207,7 @@ export function MatchArena({
 
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [showTactics, setShowTactics] = useState(false);
   const [teamTactics, setTeamTactics] = useState<TeamTactics>(DEFAULT_TEAM_TACTICS);
   const [openTacticSelect, setOpenTacticSelect] = useState<TacticSelectKey | null>(null);
   const [hud, setHud] = useState({
@@ -731,6 +734,7 @@ export function MatchArena({
   const cmp = sim.comparison;
   const scorers = topScorers(leaderboard);
   const assisters = topAssists(leaderboard);
+  const visibleEvents = sim.goals.filter((goal) => goal.minute <= hud.minute).slice().reverse();
 
   return (
     <motion.div className="sim-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -742,53 +746,84 @@ export function MatchArena({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="arena-score">
-          <span className="arena-score__side" style={{ color: userColor }}>
-            {userCode}
-          </span>
-          <span className="arena-score__nums">
-            {hud.home} : {hud.away}
-          </span>
-          <span className="arena-score__side arena-score__side--opp">{oppCode}</span>
-          <span className="arena-score__clock">{hud.minute}′</span>
+          <div className="arena-score__team">
+            <small>HOME</small>
+            <div><span style={{ background: userColor }}>{userCode}</span><strong>{userTeamName}</strong></div>
+          </div>
+          <div className="arena-score__center">
+            <span className="arena-score__clock">● {hud.minute}′ {endMinute <= 45 ? "전반전" : endMinute <= 90 ? "후반전" : "연장전"}</span>
+            <strong className="arena-score__nums">{hud.home} <i>:</i> {hud.away}</strong>
+          </div>
+          <div className="arena-score__team arena-score__team--away">
+            <small>AWAY</small>
+            <div><strong>{oppTeamName}</strong><span>{oppCode}</span></div>
+          </div>
           <button type="button" className="arena-close" onClick={onClose}>
             ✕
           </button>
         </div>
 
-        <div className="arena-canvas-wrap">
-          <canvas ref={canvasRef} className="arena-canvas" />
-          <AnimatePresence>
-            {hud.periodBanner && (
-              <motion.div
-                key={hud.periodBanner}
-                className="arena-banner"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-              >
-                {hud.periodBanner}
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <AnimatePresence>
-            {hud.banner && (
-              <motion.div
-                key="goal"
-                className="arena-goal"
-                initial={{ scale: 0.3, opacity: 0, rotate: -8 }}
-                animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                exit={{ scale: 1.4, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 260, damping: 12 }}
-              >
-                <span className="arena-goal__big">GOAL!</span>
-                <span className="arena-goal__scorer">⚽ {hud.banner}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {!ended && <div className="arena-live-grid">
+          <div className="arena-canvas-wrap">
+            <canvas ref={canvasRef} className="arena-canvas" />
+            <div className="arena-live-tactic">진행 중인 전술<br /><strong>{formation} · {teamTactics.buildUpPlay === "fastBuildUp" ? "빠른 빌드업" : "균형 운영"}</strong></div>
+            <AnimatePresence>
+              {hud.periodBanner && (
+                <motion.div
+                  key={hud.periodBanner}
+                  className="arena-banner"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                >
+                  {hud.periodBanner}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence>
+              {hud.banner && (
+                <motion.div
+                  key="goal"
+                  className="arena-goal"
+                  initial={{ scale: 0.3, opacity: 0, rotate: -8 }}
+                  animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                  exit={{ scale: 1.4, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 12 }}
+                >
+                  <span className="arena-goal__big">GOAL!</span>
+                  <span className="arena-goal__scorer">⚽ {hud.banner}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          <aside className="arena-events">
+            <h3>최근 경기 정보</h3>
+            <div className="arena-events__list">
+              {visibleEvents.length === 0 ? (
+                <p className="arena-events__empty">경기 흐름을 분석하고 있습니다.</p>
+              ) : (
+                visibleEvents.map((event, index) => (
+                  <div className="arena-event" key={`${event.minute}-${index}`} data-side={event.side}>
+                    <span>⚽</span>
+                    <p><strong>{event.minute}′ {event.scorer ?? (event.side === "user" ? userTeamName : oppTeamName)} 득점</strong>{event.assist && <small>도움: {event.assist}</small>}</p>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="arena-events__stats">
+              <div><span>패스 성공</span><strong>{sim.teamStats?.user.passSuccessRate ?? "–"}%</strong></div>
+              <div><span>xG</span><strong>{sim.userXg?.toFixed(2) ?? "–"}</strong></div>
+            </div>
+          </aside>
+        </div>}
 
         {!ended ? (
-          <div className="arena-controls">
+          <div className="arena-live-controls">
+            <div className="arena-timeline">
+              <i style={{ width: `${Math.max(0, Math.min(100, ((hud.minute - startMinute) / Math.max(1, endMinute - startMinute)) * 100))}%` }} />
+              <span>0′</span><span>15′</span><span>30′</span><span>45′</span><span>60′</span><span>75′</span><span>90′</span>
+            </div>
+            <div className="arena-controls">
             <button type="button" className="arena-ctrl" onClick={() => { pausedRef.current = !paused; setPaused(!paused); }}>
               {paused ? "▶ 재생" : "⏸ 일시정지"}
             </button>
@@ -806,10 +841,12 @@ export function MatchArena({
             <button
               type="button"
               className="arena-ctrl arena-ctrl--skip"
-              onClick={() => { stateRef.current!.clock = endMinute; }}
+              onClick={() => setShowTactics((value) => !value)}
             >
-              결과로 건너뛰기 ⏭
+              ✎ 전술 변경
             </button>
+            <button type="button" className="arena-ctrl arena-ctrl--end" onClick={() => { stateRef.current!.clock = endMinute; }}>경기 종료</button>
+            </div>
           </div>
         ) : !final ? (
           <motion.div className="sim-compare" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -829,7 +866,7 @@ export function MatchArena({
             </div>
           </motion.div>
         ) : (
-          <motion.div className="sim-compare" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div className="sim-compare sim-compare--final" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             {sim.wentToExtraTime && (
               <p className="sim-compare__et">
                 90분 {sim.regulationUserGoals}-{sim.regulationOppGoals} → 연장 {sim.userGoals}-{sim.oppGoals}
@@ -903,7 +940,7 @@ export function MatchArena({
             </div>
           </motion.div>
         )}
-        {!ended && (
+        {!ended && showTactics && (
           <div className="arena-team-tactics">
             <div className="arena-team-tactics__head">
               <strong>팀 전술</strong>

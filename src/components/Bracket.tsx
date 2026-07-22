@@ -12,6 +12,7 @@ import {
   type KOTeam,
 } from "../data/tournamentEngine";
 import type { PlayedMap } from "../data/tournament";
+import { AppTopbar } from "./AppTopbar";
 
 interface Props {
   data: TournamentData;
@@ -56,6 +57,7 @@ export function Bracket({ data, team, played, koResults, onBack, onPlayKO }: Pro
 
   return (
     <div className="bracket-view">
+      <AppTopbar active="standings" teamCode={team.fifa_code} onBrandClick={onBack} />
       <header className="hub__header">
         <button type="button" className="btn-back" onClick={onBack}>
           ← 일정
