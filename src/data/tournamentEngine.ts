@@ -1,6 +1,7 @@
 import { mulberry32, quickSimScore } from "./matchSim";
 import type { PlayedMap, StandingRow } from "./tournament";
-import type { TournamentData, Venue } from "./types";
+import type { Leaderboard } from "./leaderboard";
+import type { Player, Position, TournamentData, Venue } from "./types";
 
 // ---------- group stage ----------
 
@@ -119,6 +120,64 @@ const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 export function allGroupStandings(data: TournamentData, played: PlayedMap): Record<string, StandingRow[]> {
   const out: Record<string, StandingRow[]> = {};
   for (const g of GROUPS) out[g] = groupStandingsSim(data, g, played);
+  return out;
+}
+
+/** Like groupStandingsSim, but any match missing from `played` (i.e. every match
+ *  outside the user's own group) is filled in deterministically by elo via
+ *  quickSimScore, so every group resolves to a real table instead of 0-0-0s. */
+export function groupStandingsFull(
+  data: TournamentData,
+  groupLetter: string,
+  played: PlayedMap
+): StandingRow[] {
+  const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
+  const elo = eloOf(data);
+  const table = new Map<string, StandingRow>();
+  for (const t of groupTeams) {
+    table.set(t.team_name, {
+      teamName: t.team_name,
+      fifaCode: t.fifa_code,
+      played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0,
+    });
+  }
+  for (const m of data.matches) {
+    if (m.stage_name !== "Group Stage") continue;
+    if (!table.has(m.home_team_name) || !table.has(m.away_team_name)) continue;
+    const result = played[m.match_id];
+    let hs: number;
+    let as: number;
+    if (result) {
+      hs = result.homeGoals;
+      as = result.awayGoals;
+    } else {
+      const seed = (m.match_id * 100003) >>> 0;
+      const homeElo = elo.get(m.home_team_name)?.elo ?? 1600;
+      const awayElo = elo.get(m.away_team_name)?.elo ?? 1600;
+      const r = quickSimScore(seed, homeElo, awayElo);
+      hs = r.home;
+      as = r.away;
+    }
+    const h = table.get(m.home_team_name)!;
+    const a = table.get(m.away_team_name)!;
+    h.played++; a.played++;
+    h.gf += hs; h.ga += as; a.gf += as; a.ga += hs;
+    if (hs > as) { h.won++; h.points += 3; a.lost++; }
+    else if (hs < as) { a.won++; a.points += 3; h.lost++; }
+    else { h.drawn++; a.drawn++; h.points++; a.points++; }
+  }
+  const rows = [...table.values()];
+  for (const r of rows) r.gd = r.gf - r.ga;
+  rows.sort((x, y) => y.points - x.points || y.gd - x.gd || y.gf - x.gf);
+  return rows;
+}
+
+/** allGroupStandings, but every group is fully resolved (see groupStandingsFull).
+ *  Use this — not allGroupStandings — for anything that needs a coherent whole-
+ *  tournament picture (KO qualifiers, the tournament-wide leaderboard). */
+export function allGroupStandingsFull(data: TournamentData, played: PlayedMap): Record<string, StandingRow[]> {
+  const out: Record<string, StandingRow[]> = {};
+  for (const g of GROUPS) out[g] = groupStandingsFull(data, g, played);
   return out;
 }
 
@@ -293,4 +352,220 @@ export function nextUserKOMatch(rounds: KOMatch[][], userTeamName: string): KOMa
 
 export function champion(rounds: KOMatch[][]): KOTeam | null {
   return rounds[4]?.[0]?.winner ?? null;
+}
+
+export interface TeamTournamentRecord {
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  gf: number;
+  ga: number;
+}
+
+/** A team's combined group-stage + knockout record across the whole tournament. */
+export function teamTournamentRecord(
+  standings: Record<string, StandingRow[]>,
+  rounds: KOMatch[][],
+  teamName: string
+): TeamTournamentRecord {
+  const rec: TeamTournamentRecord = { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0 };
+  for (const rows of Object.values(standings)) {
+    const row = rows.find((r) => r.teamName === teamName);
+    if (row) {
+      rec.played += row.played;
+      rec.won += row.won;
+      rec.drawn += row.drawn;
+      rec.lost += row.lost;
+      rec.gf += row.gf;
+      rec.ga += row.ga;
+      break;
+    }
+  }
+  for (const round of rounds) {
+    for (const m of round) {
+      if (!m.a || !m.b || !m.played || m.aGoals == null || m.bGoals == null) continue;
+      const isA = m.a.name === teamName;
+      const isB = m.b.name === teamName;
+      if (!isA && !isB) continue;
+      const gf = isA ? m.aGoals : m.bGoals;
+      const ga = isA ? m.bGoals : m.aGoals;
+      rec.played++;
+      rec.gf += gf;
+      rec.ga += ga;
+      if (gf > ga) rec.won++;
+      else if (gf < ga) rec.lost++;
+      else rec.drawn++; // includes ties decided on penalties
+    }
+  }
+  return rec;
+}
+
+// ---------- tournament-wide individual awards ----------
+
+export interface TournamentLeader {
+  playerId: number;
+  name: string;
+  teamName: string;
+  teamCode: string;
+  goals: number;
+  assists: number;
+}
+
+/** how often each position gets picked as a goal scorer / assist provider */
+const SCORER_WEIGHT: Record<Position, number> = { GK: 0.02, DEF: 0.12, MID: 0.32, FWD: 0.54 };
+const ASSIST_BONUS = 0.15;
+
+function pickWeighted(rng: () => number, players: Player[], weightFor: (p: Player) => number): Player | null {
+  if (players.length === 0) return null;
+  const total = players.reduce((sum, p) => sum + Math.max(0.001, weightFor(p)), 0);
+  let cursor = rng() * total;
+  for (const p of players) {
+    cursor -= Math.max(0.001, weightFor(p));
+    if (cursor <= 0) return p;
+  }
+  return players[players.length - 1];
+}
+
+function scorerWeight(p: Player): number {
+  return SCORER_WEIGHT[p.position] * ((p.ability?.overall ?? 65) / 65);
+}
+
+function bumpLeader(
+  map: Map<number, TournamentLeader>,
+  player: Player,
+  teamName: string,
+  teamCode: string,
+  field: "goals" | "assists"
+) {
+  const prev = map.get(player.player_id) ?? {
+    playerId: player.player_id,
+    name: player.player_name,
+    teamName,
+    teamCode,
+    goals: 0,
+    assists: 0,
+  };
+  prev[field] += 1;
+  map.set(player.player_id, prev);
+}
+
+function attributeMatchGoals(
+  map: Map<number, TournamentLeader>,
+  seed: number,
+  homeName: string,
+  homeCode: string,
+  awayName: string,
+  awayCode: string,
+  homePlayers: Player[],
+  awayPlayers: Player[],
+  homeGoals: number,
+  awayGoals: number
+) {
+  const rng = mulberry32(seed);
+  const score = (teamName: string, teamCode: string, squad: Player[], goals: number) => {
+    for (let i = 0; i < goals; i++) {
+      const scorer = pickWeighted(rng, squad, scorerWeight);
+      if (!scorer) continue;
+      bumpLeader(map, scorer, teamName, teamCode, "goals");
+      if (rng() < 0.68) {
+        const pool = squad.filter((p) => p.player_id !== scorer.player_id);
+        const assister = pickWeighted(rng, pool, (p) => scorerWeight(p) + ASSIST_BONUS);
+        if (assister) bumpLeader(map, assister, teamName, teamCode, "assists");
+      }
+    }
+  };
+  score(homeName, homeCode, homePlayers, homeGoals);
+  score(awayName, awayCode, awayPlayers, awayGoals);
+}
+
+/** Tournament-wide golden boot / playmaker award, across all 48 teams and every
+ *  match (group + knockout). Every match not actually played by the user is
+ *  resolved deterministically by elo (same source as groupStandingsFull /
+ *  buildBracket), then goals are attributed to specific squad players by a
+ *  position/ability-weighted pick. The user's own matches are corrected
+ *  afterwards with their real, precisely-tracked per-player leaderboard. */
+export function buildTournamentLeaderboard(
+  data: TournamentData,
+  played: PlayedMap,
+  rounds: KOMatch[][],
+  userTeamName: string,
+  userLeaderboard: Leaderboard
+): { topScorers: TournamentLeader[]; topAssists: TournamentLeader[] } {
+  const map = new Map<number, TournamentLeader>();
+  const teamByName = new Map(data.teams.map((t) => [t.team_name, t]));
+  const elo = eloOf(data);
+  const playersByTeamId = new Map<number, Player[]>();
+  const playersOf = (teamName: string): Player[] => {
+    const team = teamByName.get(teamName);
+    if (!team) return [];
+    if (!playersByTeamId.has(team.team_id)) {
+      playersByTeamId.set(team.team_id, data.players.filter((p) => p.team_id === team.team_id));
+    }
+    return playersByTeamId.get(team.team_id)!;
+  };
+
+  for (const m of data.matches) {
+    if (m.stage_name !== "Group Stage") continue;
+    const home = teamByName.get(m.home_team_name);
+    const away = teamByName.get(m.away_team_name);
+    if (!home || !away) continue;
+    const result = played[m.match_id];
+    let hs: number;
+    let as: number;
+    if (result) {
+      hs = result.homeGoals;
+      as = result.awayGoals;
+    } else {
+      const seed = (m.match_id * 100003) >>> 0;
+      const r = quickSimScore(seed, elo.get(home.team_name)?.elo ?? 1600, elo.get(away.team_name)?.elo ?? 1600);
+      hs = r.home;
+      as = r.away;
+    }
+    attributeMatchGoals(
+      map,
+      (m.match_id * 7 + 13) >>> 0,
+      home.team_name, home.fifa_code,
+      away.team_name, away.fifa_code,
+      playersOf(home.team_name), playersOf(away.team_name),
+      hs, as
+    );
+  }
+
+  for (const round of rounds) {
+    for (const m of round) {
+      if (!m.a || !m.b || m.aGoals == null || m.bGoals == null) continue;
+      attributeMatchGoals(
+        map,
+        (hashNum(m.id) * 3 + 1) >>> 0,
+        m.a.name, m.a.code,
+        m.b.name, m.b.code,
+        playersOf(m.a.name), playersOf(m.b.name),
+        m.aGoals, m.bGoals
+      );
+    }
+  }
+
+  // overwrite the user's own players with their real, exactly-tracked record
+  const userTeam = teamByName.get(userTeamName);
+  if (userTeam) {
+    const userPlayers = playersOf(userTeamName);
+    for (const entry of Object.values(userLeaderboard)) {
+      const player = userPlayers.find((p) => p.player_name === entry.name);
+      if (!player) continue;
+      map.set(player.player_id, {
+        playerId: player.player_id,
+        name: player.player_name,
+        teamName: userTeam.team_name,
+        teamCode: userTeam.fifa_code,
+        goals: entry.goals,
+        assists: entry.assists,
+      });
+    }
+  }
+
+  const all = [...map.values()];
+  const topScorers = [...all].filter((e) => e.goals > 0).sort((a, b) => b.goals - a.goals || b.assists - a.assists).slice(0, 5);
+  const topAssists = [...all].filter((e) => e.assists > 0).sort((a, b) => b.assists - a.assists || b.goals - a.goals).slice(0, 5);
+  return { topScorers, topAssists };
 }

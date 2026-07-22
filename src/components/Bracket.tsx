@@ -1,17 +1,24 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import type { Team, TournamentData } from "../data/types";
 import {
-  allGroupStandings,
+  allGroupStandingsFull,
   buildBracket,
+  buildTournamentLeaderboard,
   champion,
   getQualifiers,
   nextUserKOMatch,
   KO_ROUND_KO,
+  teamTournamentRecord,
   type KOMatch,
   type KOResults,
   type KOTeam,
+  type TeamTournamentRecord,
+  type TournamentLeader,
 } from "../data/tournamentEngine";
 import type { PlayedMap } from "../data/tournament";
+import type { Leaderboard } from "../data/leaderboard";
+import { getPlayerPhoto, getPlayerPhotoUrl, playerInitials } from "./player-photo/playerPhotoData";
 import { AppTopbar } from "./AppTopbar";
 
 interface Props {
@@ -19,17 +26,30 @@ interface Props {
   team: Team;
   played: PlayedMap;
   koResults: KOResults;
+  leaderboard?: Leaderboard;
   onBack: () => void;
   onPlayKO: (m: KOMatch) => void;
+  onRestart?: () => void;
 }
 
-export function Bracket({ data, team, played, koResults, onBack, onPlayKO }: Props) {
-  const standings = allGroupStandings(data, played);
+export function Bracket({ data, team, played, koResults, leaderboard = {}, onBack, onPlayKO, onRestart }: Props) {
+  const [showBracket, setShowBracket] = useState(false);
+  const standings = allGroupStandingsFull(data, played);
   const qualifiers = getQualifiers(data, standings);
   const userQualified = qualifiers.some((q) => q.name === team.team_name);
   const rounds = buildBracket(data, qualifiers, koResults, team.team_name);
   const nextMatch = nextUserKOMatch(rounds, team.team_name);
   const champ = champion(rounds);
+  const finalMatch = rounds[4]?.[0] ?? null;
+  const runnerUp =
+    champ && finalMatch ? (finalMatch.a?.name === champ.name ? finalMatch.b : finalMatch.a) : null;
+  const awards = champ
+    ? buildTournamentLeaderboard(data, played, rounds, team.team_name, leaderboard)
+    : null;
+  const topScorer = awards?.topScorers[0] ?? null;
+  const topAssist = awards?.topAssists[0] ?? null;
+  const champRecord = champ ? teamTournamentRecord(standings, rounds, champ.name) : null;
+  const runnerUpRecord = runnerUp ? teamTournamentRecord(standings, rounds, runnerUp.name) : null;
 
   const userAlive =
     userQualified &&
@@ -55,12 +75,30 @@ export function Bracket({ data, team, played, koResults, onBack, onPlayKO }: Pro
     banner = { text: "토너먼트 진행 중…", tone: "neutral" };
   }
 
+  if (champ && !showBracket) {
+    return (
+      <FinalResults
+        teamCode={team.fifa_code}
+        champ={champ}
+        runnerUp={runnerUp}
+        champRecord={champRecord}
+        runnerUpRecord={runnerUpRecord}
+        finalMatch={finalMatch}
+        topScorer={topScorer}
+        topAssist={topAssist}
+        onShowBracket={() => setShowBracket(true)}
+        onBack={onBack}
+        onRestart={onRestart}
+      />
+    );
+  }
+
   return (
     <div className="bracket-view">
       <AppTopbar active="standings" teamCode={team.fifa_code} onBrandClick={onBack} />
       <header className="hub__header">
-        <button type="button" className="btn-back" onClick={onBack}>
-          ← 일정
+        <button type="button" className="btn-back" onClick={champ ? () => setShowBracket(false) : onBack}>
+          {champ ? "← 최종 결과" : "← 일정"}
         </button>
         <div className="hub__title-block">
           <span className="hub__code">{team.fifa_code}</span>
@@ -99,6 +137,205 @@ export function Bracket({ data, team, played, koResults, onBack, onPlayKO }: Pro
 
 function teamLabel(t: KOTeam | null): string {
   return t ? `${t.code}` : "-";
+}
+
+function recordLine(r: TeamTournamentRecord | null): string | null {
+  if (!r) return null;
+  return `${r.played}경기 ${r.won}승 ${r.drawn}무${r.lost > 0 ? ` ${r.lost}패` : ""}`;
+}
+
+function FinalResults({
+  teamCode,
+  champ,
+  runnerUp,
+  champRecord,
+  runnerUpRecord,
+  finalMatch,
+  topScorer,
+  topAssist,
+  onShowBracket,
+  onBack,
+  onRestart,
+}: {
+  teamCode: string;
+  champ: KOTeam;
+  runnerUp: KOTeam | null;
+  champRecord: TeamTournamentRecord | null;
+  runnerUpRecord: TeamTournamentRecord | null;
+  finalMatch: KOMatch | null;
+  topScorer: TournamentLeader | null;
+  topAssist: TournamentLeader | null;
+  onShowBracket: () => void;
+  onBack: () => void;
+  onRestart?: () => void;
+}) {
+  const finalScoreLine =
+    finalMatch && finalMatch.aGoals != null && finalMatch.bGoals != null
+      ? `결승 ${Math.max(finalMatch.aGoals, finalMatch.bGoals)} - ${Math.min(finalMatch.aGoals, finalMatch.bGoals)}${finalMatch.pens ? " (승부차기)" : ""}`
+      : null;
+
+  return (
+    <div className="bracket-view final-results">
+      <AppTopbar active="standings" teamCode={teamCode} onBrandClick={onBack} />
+      <span className="final-results__pill">★ 대회 종료</span>
+      <header className="hub__header final-results__header">
+        <div className="hub__title-block">
+          <div>
+            <h1 className="hub__title">🏆 2026 월드컵 최종 결과</h1>
+            <p className="hub__meta">토너먼트가 모두 끝났습니다. 최종 순위를 확인하세요.</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="podium">
+        <PodiumCard place={2} label="RUNNER-UP" code={runnerUp?.code ?? "-"} name={runnerUp?.name ?? "-"} record={recordLine(runnerUpRecord)} />
+        <PodiumCard place={1} label="CHAMPION" code={champ.code} name={champ.name} highlight subtitle={finalScoreLine} record={recordLine(champRecord)} />
+      </div>
+
+      {(topScorer || topAssist) && (
+        <section className="awards">
+          <h2 className="hub__section-title">🏅 대회 개인상</h2>
+          <div className="awards__grid">
+            {topScorer && (
+              <AwardCard
+                label="GOLDEN BOOT"
+                title="대회 득점 1위"
+                icon="⚽"
+                playerId={topScorer.playerId}
+                name={topScorer.name}
+                team={topScorer.teamName}
+                value={topScorer.goals}
+                unit="GOALS"
+              />
+            )}
+            {topAssist && (
+              <AwardCard
+                label="PLAYMAKER AWARD"
+                title="대회 어시스트 1위"
+                icon="🎯"
+                playerId={topAssist.playerId}
+                name={topAssist.name}
+                team={topAssist.teamName}
+                value={topAssist.assists}
+                unit="ASSISTS"
+              />
+            )}
+          </div>
+        </section>
+      )}
+
+      <p className="final-results__note">📌 이번 대회의 결과는 자동으로 저장되었습니다.</p>
+
+      <div className="final-results__actions">
+        <button type="button" className="btn-back" onClick={onShowBracket}>
+          🗂 전체 대진표 보기
+        </button>
+        {onRestart && (
+          <button type="button" className="tournament-btn" onClick={onRestart}>
+            🔄 새 대회 시작
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PodiumCard({
+  place,
+  label,
+  code,
+  name,
+  highlight,
+  subtitle,
+  record,
+}: {
+  place: 1 | 2;
+  label: string;
+  code: string;
+  name: string;
+  highlight?: boolean;
+  subtitle?: string | null;
+  record?: string | null;
+}) {
+  return (
+    <div className={`podium-card podium-card--${place}`} data-highlight={highlight || undefined}>
+      {highlight && <span className="podium-card__badge">{label}</span>}
+      <div className="podium-card__flag">{code}</div>
+      <div className="podium-card__name">{name}</div>
+      {!highlight && <span className="podium-card__label">{label}</span>}
+      {subtitle && <p className="podium-card__subtitle">{subtitle}</p>}
+      {record && <p className="podium-card__record">{record}</p>}
+      <div className="podium-card__rank">{place}</div>
+    </div>
+  );
+}
+
+function AwardCard({
+  label,
+  title,
+  icon,
+  playerId,
+  name,
+  team,
+  value,
+  unit,
+}: {
+  label: string;
+  title: string;
+  icon: string;
+  playerId: number;
+  name: string;
+  team: string;
+  value: number;
+  unit: string;
+}) {
+  return (
+    <div className="award-card">
+      <div className="award-card__head">
+        <span className="award-card__label">{label}</span>
+        <span className="award-card__icon">{icon}</span>
+      </div>
+      <p className="award-card__title">{title}</p>
+      <div className="award-card__person">
+        <AwardAvatar playerId={playerId} name={name} />
+        <div>
+          <div className="award-card__name">{name}</div>
+          <p className="award-card__team">{team}</p>
+        </div>
+      </div>
+      <div className="award-card__stat">
+        <strong>{value}</strong>
+        <span>{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Real (licensed, attributed) player photo when we have one for this player,
+ *  falling back to an initials badge otherwise — same fallback contract as
+ *  the shared PlayerPhoto component, just without requiring a full Player. */
+function AwardAvatar({ playerId, name }: { playerId: number; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const photo = getPlayerPhoto(playerId);
+
+  if (!photo || failed) {
+    return (
+      <span className="award-card__avatar" aria-hidden="true">
+        {playerInitials(name)}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      className="award-card__avatar award-card__avatar--photo"
+      src={getPlayerPhotoUrl(photo)}
+      alt={`${name} 선수 사진`}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 function MatchCell({ m, teamName }: { m: KOMatch; teamName: string }) {
