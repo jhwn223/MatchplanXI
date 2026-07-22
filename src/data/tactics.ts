@@ -1,5 +1,6 @@
 import { FORMATIONS, slotsOf, type FormationKey, type FormationSlot } from "./formation";
 import type { ConditionBreakdown } from "./conditionEngine";
+import type { TeamStats } from "./matchSim";
 import type { Player, Position } from "./types";
 
 export type Slots = Record<string, number | null>;
@@ -330,6 +331,51 @@ export function tacticStatBreakdown(key: TacticStyleKey | null | undefined): {
       { label: "역습 전환", value: biasToStat(style.counterBias) },
     ],
   };
+}
+
+/** Style-flavoured, stat-backed bullet points for the post-match "AI 전술 분석" panel. */
+export function generateTacticAnalysis(key: TacticStyleKey | null | undefined, stats: TeamStats): string[] {
+  const style = tacticStyleByKey(key);
+  const shotAccuracy = stats.shots > 0 ? Math.round((stats.shotsOnTarget / stats.shots) * 100) : 0;
+
+  switch (style.key) {
+    case "possession":
+      return [
+        `점유율 ${stats.possession}%로 볼을 오래 소유했습니다.`,
+        `짧은 패스 전개 덕분에 패스 성공률 ${stats.passSuccessRate}%를 기록했습니다.`,
+        `슈팅 ${stats.shots}회 중 유효 슈팅은 ${stats.shotsOnTarget}회(${shotAccuracy}%)였습니다.`,
+      ];
+    case "counter":
+      return [
+        `인터셉트 ${stats.interceptions}회로 볼을 되찾은 뒤 빠르게 전환했습니다.`,
+        `태클 성공 ${stats.tacklesWon}회로 상대 공격을 끊어냈습니다.`,
+        `역습 과정에서 슈팅 ${stats.shots}회 중 ${stats.shotsOnTarget}회가 유효 슈팅으로 이어졌습니다.`,
+      ];
+    case "wing":
+      return [
+        `측면 위주 전개로 점유율 ${stats.possession}%를 기록했습니다.`,
+        `슈팅 ${stats.shots}회 중 ${stats.shotsOnTarget}회(${shotAccuracy}%)가 유효 슈팅이었습니다.`,
+        `패스 성공률 ${stats.passSuccessRate}%로 측면 연계가 원활했습니다.`,
+      ];
+    case "halfspace":
+      return [
+        `하프스페이스 침투로 패스 성공률 ${stats.passSuccessRate}%를 기록했습니다.`,
+        `중앙 집중 전개로 슈팅 ${stats.shots}회, 유효 슈팅 ${stats.shotsOnTarget}회를 만들었습니다.`,
+        `점유율 ${stats.possession}%로 안정적인 경기 운영을 보였습니다.`,
+      ];
+    case "longball":
+      return [
+        `롱볼 위주 전술로 패스 성공률은 ${stats.passSuccessRate}%에 머물렀습니다.`,
+        `최전방을 직접 공략해 슈팅 ${stats.shots}회를 시도했습니다.`,
+        `점유율은 ${stats.possession}%로 낮았지만 직선적인 공격을 노렸습니다.`,
+      ];
+    case "gegenpress":
+      return [
+        `높은 압박으로 인터셉트 ${stats.interceptions}회, 태클 성공 ${stats.tacklesWon}회를 기록했습니다.`,
+        `탈취 직후 빠른 전환으로 슈팅 ${stats.shots}회를 만들어냈습니다.`,
+        `점유율 ${stats.possession}%로 경기를 주도했습니다.`,
+      ];
+  }
 }
 
 /** Which tactic styles suit each formation best, most-recommended first. */
