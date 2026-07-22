@@ -29,6 +29,7 @@ export function PlayerCard({ player, condition, variant, dragFrom, ineligible, o
       state={isDragging ? "dragging-source" : "idle"}
       listeners={listeners}
       attributes={attributes}
+      useLayoutId={false}
       ineligible={ineligible}
       onSelect={onSelect}
     />
