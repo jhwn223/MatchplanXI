@@ -1,0 +1,88 @@
+/* ---- Pitch ---- */
+
+.pitch {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 68 / 100;
+  border-radius: 14px;
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05) 0,
+      rgba(255, 255, 255, 0.05) 9%,
+      rgba(0, 0, 0, 0.03) 9%,
+      rgba(0, 0, 0, 0.03) 18%
+    ),
+    linear-gradient(180deg, #1e6b3a 0%, #17612f 50%, #1e6b3a 100%);
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.pitch__markings {
+  position: absolute;
+  inset: 0;
+}
+
+.pitch__center-circle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 26%;
+  aspect-ratio: 1;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pitch__center-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.pitch__box {
+  position: absolute;
+  left: 50%;
+  width: 56%;
+  height: 16%;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  transform: translateX(-50%);
+}
+.pitch__box--top {
+  top: 0;
+}
+.pitch__box--bottom {
+  bottom: 0;
+}
+
+.pitch-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: left 180ms ease, top 180ms ease;
+}
+
+.pitch-slot[data-over="true"] {
+  filter: drop-shadow(0 0 10px rgba(79, 209, 197, 0.8));
+}
+
+.pitch-slot__placeholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.08);
+}
+

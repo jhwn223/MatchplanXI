@@ -1,21 +1,10 @@
 import { useMemo, useRef, useState } from "react";
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
-import { AnimatePresence } from "framer-motion";
+import { DndContext, DragOverlay } from "@dnd-kit/core";
 import {
   FORMATIONS,
   detectFormationShape,
   slotsOf,
-  BENCH_ZONE_ID,
   type FormationKey,
-  type SlotPositions,
 } from "../data/formation";
 import {
   altitudePenalty,
@@ -24,13 +13,10 @@ import {
   restPenalty,
   travelPenalty,
 } from "../data/conditionEngine";
-import { stageLabelKo, type TeamMatch } from "../data/tournament";
 import {
   autoFillBestXI,
-  canPlaceInSlot,
   emptySlots,
   remapFormation,
-  type Slots,
   type TacticalPreset,
 } from "../data/tactics";
 import {
@@ -38,96 +24,30 @@ import {
   combineHalves,
   simulateHalf,
   type HalfResult,
-  type PlacedPlayerLite,
-  type SimInput,
   type SimResult,
 } from "../data/matchSim";
-import { buildTeamAbilityProfile, selectBestEleven } from "../data/playerAbility";
-import type { PlayedResult } from "../data/tournament";
-import type { Leaderboard } from "../data/leaderboard";
+import { selectBestEleven } from "../data/playerAbility";
 import { usePlayerConditions } from "../hooks/usePlayerConditions";
 import { useDropSound } from "../hooks/useDropSound";
-import type { Player, Team, TournamentData } from "../data/types";
-import { Pitch } from "./Pitch";
-import { Bench } from "./Bench";
-import { ConditionGauge, type ConditionSubIndices } from "./ConditionGauge";
-import { TacticsPanel } from "./TacticsPanel";
-import { MatchArena, type ArenaSim } from "./MatchArena";
+import type { Player } from "../data/types";
+import type { ConditionSubIndices } from "./ConditionGauge";
 import { PlayerCardVisual } from "./PlayerCardVisual";
-import { AppTopbar } from "./AppTopbar";
 import { PlayerStatsModal } from "./PlayerStatsModal";
-
-type MatchPhase = "idle" | "half1" | "halftime" | "half2" | "etbreak" | "extratime";
-
-const MAX_SUBS = 5;
-const MAX_SUBS_ET = 6; // extra time grants one additional substitution
-
-function toSimPlayer(player: Player, assignedPosition: Player["position"], condition: number): PlacedPlayerLite {
-  const ability = player.ability;
-  const base = ability?.overall ?? 65;
-  const gkBase = player.position === "GK" ? base : 12;
-  return {
-    name: player.player_name,
-    naturalPosition: player.position,
-    position: assignedPosition,
-    overall: base,
-    pace: ability?.pace ?? base,
-    acceleration: ability?.acceleration ?? ability?.pace ?? base,
-    shooting: ability?.shooting ?? 58,
-    finishing: ability?.finishing ?? 58,
-    positioning: ability?.positioning ?? 60,
-    shotPower: ability?.shotPower ?? ability?.shooting ?? 58,
-    longShots: ability?.longShots ?? ability?.shooting ?? 55,
-    passing: ability?.passing ?? 62,
-    vision: ability?.vision ?? ability?.passing ?? 62,
-    shortPassing: ability?.shortPassing ?? ability?.passing ?? 62,
-    longPassing: ability?.longPassing ?? ability?.passing ?? 60,
-    dribbling: ability?.dribbling ?? 62,
-    ballControl: ability?.ballControl ?? ability?.dribbling ?? 62,
-    agility: ability?.agility ?? ability?.pace ?? 62,
-    composure: ability?.composure ?? base,
-    reactions: ability?.reactions ?? base,
-    defending: ability?.defending ?? 58,
-    interceptions: ability?.interceptions ?? ability?.defending ?? 58,
-    defensiveAwareness: ability?.defensiveAwareness ?? ability?.defending ?? 58,
-    standingTackle: ability?.standingTackle ?? ability?.defending ?? 58,
-    physical: ability?.physical ?? 65,
-    strength: ability?.strength ?? ability?.physical ?? 65,
-    aggression: ability?.aggression ?? ability?.physical ?? 62,
-    stamina: ability?.stamina ?? ability?.physical ?? 65,
-    penalties: ability?.penalties ?? ability?.finishing ?? 60,
-    gkDiving: ability?.gkDiving ?? gkBase,
-    gkHandling: ability?.gkHandling ?? gkBase,
-    gkPositioning: ability?.gkPositioning ?? gkBase,
-    gkReflexes: ability?.gkReflexes ?? gkBase,
-    condition,
-  };
-}
-
-export type { Slots } from "../data/tactics";
-
-export interface Lineup {
-  formation: FormationKey;
-  slots: Slots;
-  positions?: SlotPositions;
-  presetKey?: string | null;
-}
-
-export { emptySlots };
-
-interface Props {
-  data: TournamentData;
-  team: Team;
-  teamMatches: TeamMatch[];
-  activeMatch: TeamMatch;
-  lineup: Lineup;
-  onChangeLineup: (next: Lineup) => void;
-  onBack: () => void;
-  onPlayed: (matchId: number, result: PlayedResult) => void;
-  onMatchSim: (sim: SimResult) => void;
-  leaderboard: Leaderboard;
-  onNextMatch: () => void;
-}
+import {
+  extraTimeArenaSim as buildExtraTimeArenaSim,
+  firstHalfArenaSim,
+  secondHalfArenaSim,
+} from "./match-board/arenaSegments";
+import { MatchArenaOverlays } from "./match-board/MatchArenaOverlays";
+import { MatchBoardScreen } from "./match-board/MatchBoardScreen";
+import { buildMatchSimInput } from "./match-board/simInput";
+import { useLineupDrag } from "./match-board/useLineupDrag";
+import {
+  MAX_SUBS,
+  MAX_SUBS_ET,
+  type MatchBoardProps,
+  type MatchPhase,
+} from "./match-board/types";
 
 export function MatchBoard({
   data,
@@ -141,7 +61,7 @@ export function MatchBoard({
   onMatchSim,
   leaderboard,
   onNextMatch,
-}: Props) {
+}: MatchBoardProps) {
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
   const [soundOn, setSoundOn] = useState(false);
   const [phase, setPhase] = useState<MatchPhase>("idle");
@@ -155,44 +75,36 @@ export function MatchBoard({
   const pitchRef = useRef<HTMLDivElement>(null);
   const playDrop = useDropSound(soundOn);
 
-  const formationDef = slotsOf(lineup.formation);
+  const formation = slotsOf(lineup.formation);
   const conditions = usePlayerConditions(data, team.team_id, teamMatches, activeMatch);
-
   const squad = useMemo(
-    () => data.players.filter((p) => p.team_id === team.team_id),
-    [data, team.team_id]
+    () => data.players.filter((player) => player.team_id === team.team_id),
+    [data.players, team.team_id]
   );
-
-  const playersById = useMemo(() => {
-    const m = new Map<number, Player>();
-    for (const p of squad) m.set(p.player_id, p);
-    return m;
-  }, [squad]);
-
+  const playersById = useMemo(
+    () => new Map(squad.map((player) => [player.player_id, player])),
+    [squad]
+  );
   const placedIds = useMemo(
-    () => new Set(Object.values(lineup.slots).filter((v): v is number => v != null)),
+    () => new Set(Object.values(lineup.slots).filter((id): id is number => id != null)),
     [lineup.slots]
   );
-
   const benchPlayers = useMemo(
-    () => squad.filter((p) => !placedIds.has(p.player_id)),
+    () => squad.filter((player) => !placedIds.has(player.player_id)),
     [squad, placedIds]
   );
-
   const teamIndex = useMemo(() => {
     const scores = [...placedIds]
       .map((id) => conditions.get(id)?.score)
-      .filter((s): s is number => s != null);
+      .filter((score): score is number => score != null);
     return computeTeamIndex(scores);
   }, [placedIds, conditions]);
-
   const detectedFormation = useMemo(
     () => detectFormationShape(lineup.formation, lineup.slots, lineup.positions),
     [lineup.formation, lineup.slots, lineup.positions]
   );
-
   const effectiveAttackBias = useMemo(() => {
-    const positionedOutfield = formationDef.filter(
+    const positionedOutfield = formation.filter(
       (slot) => slot.position !== "GK" && lineup.slots[slot.id] != null
     );
     const averageAdvance = positionedOutfield.length
@@ -201,20 +113,23 @@ export function MatchBoard({
           return sum + (slot.y - current.y);
         }, 0) / positionedOutfield.length
       : 0;
-    return Math.min(
-      1.2,
-      Math.max(-1.2, FORMATIONS[lineup.formation].attackBias + averageAdvance / 25)
-    );
-  }, [formationDef, lineup.formation, lineup.positions, lineup.slots]);
+    return Math.min(1.2, Math.max(-1.2, FORMATIONS[lineup.formation].attackBias + averageAdvance / 25));
+  }, [formation, lineup.formation, lineup.positions, lineup.slots]);
 
-  // --- kickoff / simulation prep (declared early: isKnockout/tiedAfterRegulation feed the sub cap below) ---
-  const m = activeMatch.match;
-  const opponent = data.teams.find((t) => t.team_name === activeMatch.opponentName);
+  const match = activeMatch.match;
+  const opponent = data.teams.find((candidate) => candidate.team_name === activeMatch.opponentName);
   const opponentEleven = useMemo(
-    () => selectBestEleven(data.players.filter((p) => p.team_id === opponent?.team_id)),
+    () => selectBestEleven(data.players.filter((player) => player.team_id === opponent?.team_id)),
     [data.players, opponent?.team_id]
   );
-  const isKnockout = m.stage_name !== "Group Stage";
+  const isKnockout = match.stage_name !== "Group Stage";
+  const tiedAfterRegulation = regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
+  const maxSubs = tiedAfterRegulation || phase === "etbreak" || phase === "extratime" ? MAX_SUBS_ET : MAX_SUBS;
+  const subsUsed = useMemo(
+    () => startingXI ? [...placedIds].filter((id) => !startingXI.has(id)).length : 0,
+    [startingXI, placedIds]
+  );
+  const subsRemaining = Math.max(0, maxSubs - subsUsed);
   const winEstimate = Math.max(
     8,
     Math.min(
@@ -225,82 +140,34 @@ export function MatchBoard({
       )
     )
   );
-  const tiedAfterRegulation =
-    regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
-
-  // a "substitution" is a player on the pitch who wasn't part of the kickoff XI.
-  // knockout ties that reach extra time get one extra card (5 -> 6).
-  const maxSubs = tiedAfterRegulation || phase === "etbreak" || phase === "extratime" ? MAX_SUBS_ET : MAX_SUBS;
-  const subsUsed = useMemo(() => {
-    if (!startingXI) return 0;
-    return [...placedIds].filter((id) => !startingXI.has(id)).length;
-  }, [startingXI, placedIds]);
-  const subsRemaining = Math.max(0, maxSubs - subsUsed);
-
   const conditionSubIndices: ConditionSubIndices = {
     altitude: 100 - altitudePenalty(activeMatch.elevation),
     rest: 100 - restPenalty(activeMatch.restDays),
     travel: 100 - travelPenalty(activeMatch.travelKm),
     jetlag: 100 - jetLagPenalty(activeMatch.tzShiftHours),
   };
+  const { sensors, handleDragStart, handleDragEnd } = useLineupDrag({
+    formation,
+    lineup,
+    onChangeLineup,
+    playersById,
+    pitchRef,
+    benchedOut,
+    startingXI,
+    maxSubs,
+    playDrop,
+    setBenchedOut,
+    setActiveDragId,
+  });
+  const firstArena = useMemo(() => firstHalfArenaSim(half1), [half1]);
+  const secondArena = useMemo(() => secondHalfArenaSim(half2, regSim), [half2, regSim]);
+  const extraArena = useMemo(() => buildExtraTimeArenaSim(finalSim), [finalSim]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  );
-
-  // memoized so MatchArena's effect (keyed on `sim`) doesn't reset mid-animation
-  // just because MatchBoard re-renders for an unrelated reason
-  const half1ArenaSim: ArenaSim | null = useMemo(
-    () => (half1 ? { goals: half1.goals, events: half1.events, userGoals: half1.userGoals, oppGoals: half1.oppGoals, userXg: half1.userXg, oppXg: half1.oppXg, teamStats: half1.teamStats } : null),
-    [half1]
-  );
-  const half2ArenaSim: ArenaSim | null = useMemo(
-    () =>
-      half2 && regSim
-        ? {
-            goals: half2.goals,
-            events: half2.events,
-            userGoals: regSim.userGoals,
-            oppGoals: regSim.oppGoals,
-            userXg: regSim.userXg,
-            oppXg: regSim.oppXg,
-            comparison: regSim.comparison,
-            teamStats: regSim.teamStats,
-            wentToExtraTime: regSim.wentToExtraTime,
-            penalties: regSim.penalties,
-            regulationUserGoals: regSim.regulationUserGoals,
-            regulationOppGoals: regSim.regulationOppGoals,
-          }
-        : null,
-    [half2, regSim]
-  );
-  const extraTimeArenaSim: ArenaSim | null = useMemo(
-    () =>
-      finalSim
-        ? {
-            goals: finalSim.goals.filter((g) => g.minute > 90),
-            events: finalSim.events.filter((event) => event.minute > 90),
-            userGoals: finalSim.userGoals,
-            oppGoals: finalSim.oppGoals,
-            userXg: finalSim.userXg,
-            oppXg: finalSim.oppXg,
-            comparison: finalSim.comparison,
-            teamStats: finalSim.teamStats,
-            wentToExtraTime: finalSim.wentToExtraTime,
-            penalties: finalSim.penalties,
-            regulationUserGoals: finalSim.regulationUserGoals,
-            regulationOppGoals: finalSim.regulationOppGoals,
-          }
-        : null,
-    [finalSim]
-  );
-
-  // --- tactics actions ---
   function selectFormation(key: FormationKey) {
     if (key === lineup.formation) return;
     onChangeLineup({
       formation: key,
-      slots: remapFormation(lineup.formation, lineup.slots, key), // keep players
+      slots: remapFormation(lineup.formation, lineup.slots, key),
       presetKey: null,
     });
   }
@@ -322,120 +189,26 @@ export function MatchBoard({
   }
 
   function resetLineup() {
-    if (startingXI) return;
-    onChangeLineup({ formation: lineup.formation, slots: emptySlots(lineup.formation), presetKey: null });
-  }
-
-  // --- drag/drop ---
-  function handleDragStart(event: DragStartEvent) {
-    const d = event.active.data.current as { playerId: number } | undefined;
-    setActiveDragId(d?.playerId ?? null);
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    setActiveDragId(null);
-    const { active, over, delta } = event;
-    const d = active.data.current as { playerId: number; from: string };
-    const player = playersById.get(d.playerId);
-    if (!player) return;
-    const targetId = over ? String(over.id) : null;
-    if (d.from !== BENCH_ZONE_ID && targetId !== BENCH_ZONE_ID) {
-      const sourceSlot = formationDef.find((slot) => slot.id === d.from);
-      const pitchRect = pitchRef.current?.getBoundingClientRect();
-      if (!sourceSlot || !pitchRect) return;
-      const current = lineup.positions?.[sourceSlot.id] ?? sourceSlot;
-      const x = Math.min(93, Math.max(7, current.x + (delta.x / pitchRect.width) * 100));
-      const y = Math.min(92, Math.max(6, current.y + (delta.y / pitchRect.height) * 100));
-      onChangeLineup({
-        ...lineup,
-        positions: { ...lineup.positions, [sourceSlot.id]: { x, y } },
-        presetKey: null,
-      });
-      return;
-    }
-    if (!over) return;
-    if (!targetId) return;
-    if (targetId === d.from) return;
-    if (benchedOut.has(d.playerId)) return; // already substituted off, can't return
-
-    if (targetId === BENCH_ZONE_ID) {
-      if (d.from !== BENCH_ZONE_ID) {
-        onChangeLineup({ ...lineup, slots: { ...lineup.slots, [d.from]: null }, presetKey: null });
-        if (startingXI) {
-          setBenchedOut((prev) => new Set(prev).add(d.playerId));
-        }
-      }
-      return;
-    }
-
-    const targetSlot = formationDef.find((s) => s.id === targetId);
-    if (!targetSlot) return;
-    if (!canPlaceInSlot(player.position, targetSlot.position)) return; // adjacent tiers only, GK is a wall
-
-    const prevOccupant = lineup.slots[targetSlot.id];
-    const next = { ...lineup.slots };
-    if (d.from !== BENCH_ZONE_ID) next[d.from] = null;
-    next[targetSlot.id] = d.playerId;
-
-    if (startingXI) {
-      const nextPlaced = new Set(Object.values(next).filter((v): v is number => v != null));
-      const nextSubsUsed = [...nextPlaced].filter((id) => !startingXI.has(id)).length;
-      if (nextSubsUsed > maxSubs) return; // no substitution cards left
-    }
-
-    onChangeLineup({ ...lineup, slots: next, presetKey: null });
-    playDrop();
-
-    // bringing on a bench player is a real substitution: whoever they replaced is done for the match
-    if (startingXI && d.from === BENCH_ZONE_ID && prevOccupant != null) {
-      setBenchedOut((prev) => new Set(prev).add(prevOccupant));
+    if (!startingXI) {
+      onChangeLineup({ formation: lineup.formation, slots: emptySlots(lineup.formation), presetKey: null });
     }
   }
 
-  function buildSimInput(): SimInput | null {
-    if (placedIds.size < 11 || teamIndex == null) return null;
-    const placed = formationDef
-      .map((slot) => {
-        const playerId = lineup.slots[slot.id];
-        const player = playerId != null ? playersById.get(playerId) : null;
-        return player
-          ? toSimPlayer(player, slot.position, conditions.get(player.player_id)?.score ?? 65)
-          : null;
-      })
-      .filter((player): player is PlacedPlayerLite => player != null);
-    const oppPlaced = opponentEleven.map((player) => toSimPlayer(player, player.position, 72));
-    const selectedPlayers = [...placedIds]
-      .map((id) => playersById.get(id))
-      .filter((p): p is Player => !!p);
-
-    const positionSeed = formationDef.reduce((sum, slot, index) => {
-      const current = lineup.positions?.[slot.id] ?? slot;
-      return sum + Math.round(current.x * 7 + current.y * 13) * (index + 1);
-    }, 0);
-
-    const seed =
-      m.match_id * 100003 +
-      [...placedIds].reduce((s, id) => s + id, 0) * 31 +
-      lineup.formation.length * 7 +
-      positionSeed;
-
-    return {
-      seed,
-      userTeamName: team.team_name,
-      oppTeamName: activeMatch.opponentName,
-      userElo: team.elo_rating,
-      oppElo: opponent?.elo_rating ?? 1600,
-      conditionIndex: teamIndex,
-      attackBias: effectiveAttackBias,
-      isHome: activeMatch.isHome,
-      elevation: activeMatch.elevation,
-      placed,
-      oppPlaced,
-      userAbility: buildTeamAbilityProfile(selectedPlayers, conditions),
-      oppAbility: buildTeamAbilityProfile(opponentEleven),
-      actual: null,
+  function buildSimInput() {
+    return buildMatchSimInput({
+      placedIds,
+      teamIndex,
+      formation,
+      lineup,
+      playersById,
+      conditions,
+      opponentEleven,
+      activeMatch,
+      team,
+      opponent,
+      effectiveAttackBias,
       isKnockout,
-    };
+    });
   }
 
   function kickoff() {
@@ -453,9 +226,9 @@ export function MatchBoard({
   function startSecondHalf() {
     const input = buildSimInput();
     if (!input || !half1) return;
-    const h2 = simulateHalf(input, 2);
-    setHalf2(h2);
-    setRegSim(combineHalves(input, half1, h2));
+    const result = simulateHalf(input, 2);
+    setHalf2(result);
+    setRegSim(combineHalves(input, half1, result));
     setPhase("half2");
   }
 
@@ -467,24 +240,16 @@ export function MatchBoard({
   }
 
   function handleMatchEnd(result: SimResult) {
-    const homeGoals = activeMatch.isHome ? result.userGoals : result.oppGoals;
-    const awayGoals = activeMatch.isHome ? result.oppGoals : result.userGoals;
-    const homePenGoals = result.penalties
-      ? activeMatch.isHome
-        ? result.penalties.userGoals
-        : result.penalties.oppGoals
-      : undefined;
-    const awayPenGoals = result.penalties
-      ? activeMatch.isHome
-        ? result.penalties.oppGoals
-        : result.penalties.userGoals
-      : undefined;
-    onPlayed(m.match_id, {
-      homeGoals,
-      awayGoals,
+    onPlayed(match.match_id, {
+      homeGoals: activeMatch.isHome ? result.userGoals : result.oppGoals,
+      awayGoals: activeMatch.isHome ? result.oppGoals : result.userGoals,
       wentToPenalties: result.penalties != null,
-      homePenGoals,
-      awayPenGoals,
+      homePenGoals: result.penalties
+        ? activeMatch.isHome ? result.penalties.userGoals : result.penalties.oppGoals
+        : undefined,
+      awayPenGoals: result.penalties
+        ? activeMatch.isHome ? result.penalties.oppGoals : result.penalties.userGoals
+        : undefined,
     });
     onMatchSim(result);
   }
@@ -501,12 +266,7 @@ export function MatchBoard({
 
   const activePlayer = activeDragId != null ? playersById.get(activeDragId) : null;
   const ready = placedIds.size === 11;
-  const primaryAction =
-    phase === "halftime"
-      ? startSecondHalf
-      : phase === "etbreak"
-        ? startExtraTime
-        : kickoff;
+  const primaryAction = phase === "halftime" ? startSecondHalf : phase === "etbreak" ? startExtraTime : kickoff;
   const primaryLabel = !ready
     ? `선발 ${placedIds.size}/11 배치 필요`
     : phase === "halftime"
@@ -517,132 +277,45 @@ export function MatchBoard({
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="board">
-        <AppTopbar active="tactics" teamCode={team.fifa_code} onBrandClick={onBack} />
-        <header className="board__header">
-          <button type="button" className="btn-back" onClick={onBack}>
-            ← 일정
-          </button>
-          <div className="board__match">
-            <span className="board__stage">{stageLabelKo(m.stage_name)}</span>
-            <span className="board__teams">
-              {team.team_name} <span className="board__vs">{activeMatch.isHome ? "vs" : "@"}</span>{" "}
-              {activeMatch.opponentName}
-            </span>
-            <span className="board__stadium">
-              {m.stadium_name.replace(/\s*\(.*\)/, "")} · {m.city} · {m.date}
-            </span>
-          </div>
-          <div className="board__controls">
-            <span
-              className={`elev-badge elev-badge--${
-                activeMatch.elevation >= 2000 ? "high" : activeMatch.elevation >= 1000 ? "mid" : "low"
-              }`}
-            >
-              ⛰ 고도 {activeMatch.elevation}m
-            </span>
-            <span className="board__rest">휴식 {activeMatch.restDays}일</span>
-            {activeMatch.travelKm > 0 && (
-              <span className="travel-badge">
-                ✈ 이동 {activeMatch.travelKm}km
-                {activeMatch.tzShiftHours !== 0 ? ` · 시차 ${Math.abs(activeMatch.tzShiftHours)}h` : ""}
-              </span>
-            )}
-            <label className="sound-toggle">
-              <input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} />
-              사운드
-            </label>
-          </div>
-        </header>
-
-        <div className="board__body">
-          <aside className="board__sidebar">
-            <TacticsPanel
-              detectedFormation={detectedFormation}
-              attackBias={effectiveAttackBias}
-              onSelectFormation={selectFormation}
-              onApplyPreset={applyPreset}
-              onAutoFill={autoFill}
-              activePresetKey={lineup.presetKey ?? null}
-              subsLocked={startingXI != null}
-            />
-            <ConditionGauge value={teamIndex} filledCount={placedIds.size} subIndices={conditionSubIndices} />
-            <div className="sub-tracker">
-              <span className="sub-tracker__label">🔄 교체 카드</span>
-              <div className="sub-tracker__cards">
-                {Array.from({ length: maxSubs }).map((_, i) => (
-                  <span key={i} className="sub-card" data-used={i < subsUsed || undefined} />
-                ))}
-              </div>
-              <span className="sub-tracker__count">{subsRemaining}장 남음</span>
-            </div>
-            {phase === "halftime" && half1 && (
-              <div className="halftime-banner">
-                ⏱ 하프타임 · 전반 {half1.userGoals} - {half1.oppGoals} · 전술과 라인업을 조정하세요
-              </div>
-            )}
-            {phase === "etbreak" && regSim && (
-              <div className="halftime-banner">
-                🔥 연장전 돌입 · 정규시간 {regSim.userGoals} - {regSim.oppGoals} · 교체 카드 1장 추가 지급
-              </div>
-            )}
-          </aside>
-
-          <main className="board__pitch">
-            <div className="pitch-toolbar">
-              <div className="detected-formation" aria-live="polite">
-                <span>자동 포메이션</span>
-                <strong>{detectedFormation}</strong>
-              </div>
-              <button
-                type="button"
-                className="pitch-reset"
-                onClick={() => onChangeLineup({ ...lineup, positions: {} })}
-                disabled={!lineup.positions || Object.keys(lineup.positions).length === 0}
-                aria-label="기본 위치로 되돌리기"
-                title="기본 위치로 되돌리기"
-              >
-                ↺
-              </button>
-            </div>
-            <Pitch
-              formation={formationDef}
-              slots={lineup.slots}
-              playersById={playersById}
-              conditions={conditions}
-              onSelectPlayer={setSelectedPlayer}
-              positions={lineup.positions}
-              positionMode
-              pitchRef={pitchRef}
-            />
-          </main>
-
-          <section className="board__bench">
-            <Bench
-              benchPlayers={benchPlayers}
-              conditions={conditions}
-              benchedOut={benchedOut}
-              onSelectPlayer={setSelectedPlayer}
-            />
-          </section>
-        </div>
-        <footer className="board__actionbar">
-          <div className="board__action-metric">
-            <span>스쿼드 구성</span>
-            <strong>{placedIds.size} / 11</strong>
-          </div>
-          <div className="board__action-metric">
-            <span>예상 승률</span>
-            <strong>{winEstimate}%</strong>
-          </div>
-          <div className="board__action-spacer" />
-          <button type="button" className="board__reset" disabled={startingXI != null} onClick={resetLineup}>전술 초기화</button>
-          <button type="button" className="kickoff-btn" disabled={!ready} onClick={primaryAction}>{primaryLabel}</button>
-        </footer>
-      </div>
+      <MatchBoardScreen
+        team={team}
+        activeMatch={activeMatch}
+        phase={phase}
+        lineup={lineup}
+        formation={formation}
+        detectedFormation={detectedFormation}
+        effectiveAttackBias={effectiveAttackBias}
+        teamIndex={teamIndex}
+        conditionSubIndices={conditionSubIndices}
+        conditions={conditions}
+        playersById={playersById}
+        benchPlayers={benchPlayers}
+        benchedOut={benchedOut}
+        placedCount={placedIds.size}
+        startingXI={startingXI}
+        maxSubs={maxSubs}
+        subsUsed={subsUsed}
+        subsRemaining={subsRemaining}
+        firstHalf={half1}
+        regulation={regSim}
+        winEstimate={winEstimate}
+        soundOn={soundOn}
+        primaryLabel={primaryLabel}
+        ready={ready}
+        pitchRef={pitchRef}
+        onBack={onBack}
+        onSoundChange={setSoundOn}
+        onSelectFormation={selectFormation}
+        onApplyPreset={applyPreset}
+        onAutoFill={autoFill}
+        onResetPositions={() => onChangeLineup({ ...lineup, positions: {} })}
+        onResetLineup={resetLineup}
+        onPrimaryAction={primaryAction}
+        onSelectPlayer={setSelectedPlayer}
+      />
 
       <DragOverlay dropAnimation={null}>
-        {activePlayer ? (
+        {activePlayer && (
           <PlayerCardVisual
             player={activePlayer}
             condition={conditions.get(activePlayer.player_id)}
@@ -650,100 +323,34 @@ export function MatchBoard({
             state="floating"
             useLayoutId={false}
           />
-        ) : null}
+        )}
       </DragOverlay>
 
-      <AnimatePresence>
-        {phase === "half1" && half1ArenaSim && (
-          <MatchArena
-            key="half1"
-            sim={half1ArenaSim}
-            userTeamName={team.team_name}
-            userCode={team.fifa_code}
-            oppTeamName={activeMatch.opponentName}
-            oppCode={activeMatch.opponentCode}
-            userColor="#7adb8c"
-            formation={lineup.formation}
-            formationLabel={detectedFormation}
-            slots={lineup.slots}
-            positions={lineup.positions}
-            playersById={playersById}
-            opponentPlayers={opponentEleven}
-            leaderboard={leaderboard}
-            startMinute={0}
-            endMinute={45}
-            final={false}
-            interimLabel="전반전 종료"
-            interimCta="후반전 준비하기 →"
-            onInterimContinue={() => setPhase("halftime")}
-            onComplete={() => {}}
-            onClose={closeArena}
-          />
-        )}
-        {phase === "half2" && half2ArenaSim && (
-          <MatchArena
-            key="half2"
-            sim={half2ArenaSim}
-            userTeamName={team.team_name}
-            userCode={team.fifa_code}
-            oppTeamName={activeMatch.opponentName}
-            oppCode={activeMatch.opponentCode}
-            userColor="#7adb8c"
-            formation={lineup.formation}
-            formationLabel={detectedFormation}
-            slots={lineup.slots}
-            positions={lineup.positions}
-            playersById={playersById}
-            opponentPlayers={opponentEleven}
-            leaderboard={leaderboard}
-            startMinute={45}
-            endMinute={90}
-            startScore={[half1?.userGoals ?? 0, half1?.oppGoals ?? 0]}
-            final={!tiedAfterRegulation}
-            interimLabel="정규시간 종료"
-            interimCta="연장전 준비하기 →"
-            onInterimContinue={() => setPhase("etbreak")}
-            onComplete={() => regSim && handleMatchEnd(regSim)}
-            onClose={closeArena}
-            onNext={
-              tiedAfterRegulation
-                ? undefined
-                : () => {
-                    closeArena();
-                    onNextMatch();
-                  }
-            }
-          />
-        )}
-        {phase === "extratime" && extraTimeArenaSim && finalSim && (
-          <MatchArena
-            key="extratime"
-            sim={extraTimeArenaSim}
-            userTeamName={team.team_name}
-            userCode={team.fifa_code}
-            oppTeamName={activeMatch.opponentName}
-            oppCode={activeMatch.opponentCode}
-            userColor="#7adb8c"
-            formation={lineup.formation}
-            formationLabel={detectedFormation}
-            slots={lineup.slots}
-            positions={lineup.positions}
-            playersById={playersById}
-            opponentPlayers={opponentEleven}
-            leaderboard={leaderboard}
-            startMinute={90}
-            endMinute={120}
-            startScore={[finalSim.regulationUserGoals, finalSim.regulationOppGoals]}
-            final
-            onComplete={() => handleMatchEnd(finalSim)}
-            onClose={closeArena}
-            onNext={() => {
-              closeArena();
-              onNextMatch();
-            }}
-          />
-        )}
-      </AnimatePresence>
+      <MatchArenaOverlays
+        phase={phase}
+        firstHalfSim={firstArena}
+        secondHalfSim={secondArena}
+        extraTimeSim={extraArena}
+        firstHalf={half1}
+        regulation={regSim}
+        finalResult={finalSim}
+        tiedAfterRegulation={tiedAfterRegulation}
+        team={team}
+        activeMatch={activeMatch}
+        lineup={lineup}
+        detectedFormation={detectedFormation}
+        playersById={playersById}
+        opponentPlayers={opponentEleven}
+        leaderboard={leaderboard}
+        onPhaseChange={setPhase}
+        onMatchEnd={handleMatchEnd}
+        onClose={closeArena}
+        onNextMatch={() => {
+          closeArena();
+          onNextMatch();
+        }}
+      />
+
       {selectedPlayer && (
         <PlayerStatsModal
           player={selectedPlayer}

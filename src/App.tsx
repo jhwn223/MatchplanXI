@@ -11,7 +11,9 @@ import type { MatchDetailed } from "./data/types";
 import { CountrySelect } from "./components/CountrySelect";
 import { TeamHub } from "./components/TeamHub";
 import { Bracket } from "./components/Bracket";
-import { MatchBoard, emptySlots, type Lineup } from "./components/MatchBoard";
+import { MatchBoard } from "./components/MatchBoard";
+import type { Lineup } from "./components/match-board/types";
+import { emptySlots } from "./data/tactics";
 
 type View = "select" | "hub" | "match" | "bracket" | "komatch";
 
