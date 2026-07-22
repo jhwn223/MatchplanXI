@@ -132,7 +132,6 @@ export function MatchBoard({
   // --- kickoff / simulation prep (declared early: isKnockout/tiedAfterRegulation feed the sub cap below) ---
   const m = activeMatch.match;
   const opponent = data.teams.find((t) => t.team_name === activeMatch.opponentName);
-  const hasActual = m.status === "Completed" && m.home_score != null && m.away_score != null;
   const isKnockout = m.stage_name !== "Group Stage";
   const tiedAfterRegulation =
     regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
@@ -288,9 +287,6 @@ export function MatchBoard({
       [...placedIds].reduce((s, id) => s + id, 0) * 31 +
       lineup.formation.length * 7;
 
-    const actualUserGoals = activeMatch.isHome ? m.home_score! : m.away_score!;
-    const actualOppGoals = activeMatch.isHome ? m.away_score! : m.home_score!;
-
     return {
       seed,
       userTeamName: team.team_name,
@@ -302,9 +298,7 @@ export function MatchBoard({
       isHome: activeMatch.isHome,
       elevation: activeMatch.elevation,
       placed,
-      actual: hasActual
-        ? { userGoals: actualUserGoals, oppGoals: actualOppGoals, resultType: m.result_type }
-        : null,
+      actual: null,
       isKnockout,
     };
   }

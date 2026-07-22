@@ -91,7 +91,7 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
 
       <div className="hub__body">
         <section className="hub__standings">
-          <h2 className="hub__section-title">그룹 {team.group_letter} 순위 (내 결과 반영)</h2>
+          <h2 className="hub__section-title">그룹 {team.group_letter} 순위 (플레이한 경기만 반영)</h2>
           <table className="standings">
             <thead>
               <tr>
@@ -120,7 +120,7 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
               ))}
             </tbody>
           </table>
-          <p className="hub__hint">상위 2팀이 토너먼트 진출 · 다른 조 경기는 시뮬레이션으로 채워집니다</p>
+          <p className="hub__hint">상위 2팀이 토너먼트 진출 · 아직 치르지 않은 경기는 순위에 반영되지 않습니다</p>
         </section>
 
         <section className="hub__fixtures">
