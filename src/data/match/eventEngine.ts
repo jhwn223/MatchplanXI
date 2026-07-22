@@ -1,4 +1,5 @@
 import { goalkeeper, otherSide, outfield, sidePlayers, skill } from "./playerRuntime";
+import { createLiveSnapshot, createPlayerStats, finalizePlayerStats, playerStat } from "./liveStats";
 import { clamp, mulberry32, weightedPick } from "./random";
 import { emptyRunningStats, finalizeStats, type RunningStats } from "./stats";
 import type {
@@ -31,6 +32,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     user: emptyRunningStats(),
     opp: emptyRunningStats(),
   };
+  const playerStats = createPlayerStats(input);
+  const snapshots = new Map<number, ReturnType<typeof createLiveSnapshot>>();
   const duration = hi - lo + 1;
   const possessionCount = Math.max(24, Math.round(duration * 1.12));
   const eloEdge = (input.userElo - input.oppElo) / 400;
@@ -40,6 +43,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     0.33,
     0.67
   );
+  snapshots.set(Math.max(0, lo - 1), createLiveSnapshot(input, Math.max(0, lo - 1), running, playerStats, goals));
 
   const addEvent = (
     minute: number,
@@ -75,6 +79,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
 
     for (let action = 0; action < maxActions; action++) {
       running[side].possessionTouches++;
+      const carrierStats = playerStat(playerStats, side, carrier);
+      if (carrierStats) carrierStats.touches++;
       const defender = weightedPick(
         defenders,
         (player) => {
@@ -104,13 +110,17 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           : rng() < 0.16;
 
       if (wantsDribble) {
+        if (carrierStats) carrierStats.dribblesAttempted++;
         const dribbleChance = clamp(0.5 + (carrierDribble - defenderTackle) / 115, 0.22, 0.86);
         if (rng() < dribbleChance) {
           progress += 1.2;
+          if (carrierStats) carrierStats.dribblesCompleted++;
           addEvent(minute, side, "dribble", carrier.name, defender.name, true);
         } else {
           running[defendingSide].tacklesWon++;
           running[defendingSide].possessionTouches++;
+          const defenderStats = playerStat(playerStats, defendingSide, defender);
+          if (defenderStats) defenderStats.tacklesWon++;
           addEvent(minute, defendingSide, "tackle", defender.name, carrier.name, true);
           break;
         }
@@ -147,8 +157,10 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           0.94
         );
         running[side].passesAttempted++;
+        if (carrierStats) carrierStats.passesAttempted++;
         if (rng() < passChance) {
           running[side].passesCompleted++;
+          if (carrierStats) carrierStats.passesCompleted++;
           progress += receiver.position === "FWD" ? 1.05 : receiver.position === "MID" ? 0.72 : 0.38;
           addEvent(minute, side, "pass", carrier.name, receiver.name, true);
           lastPasser = carrier;
@@ -156,6 +168,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         } else {
           running[defendingSide].interceptions++;
           running[defendingSide].possessionTouches++;
+          const defenderStats = playerStat(playerStats, defendingSide, defender);
+          if (defenderStats) defenderStats.interceptions++;
           addEvent(minute, defendingSide, "interception", defender.name, carrier.name, true);
           break;
         }
@@ -181,6 +195,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.045, 0.012, 0.48);
       running[side].shots++;
       running[side].xg += shotXg;
+      const shooterStats = playerStat(playerStats, side, carrier);
+      if (shooterStats) shooterStats.shots++;
       addEvent(minute, side, "shot", carrier.name, keeperPlayer.name, true, shotXg);
 
       const shootingTechnique = skill(carrier, minute, input.elevation, [
@@ -209,7 +225,15 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier, 0.01, 0.72);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
+        if (shooterStats) {
+          shooterStats.shotsOnTarget++;
+          shooterStats.goals++;
+        }
         const assist = lastPasser?.name !== carrier.name ? lastPasser?.name : undefined;
+        if (lastPasser && assist) {
+          const assisterStats = playerStat(playerStats, side, lastPasser);
+          if (assisterStats) assisterStats.assists++;
+        }
         goals.push({ minute, side, scorer: carrier.name, assist });
         addEvent(minute, side, "goal", carrier.name, assist, true, shotXg);
         break;
@@ -218,6 +242,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       const blockChance = clamp(0.12 + (blockQuality - shootingTechnique) / 260, 0.04, 0.32);
       if (rng() < blockChance) {
         running[defendingSide].tacklesWon++;
+        const markerStats = playerStat(playerStats, defendingSide, marker);
+        if (markerStats) markerStats.tacklesWon++;
         addEvent(minute, defendingSide, "block", marker.name, carrier.name, true, shotXg);
         break;
       }
@@ -228,13 +254,18 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       }
       running[side].shotsOnTarget++;
       running[defendingSide].saves++;
+      if (shooterStats) shooterStats.shotsOnTarget++;
+      const keeperStats = playerStat(playerStats, defendingSide, keeperPlayer);
+      if (keeperStats) keeperStats.saves++;
       addEvent(minute, defendingSide, "save", keeperPlayer.name, carrier.name, true, shotXg);
       break;
     }
+    snapshots.set(minute, createLiveSnapshot(input, minute, running, playerStats, goals));
   }
 
   goals.sort((a, b) => a.minute - b.minute);
   events.sort((a, b) => a.minute - b.minute);
+  snapshots.set(hi, createLiveSnapshot(input, hi, running, playerStats, goals));
   return {
     goals,
     events,
@@ -246,6 +277,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       user: finalizeStats(running.user, running.opp),
       opp: finalizeStats(running.opp, running.user),
     },
+    playerStats: finalizePlayerStats(input, playerStats, hi),
+    liveSnapshots: [...snapshots.values()].sort((a, b) => a.minute - b.minute),
   };
 }
 

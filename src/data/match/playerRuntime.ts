@@ -12,6 +12,14 @@ export function performanceFactor(player: PlacedPlayerLite, minute: number, elev
   return clamp(condition * fatigue * positionFit, 0.62, 1.12);
 }
 
+export function currentCondition(player: PlacedPlayerLite, minute: number, elevation: number): number {
+  const elapsed = clamp(minute, 0, 120);
+  const staminaLoad = clamp((82 - player.stamina) / 55, 0.12, 0.82);
+  const altitudeLoad = clamp((elevation - 800) / 5000, 0, 0.35);
+  const fatigueLoss = elapsed * (0.13 + staminaLoad * 0.12 + altitudeLoad * 0.08);
+  return Math.round(clamp(player.condition - fatigueLoss, 5, 100));
+}
+
 export function skill(
   player: PlacedPlayerLite,
   minute: number,
