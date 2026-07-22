@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -9,7 +9,14 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { AnimatePresence } from "framer-motion";
-import { FORMATIONS, slotsOf, BENCH_ZONE_ID, type FormationKey } from "../data/formation";
+import {
+  FORMATIONS,
+  detectFormationShape,
+  slotsOf,
+  BENCH_ZONE_ID,
+  type FormationKey,
+  type SlotPositions,
+} from "../data/formation";
 import {
   altitudePenalty,
   computeTeamIndex,
@@ -57,6 +64,7 @@ export type { Slots } from "../data/tactics";
 export interface Lineup {
   formation: FormationKey;
   slots: Slots;
+  positions?: SlotPositions;
   presetKey?: string | null;
 }
 
@@ -99,6 +107,7 @@ export function MatchBoard({
   const [startingXI, setStartingXI] = useState<Set<number> | null>(null);
   const [benchedOut, setBenchedOut] = useState<Set<number>>(new Set());
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const pitchRef = useRef<HTMLDivElement>(null);
   const playDrop = useDropSound(soundOn);
 
   const formationDef = slotsOf(lineup.formation);
@@ -131,6 +140,27 @@ export function MatchBoard({
       .filter((s): s is number => s != null);
     return computeTeamIndex(scores);
   }, [placedIds, conditions]);
+
+  const detectedFormation = useMemo(
+    () => detectFormationShape(lineup.formation, lineup.slots, lineup.positions),
+    [lineup.formation, lineup.slots, lineup.positions]
+  );
+
+  const effectiveAttackBias = useMemo(() => {
+    const positionedOutfield = formationDef.filter(
+      (slot) => slot.position !== "GK" && lineup.slots[slot.id] != null
+    );
+    const averageAdvance = positionedOutfield.length
+      ? positionedOutfield.reduce((sum, slot) => {
+          const current = lineup.positions?.[slot.id] ?? slot;
+          return sum + (slot.y - current.y);
+        }, 0) / positionedOutfield.length
+      : 0;
+    return Math.min(
+      1.2,
+      Math.max(-1.2, FORMATIONS[lineup.formation].attackBias + averageAdvance / 25)
+    );
+  }, [formationDef, lineup.formation, lineup.positions, lineup.slots]);
 
   // --- kickoff / simulation prep (declared early: isKnockout/tiedAfterRegulation feed the sub cap below) ---
   const m = activeMatch.match;
@@ -238,13 +268,27 @@ export function MatchBoard({
 
   function handleDragEnd(event: DragEndEvent) {
     setActiveDragId(null);
-    const { active, over } = event;
-    if (!over) return;
-
+    const { active, over, delta } = event;
     const d = active.data.current as { playerId: number; from: string };
     const player = playersById.get(d.playerId);
     if (!player) return;
-    const targetId = String(over.id);
+    const targetId = over ? String(over.id) : null;
+    if (d.from !== BENCH_ZONE_ID && targetId !== BENCH_ZONE_ID) {
+      const sourceSlot = formationDef.find((slot) => slot.id === d.from);
+      const pitchRect = pitchRef.current?.getBoundingClientRect();
+      if (!sourceSlot || !pitchRect) return;
+      const current = lineup.positions?.[sourceSlot.id] ?? sourceSlot;
+      const x = Math.min(93, Math.max(7, current.x + (delta.x / pitchRect.width) * 100));
+      const y = Math.min(92, Math.max(6, current.y + (delta.y / pitchRect.height) * 100));
+      onChangeLineup({
+        ...lineup,
+        positions: { ...lineup.positions, [sourceSlot.id]: { x, y } },
+        presetKey: null,
+      });
+      return;
+    }
+    if (!over) return;
+    if (!targetId) return;
     if (targetId === d.from) return;
     if (benchedOut.has(d.playerId)) return; // already substituted off, can't return
 
@@ -304,10 +348,16 @@ export function MatchBoard({
       .map((id) => playersById.get(id))
       .filter((p): p is Player => !!p);
 
+    const positionSeed = formationDef.reduce((sum, slot, index) => {
+      const current = lineup.positions?.[slot.id] ?? slot;
+      return sum + Math.round(current.x * 7 + current.y * 13) * (index + 1);
+    }, 0);
+
     const seed =
       m.match_id * 100003 +
       [...placedIds].reduce((s, id) => s + id, 0) * 31 +
-      lineup.formation.length * 7;
+      lineup.formation.length * 7 +
+      positionSeed;
 
     return {
       seed,
@@ -316,7 +366,7 @@ export function MatchBoard({
       userElo: team.elo_rating,
       oppElo: opponent?.elo_rating ?? 1600,
       conditionIndex: teamIndex,
-      attackBias: FORMATIONS[lineup.formation].attackBias,
+      attackBias: effectiveAttackBias,
       isHome: activeMatch.isHome,
       elevation: activeMatch.elevation,
       placed,
@@ -446,7 +496,8 @@ export function MatchBoard({
         <div className="board__body">
           <aside className="board__sidebar">
             <TacticsPanel
-              formation={lineup.formation}
+              detectedFormation={detectedFormation}
+              attackBias={effectiveAttackBias}
               onSelectFormation={selectFormation}
               onApplyPreset={applyPreset}
               onAutoFill={autoFill}
@@ -484,12 +535,31 @@ export function MatchBoard({
           </aside>
 
           <main className="board__pitch">
+            <div className="pitch-toolbar">
+              <div className="detected-formation" aria-live="polite">
+                <span>자동 포메이션</span>
+                <strong>{detectedFormation}</strong>
+              </div>
+              <button
+                type="button"
+                className="pitch-reset"
+                onClick={() => onChangeLineup({ ...lineup, positions: {} })}
+                disabled={!lineup.positions || Object.keys(lineup.positions).length === 0}
+                aria-label="기본 위치로 되돌리기"
+                title="기본 위치로 되돌리기"
+              >
+                ↺
+              </button>
+            </div>
             <Pitch
               formation={formationDef}
               slots={lineup.slots}
               playersById={playersById}
               conditions={conditions}
               onSelectPlayer={setSelectedPlayer}
+              positions={lineup.positions}
+              positionMode
+              pitchRef={pitchRef}
             />
           </main>
 
@@ -527,7 +597,9 @@ export function MatchBoard({
             oppCode={activeMatch.opponentCode}
             userColor="#4fd1c5"
             formation={lineup.formation}
+            formationLabel={detectedFormation}
             slots={lineup.slots}
+            positions={lineup.positions}
             playersById={playersById}
             leaderboard={leaderboard}
             startMinute={0}
@@ -550,7 +622,9 @@ export function MatchBoard({
             oppCode={activeMatch.opponentCode}
             userColor="#4fd1c5"
             formation={lineup.formation}
+            formationLabel={detectedFormation}
             slots={lineup.slots}
+            positions={lineup.positions}
             playersById={playersById}
             leaderboard={leaderboard}
             startMinute={45}
@@ -582,7 +656,9 @@ export function MatchBoard({
             oppCode={activeMatch.opponentCode}
             userColor="#4fd1c5"
             formation={lineup.formation}
+            formationLabel={detectedFormation}
             slots={lineup.slots}
+            positions={lineup.positions}
             playersById={playersById}
             leaderboard={leaderboard}
             startMinute={90}
