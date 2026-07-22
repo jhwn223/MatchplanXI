@@ -18,6 +18,7 @@ interface Props {
   attributes?: Record<string, any>;
   useLayoutId?: boolean;
   ineligible?: boolean;
+  onSelect?: (player: Player) => void;
 }
 
 const VARIANTS = {
@@ -28,10 +29,12 @@ const VARIANTS = {
 
 export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
   (
-    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = true, ineligible },
+    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = true, ineligible, onSelect },
     ref
   ) => {
     const color = condition ? conditionColor(condition.score) : "hsl(210, 10%, 55%)";
+    const ability = player.ability;
+    const keyStats = ability ? keyAbilityStats(player) : null;
 
     return (
       <motion.div
@@ -42,6 +45,11 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
         className={`player-card player-card--${variant}`}
         data-dragging={state !== "idle" || undefined}
         data-ineligible={ineligible || undefined}
+        onClick={(event) => {
+          if (state !== "idle") return;
+          event.stopPropagation();
+          onSelect?.(player);
+        }}
         layoutId={useLayoutId ? `player-${player.player_id}` : undefined}
         initial={false}
         animate={VARIANTS[state]}
@@ -58,7 +66,7 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
         <div className="player-card__meta">
           <span className="player-card__name">{player.player_name}</span>
           <span className="player-card__sub">
-            {player.position} · {player.caps} caps
+            {ability ? `OVR ${ability.overall} · ${keyStats}` : `${player.position} · ${player.caps} caps`}
           </span>
         </div>
         {ineligible && <span className="player-card__ineligible">교체 불가</span>}
@@ -81,4 +89,12 @@ function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   const last = parts[parts.length - 1] ?? "";
   return last.slice(0, 2).toUpperCase();
+}
+
+function keyAbilityStats(player: Player): string {
+  const ability = player.ability!;
+  if (player.position === "GK") return `GK ${Math.round((ability.gkDiving + ability.gkHandling + ability.gkPositioning + ability.gkReflexes) / 4)}`;
+  if (player.position === "DEF") return `DEF ${ability.defending} · PHY ${ability.physical}`;
+  if (player.position === "MID") return `PAS ${ability.passing} · DRI ${ability.dribbling}`;
+  return `PAC ${ability.pace} · SHO ${ability.shooting}`;
 }

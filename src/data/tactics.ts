@@ -74,6 +74,7 @@ interface Norm {
   height: number;
   caps: number;
   condition: number;
+  ability: number;
 }
 
 function normalizeSquad(
@@ -96,6 +97,7 @@ function normalizeSquad(
       height: nh(p.height_cm),
       caps: nc(p.caps),
       condition: (conditions.get(p.player_id)?.score ?? 0) / 100,
+      ability: (p.ability?.overall ?? 65) / 100,
     });
   }
   return m;
@@ -162,7 +164,7 @@ export function autoFillByRole(
         const n = norms.get(p.player_id)!;
         // a known fine-role dominates the heuristic: strong match bonus, mismatch penalty
         const pref = p.preferredRole ? (p.preferredRole === role ? 2 : -0.7) : 0;
-        const score = roleAffinity(role, n) * 1.0 + n.condition * 0.6 + pref;
+        const score = roleAffinity(role, n) * 0.7 + n.condition * 0.55 + n.ability * 1.15 + pref;
         if (score > bestScore) {
           bestScore = score;
           best = p;

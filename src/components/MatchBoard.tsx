@@ -33,6 +33,7 @@ import {
   type SimInput,
   type SimResult,
 } from "../data/matchSim";
+import { buildTeamAbilityProfile, selectBestEleven } from "../data/playerAbility";
 import type { PlayedResult } from "../data/tournament";
 import type { Leaderboard } from "../data/leaderboard";
 import { usePlayerConditions } from "../hooks/usePlayerConditions";
@@ -44,6 +45,7 @@ import { ConditionGauge, type ConditionSubIndices } from "./ConditionGauge";
 import { TacticsPanel } from "./TacticsPanel";
 import { MatchArena, type ArenaSim } from "./MatchArena";
 import { PlayerCardVisual } from "./PlayerCardVisual";
+import { PlayerStatsModal } from "./PlayerStatsModal";
 
 type MatchPhase = "idle" | "half1" | "halftime" | "half2" | "etbreak" | "extratime";
 
@@ -96,6 +98,7 @@ export function MatchBoard({
   const [finalSim, setFinalSim] = useState<SimResult | null>(null);
   const [startingXI, setStartingXI] = useState<Set<number> | null>(null);
   const [benchedOut, setBenchedOut] = useState<Set<number>>(new Set());
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const playDrop = useDropSound(soundOn);
 
   const formationDef = slotsOf(lineup.formation);
@@ -133,6 +136,10 @@ export function MatchBoard({
   const m = activeMatch.match;
   const opponent = data.teams.find((t) => t.team_name === activeMatch.opponentName);
   const hasActual = m.status === "Completed" && m.home_score != null && m.away_score != null;
+  const opponentEleven = useMemo(
+    () => selectBestEleven(data.players.filter((p) => p.team_id === opponent?.team_id)),
+    [data.players, opponent?.team_id]
+  );
   const isKnockout = m.stage_name !== "Group Stage";
   const tiedAfterRegulation =
     regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
@@ -281,7 +288,22 @@ export function MatchBoard({
     const placed = [...placedIds]
       .map((id) => playersById.get(id))
       .filter((p): p is Player => !!p)
-      .map((p) => ({ name: p.player_name, position: p.position }));
+      .map((p) => ({
+        name: p.player_name,
+        position: p.position,
+        overall: p.ability?.overall ?? 65,
+        pace: p.ability?.pace ?? 65,
+        shooting: p.ability?.shooting ?? 60,
+        finishing: p.ability?.finishing ?? 60,
+        positioning: p.ability?.positioning ?? 60,
+        passing: p.ability?.passing ?? 65,
+        vision: p.ability?.vision ?? 65,
+        dribbling: p.ability?.dribbling ?? 65,
+        condition: conditions.get(p.player_id)?.score ?? 65,
+      }));
+    const selectedPlayers = [...placedIds]
+      .map((id) => playersById.get(id))
+      .filter((p): p is Player => !!p);
 
     const seed =
       m.match_id * 100003 +
@@ -302,6 +324,8 @@ export function MatchBoard({
       isHome: activeMatch.isHome,
       elevation: activeMatch.elevation,
       placed,
+      userAbility: buildTeamAbilityProfile(selectedPlayers, conditions),
+      oppAbility: buildTeamAbilityProfile(opponentEleven),
       actual: hasActual
         ? { userGoals: actualUserGoals, oppGoals: actualOppGoals, resultType: m.result_type }
         : null,
@@ -471,6 +495,7 @@ export function MatchBoard({
               slots={lineup.slots}
               playersById={playersById}
               conditions={conditions}
+              onSelectPlayer={setSelectedPlayer}
             />
           </main>
 
@@ -479,6 +504,7 @@ export function MatchBoard({
               benchPlayers={benchPlayers}
               conditions={conditions}
               benchedOut={benchedOut}
+              onSelectPlayer={setSelectedPlayer}
             />
           </section>
         </div>
@@ -578,6 +604,13 @@ export function MatchBoard({
           />
         )}
       </AnimatePresence>
+      {selectedPlayer && (
+        <PlayerStatsModal
+          player={selectedPlayer}
+          condition={conditions.get(selectedPlayer.player_id)}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
     </DndContext>
   );
 }

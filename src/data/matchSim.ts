@@ -1,4 +1,5 @@
 import type { Position } from "./types";
+import type { TeamAbilityProfile } from "./playerAbility";
 
 export function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -29,6 +30,15 @@ function clamp(v: number, min: number, max: number) {
 export interface PlacedPlayerLite {
   name: string;
   position: Position;
+  overall: number;
+  pace: number;
+  shooting: number;
+  finishing: number;
+  positioning: number;
+  passing: number;
+  vision: number;
+  dribbling: number;
+  condition: number;
 }
 
 export interface GoalEvent {
@@ -65,6 +75,8 @@ export interface SimInput {
   isHome: boolean;
   elevation: number;
   placed: PlacedPlayerLite[];
+  userAbility: TeamAbilityProfile;
+  oppAbility: TeamAbilityProfile;
   actual: SimActual | null;
   /** knockout ties go to extra time + penalties when level after 90'; group games never do */
   isKnockout: boolean;
@@ -104,8 +116,11 @@ export interface SimResult {
 }
 
 function pickScorer(placed: PlacedPlayerLite[], rng: () => number): string {
-  const weight = (p: PlacedPlayerLite) =>
-    p.position === "FWD" ? 5 : p.position === "MID" ? 3 : p.position === "DEF" ? 1 : 0.2;
+  const weight = (p: PlacedPlayerLite) => {
+    const positionWeight = p.position === "FWD" ? 4.8 : p.position === "MID" ? 2.3 : p.position === "DEF" ? 0.65 : 0.05;
+    const scoring = p.shooting * 0.45 + p.finishing * 0.35 + p.positioning * 0.2;
+    return positionWeight * Math.pow(Math.max(35, scoring) / 70, 2) * (0.65 + p.condition / 180);
+  };
   const pool = placed.filter((p) => p.position !== "GK");
   if (pool.length === 0) return "미드필더";
   const total = pool.reduce((s, p) => s + weight(p), 0);
@@ -120,8 +135,11 @@ function pickScorer(placed: PlacedPlayerLite[], rng: () => number): string {
 /** ~78% of goals have an assist; the rest are solo runs, set pieces, etc. */
 function pickAssist(placed: PlacedPlayerLite[], scorerName: string, rng: () => number): string | undefined {
   if (rng() < 0.22) return undefined;
-  const weight = (p: PlacedPlayerLite) =>
-    p.position === "MID" ? 5 : p.position === "DEF" ? 2.2 : p.position === "FWD" ? 1.4 : 0;
+  const weight = (p: PlacedPlayerLite) => {
+    const positionWeight = p.position === "MID" ? 3.8 : p.position === "DEF" ? 1.5 : p.position === "FWD" ? 2.1 : 0;
+    const creation = p.passing * 0.45 + p.vision * 0.35 + p.dribbling * 0.2;
+    return positionWeight * Math.pow(Math.max(35, creation) / 70, 2) * (0.65 + p.condition / 180);
+  };
   const pool = placed.filter((p) => p.position !== "GK" && p.name !== scorerName);
   if (pool.length === 0) return undefined;
   const total = pool.reduce((s, p) => s + weight(p), 0);
@@ -137,7 +155,7 @@ function pickAssist(placed: PlacedPlayerLite[], scorerName: string, rng: () => n
 /** Pass accuracy and GK save rate, derived probabilistically from the same match quality
  *  inputs as xG (elo gap, condition, tactical directness) plus shot volume off xG. */
 function computeTeamStats(
-  input: { userElo: number; oppElo: number; conditionIndex: number; attackBias: number },
+  input: SimInput,
   userXg: number,
   oppXg: number,
   userGoals: number,
@@ -148,8 +166,16 @@ function computeTeamStats(
   const condFactor = (input.conditionIndex - 62) / 100;
   const jitter = () => (rng() - 0.5) * 6;
 
-  const userPassPct = clamp(70 + eloDiff * 8 + condFactor * 9 - input.attackBias * 3 + jitter(), 55, 94);
-  const oppPassPct = clamp(70 - eloDiff * 6 - condFactor * 4 + input.attackBias * 1.5 + jitter(), 55, 94);
+  const userPassPct = clamp(
+    69 + eloDiff * 5 + condFactor * 7 + (input.userAbility.creativity - 70) * 0.42 - input.attackBias * 3 + jitter(),
+    55,
+    94
+  );
+  const oppPassPct = clamp(
+    69 - eloDiff * 4 + (input.oppAbility.creativity - 70) * 0.42 + input.attackBias * 1.5 + jitter(),
+    55,
+    94
+  );
 
   // shots faced by each GK; at least as many as the goals actually conceded
   const shotsAgainstUser = Math.max(oppGoals, poisson(oppXg * 2.8, rng));
@@ -202,17 +228,26 @@ function computeXg(input: {
   conditionIndex: number;
   attackBias: number;
   isHome: boolean;
+  userAbility: TeamAbilityProfile;
+  oppAbility: TeamAbilityProfile;
 }): { userXg: number; oppXg: number } {
   const homeAdv = input.isHome ? 0.25 : 0.0;
   const eloDiff = (input.userElo - input.oppElo) / 400;
   const condFactor = (input.conditionIndex - 62) / 100;
+  const userAttackEdge =
+    (input.userAbility.attack - input.oppAbility.defense) / 22 +
+    (input.userAbility.creativity - input.oppAbility.goalkeeper) / 48;
+  const oppAttackEdge =
+    (input.oppAbility.attack - input.userAbility.defense) / 22 +
+    (input.oppAbility.creativity - input.userAbility.goalkeeper) / 48;
+  const staminaEdge = (input.userAbility.stamina - input.oppAbility.stamina) / 80;
   const userXg = clamp(
-    1.25 + eloDiff * 0.9 + condFactor * 1.7 + input.attackBias * 0.6 + homeAdv,
+    1.18 + eloDiff * 0.48 + condFactor * 1.25 + userAttackEdge + staminaEdge + input.attackBias * 0.55 + homeAdv,
     0.15,
     4.8
   );
   const oppXg = clamp(
-    1.25 - eloDiff * 0.7 - condFactor * 0.9 + input.attackBias * 0.3 + (input.isHome ? 0 : 0.25),
+    1.18 - eloDiff * 0.42 - condFactor * 0.7 + oppAttackEdge - staminaEdge + input.attackBias * 0.3 + (input.isHome ? 0 : 0.25),
     0.15,
     4.2
   );
@@ -226,12 +261,22 @@ export function quickSimScore(
   eloAway: number
 ): { home: number; away: number } {
   const rng = mulberry32(seed >>> 0);
+  const neutralAbility: TeamAbilityProfile = {
+    overall: 70,
+    attack: 70,
+    creativity: 70,
+    defense: 70,
+    goalkeeper: 70,
+    stamina: 70,
+  };
   const { userXg, oppXg } = computeXg({
     userElo: eloHome,
     oppElo: eloAway,
     conditionIndex: 62,
     attackBias: 0,
     isHome: true,
+    userAbility: neutralAbility,
+    oppAbility: neutralAbility,
   });
   return { home: poisson(userXg, rng), away: poisson(oppXg, rng) };
 }

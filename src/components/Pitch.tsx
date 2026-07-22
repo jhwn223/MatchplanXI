@@ -8,9 +8,10 @@ interface Props {
   slots: Record<string, number | null>;
   playersById: Map<number, Player>;
   conditions: Map<number, ConditionBreakdown>;
+  onSelectPlayer?: (player: Player) => void;
 }
 
-export function Pitch({ formation, slots, playersById, conditions }: Props) {
+export function Pitch({ formation, slots, playersById, conditions, onSelectPlayer }: Props) {
   return (
     <div className="pitch">
       <div className="pitch__markings">
@@ -28,6 +29,7 @@ export function Pitch({ formation, slots, playersById, conditions }: Props) {
             slot={slot}
             player={player}
             condition={player ? conditions.get(player.player_id) : undefined}
+            onSelectPlayer={onSelectPlayer}
           />
         );
       })}
