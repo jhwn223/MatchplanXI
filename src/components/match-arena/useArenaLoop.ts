@@ -229,13 +229,7 @@ export function useArenaLoop({
       s.clock += dt * MIN_PER_SEC;
       if (s.clock >= endMinute) {
         s.clock = endMinute;
-        s.phase = "ended";
         s.score = [sim.userGoals, sim.oppGoals];
-        if (!completedRef.current) {
-          completedRef.current = true;
-          onComplete();
-          setEnded(true);
-        }
         if (sim.penalties) {
           s.phase = "penalties";
           s.penT = 3.6;
