@@ -36,12 +36,12 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   const snapshots = new Map<number, ReturnType<typeof createLiveSnapshot>>();
   const duration = hi - lo + 1;
   const possessionCount = Math.max(24, Math.round(duration * 1.12));
-  const eloEdge = (input.userElo - input.oppElo) / 400;
-  const creativityEdge = (input.userAbility.creativity - input.oppAbility.creativity) / 100;
+  const eloEdge = (input.userElo - input.oppElo) / 600;
+  const creativityEdge = (input.userAbility.creativity - input.oppAbility.creativity) / 120;
   const userPossessionChance = clamp(
-    0.5 + eloEdge * 0.07 + creativityEdge * 0.1 - input.attackBias * 0.025 + (input.isHome ? 0.018 : -0.018),
-    0.33,
-    0.67
+    0.5 + eloEdge * 0.06 + creativityEdge * 0.08 - input.attackBias * 0.025 + (input.isHome ? 0.018 : -0.018),
+    0.36,
+    0.64
   );
   snapshots.set(Math.max(0, lo - 1), createLiveSnapshot(input, Math.max(0, lo - 1), running, playerStats, goals));
 
@@ -65,6 +65,61 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     const defenders = outfield(sidePlayers(input, defendingSide));
     const keeperPlayer = goalkeeper(sidePlayers(input, defendingSide));
     if (!attackers.length || !defenders.length || !keeperPlayer) continue;
+
+    const sideBias = side === "user" ? input.attackBias : 0;
+    const routinePassCount = attackers.length > 1
+      ? Math.round(clamp(6 - sideBias * 1.2 + (rng() - 0.5) * 4, 3, 9))
+      : 0;
+    for (let pass = 0; pass < routinePassCount; pass++) {
+      const passer = weightedPick(
+        attackers,
+        (player) =>
+          (player.position === "DEF" ? 2.5 : player.position === "MID" ? 2.2 : 0.8) *
+          (0.6 + player.shortPassing / 100),
+        rng
+      );
+      const receiver = weightedPick(
+        attackers.filter((player) => player.name !== passer.name),
+        (player) => (player.position === "MID" ? 2.4 : player.position === "DEF" ? 1.8 : 1.1),
+        rng
+      );
+      const pressingDefender = weightedPick(
+        defenders,
+        (player) => 0.5 + (player.interceptions + player.aggression + player.reactions) / 240,
+        rng
+      );
+      const passQuality = skill(passer, minute, input.elevation, [
+        [passer.shortPassing, 0.42],
+        [passer.passing, 0.24],
+        [passer.vision, 0.14],
+        [passer.ballControl, 0.12],
+        [passer.composure, 0.08],
+      ]);
+      const pressureQuality = skill(pressingDefender, minute, input.elevation, [
+        [pressingDefender.interceptions, 0.38],
+        [pressingDefender.defensiveAwareness, 0.28],
+        [pressingDefender.reactions, 0.2],
+        [pressingDefender.aggression, 0.14],
+      ]);
+      const routinePassChance = clamp(0.9 + (passQuality - pressureQuality) / 500, 0.84, 0.96);
+      const passerStats = playerStat(playerStats, side, passer);
+      running[side].possessionTouches++;
+      running[side].passesAttempted++;
+      if (passerStats) {
+        passerStats.touches++;
+        passerStats.passesAttempted++;
+      }
+      if (rng() < routinePassChance) {
+        running[side].passesCompleted++;
+        if (passerStats) passerStats.passesCompleted++;
+        const receiverStats = playerStat(playerStats, side, receiver);
+        if (receiverStats) receiverStats.touches++;
+      } else if (rng() < 0.35) {
+        running[defendingSide].interceptions++;
+        const defenderStats = playerStat(playerStats, defendingSide, pressingDefender);
+        if (defenderStats) defenderStats.interceptions++;
+      }
+    }
 
     let carrier = weightedPick(
       attackers,
@@ -111,7 +166,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
 
       if (wantsDribble) {
         if (carrierStats) carrierStats.dribblesAttempted++;
-        const dribbleChance = clamp(0.5 + (carrierDribble - defenderTackle) / 115, 0.22, 0.86);
+        const dribbleChance = clamp(0.5 + (carrierDribble - defenderTackle) / 145, 0.25, 0.82);
         if (rng() < dribbleChance) {
           progress += 1.2;
           if (carrierStats) carrierStats.dribblesCompleted++;
@@ -152,9 +207,9 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         ]);
         const directness = side === "user" ? input.attackBias : -input.attackBias * 0.35;
         const passChance = clamp(
-          0.72 + (passQuality - interceptionQuality) / 175 - progress * 0.012 - directness * 0.025,
-          0.48,
-          0.94
+          0.72 + (passQuality - interceptionQuality) / 220 - progress * 0.012 - directness * 0.025,
+          0.5,
+          0.92
         );
         running[side].passesAttempted++;
         if (carrierStats) carrierStats.passesAttempted++;
@@ -188,10 +243,10 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         rng
       );
       const chanceCreation =
-        (carrier.positioning - marker.defensiveAwareness) / 650 +
-        ((lastPasser?.vision ?? carrier.vision) - 65) / 1000 +
+        (carrier.positioning - marker.defensiveAwareness) / 900 +
+        ((lastPasser?.vision ?? carrier.vision) - 65) / 1300 +
         progress * 0.007;
-      const baseXg = carrier.position === "FWD" ? 0.065 : carrier.position === "MID" ? 0.04 : 0.022;
+      const baseXg = carrier.position === "FWD" ? 0.06 : carrier.position === "MID" ? 0.038 : 0.022;
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.045, 0.012, 0.48);
       running[side].shots++;
       running[side].xg += shotXg;
@@ -220,8 +275,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         [keeperPlayer.gkHandling, 0.13],
         [keeperPlayer.reactions, 0.1],
       ]);
-      const finishingMultiplier = clamp(0.72 + (shootingTechnique - 60) / 105, 0.58, 1.48);
-      const keeperMultiplier = clamp(1.08 - (keeperQuality - 65) / 155, 0.63, 1.2);
+      const finishingMultiplier = clamp(0.84 + (shootingTechnique - 60) / 160, 0.68, 1.28);
+      const keeperMultiplier = clamp(1.04 - (keeperQuality - 65) / 260, 0.76, 1.16);
       const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier, 0.01, 0.72);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
