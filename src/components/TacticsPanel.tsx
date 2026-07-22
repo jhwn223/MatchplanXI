@@ -1,8 +1,9 @@
-import { FORMATION_KEYS, FORMATIONS, type FormationKey } from "../data/formation";
+import { FORMATION_KEYS, type FormationKey } from "../data/formation";
 import { TACTICAL_PRESETS, type TacticalPreset } from "../data/tactics";
 
 interface Props {
-  formation: FormationKey;
+  detectedFormation: string;
+  attackBias: number;
   onSelectFormation: (key: FormationKey) => void;
   onApplyPreset: (preset: TacticalPreset) => void;
   onAutoFill: () => void;
@@ -22,7 +23,8 @@ function biasLabel(bias: number): string {
 }
 
 export function TacticsPanel({
-  formation,
+  detectedFormation,
+  attackBias,
   onSelectFormation,
   onApplyPreset,
   onAutoFill,
@@ -55,7 +57,7 @@ export function TacticsPanel({
 
       <div className="tactics-panel__section">
         <span className="tactics-panel__label">
-          포메이션 · {biasLabel(FORMATIONS[formation].attackBias)}
+          자동 인식 {detectedFormation} · {biasLabel(attackBias)}
         </span>
         <div className="formation-grid">
           {FORMATION_KEYS.map((key) => (
@@ -63,7 +65,7 @@ export function TacticsPanel({
               key={key}
               type="button"
               className="formation-btn"
-              data-active={key === formation || undefined}
+              data-active={(key === detectedFormation) || undefined}
               onClick={() => onSelectFormation(key)}
             >
               {key}

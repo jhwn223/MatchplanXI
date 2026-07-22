@@ -1,4 +1,5 @@
-import type { FormationSlot } from "../data/formation";
+import type { RefObject } from "react";
+import type { FormationSlot, SlotPositions } from "../data/formation";
 import type { ConditionBreakdown } from "../data/conditionEngine";
 import type { Player } from "../data/types";
 import { Slot } from "./Slot";
@@ -9,11 +10,14 @@ interface Props {
   playersById: Map<number, Player>;
   conditions: Map<number, ConditionBreakdown>;
   onSelectPlayer?: (player: Player) => void;
+  positions?: SlotPositions;
+  positionMode?: boolean;
+  pitchRef?: RefObject<HTMLDivElement | null>;
 }
 
-export function Pitch({ formation, slots, playersById, conditions, onSelectPlayer }: Props) {
+export function Pitch({ formation, slots, playersById, conditions, onSelectPlayer, positions, positionMode, pitchRef }: Props) {
   return (
-    <div className="pitch">
+    <div ref={pitchRef} className="pitch" data-position-mode={positionMode || undefined}>
       <div className="pitch__markings">
         <div className="pitch__center-circle" />
         <div className="pitch__center-line" />
@@ -23,6 +27,7 @@ export function Pitch({ formation, slots, playersById, conditions, onSelectPlaye
       {formation.map((slot) => {
         const playerId = slots[slot.id] ?? null;
         const player = playerId != null ? playersById.get(playerId) ?? null : null;
+        const coordinate = positions?.[slot.id] ?? slot;
         return (
           <Slot
             key={slot.id}
@@ -30,6 +35,8 @@ export function Pitch({ formation, slots, playersById, conditions, onSelectPlaye
             player={player}
             condition={player ? conditions.get(player.player_id) : undefined}
             onSelectPlayer={onSelectPlayer}
+            coordinate={coordinate}
+            positionMode={positionMode}
           />
         );
       })}

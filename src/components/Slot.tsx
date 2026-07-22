@@ -1,6 +1,6 @@
 import { useDroppable } from "@dnd-kit/core";
 import { motion } from "framer-motion";
-import type { FormationSlot } from "../data/formation";
+import type { FormationSlot, PitchCoordinate } from "../data/formation";
 import type { ConditionBreakdown } from "../data/conditionEngine";
 import type { Player } from "../data/types";
 import { PlayerCard } from "./PlayerCard";
@@ -10,18 +10,21 @@ interface Props {
   player: Player | null;
   condition?: ConditionBreakdown;
   onSelectPlayer?: (player: Player) => void;
+  coordinate: PitchCoordinate;
+  positionMode?: boolean;
 }
 
-export function Slot({ slot, player, condition, onSelectPlayer }: Props) {
+export function Slot({ slot, player, condition, onSelectPlayer, coordinate, positionMode }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: slot.id });
 
   return (
     <div
       ref={setNodeRef}
       className="pitch-slot"
-      style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+      style={{ left: `${coordinate.x}%`, top: `${coordinate.y}%` }}
       data-over={isOver || undefined}
       data-filled={player ? true : undefined}
+      data-position-mode={positionMode || undefined}
     >
       {player ? (
         <PlayerCard

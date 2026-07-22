@@ -9,6 +9,13 @@ export interface FormationSlot {
   y: number;
 }
 
+export interface PitchCoordinate {
+  x: number;
+  y: number;
+}
+
+export type SlotPositions = Record<string, PitchCoordinate>;
+
 export type FormationKey =
   | "5-4-1"
   | "5-3-2"
@@ -161,6 +168,29 @@ export const FORMATION_KEYS = Object.keys(FORMATIONS) as FormationKey[];
 /** slot list for a formation (convenience) */
 export function slotsOf(key: FormationKey): FormationSlot[] {
   return FORMATIONS[key].slots;
+}
+
+export function detectFormationShape(
+  base: FormationKey,
+  slots: Record<string, number | null>,
+  positions?: SlotPositions
+): string {
+  const formation = slotsOf(base);
+  const occupied = formation.filter((slot) => slots[slot.id] != null);
+  if (occupied.length !== 11) return base;
+
+  const lines = { DEF: 0, MID: 0, FWD: 0 };
+  let changedLine = false;
+  for (const slot of occupied) {
+    if (slot.position === "GK") continue;
+    const y = positions?.[slot.id]?.y ?? slot.y;
+    const line = y <= 28 ? "FWD" : y >= 65 ? "DEF" : "MID";
+    lines[line]++;
+    if (line !== slot.position) changedLine = true;
+  }
+
+  if (!changedLine) return base;
+  return `${lines.DEF}-${lines.MID}-${lines.FWD}`;
 }
 
 export const BENCH_ZONE_ID = "bench";

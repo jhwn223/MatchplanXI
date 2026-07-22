@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { slotsOf, type FormationKey } from "../data/formation";
+import { slotsOf, type FormationKey, type SlotPositions } from "../data/formation";
 import type { GoalEvent, PenaltyResult, SimComparison, TeamStats } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
 import { topAssists, topScorers, type Leaderboard, type LeaderboardEntry } from "../data/leaderboard";
@@ -26,7 +26,9 @@ interface Props {
   oppCode: string;
   userColor: string;
   formation: FormationKey;
+  formationLabel?: string;
   slots: Record<string, number | null>;
+  positions?: SlotPositions;
   playersById: Map<number, Player>;
   leaderboard: Leaderboard;
   startMinute?: number;
@@ -178,7 +180,9 @@ export function MatchArena({
   oppCode,
   userColor,
   formation,
+  formationLabel,
   slots,
+  positions,
   playersById,
   leaderboard,
   startMinute = 0,
@@ -233,7 +237,8 @@ export function MatchArena({
       if (!dot || dot.team !== 0) return;
       const pid = slots[slot.id];
       const player = pid != null ? playersById.get(pid) : null;
-      const h = homeFor(slot.x, slot.y, 0);
+      const coordinate = positions?.[slot.id] ?? slot;
+      const h = homeFor(coordinate.x, coordinate.y, 0);
       dot.hx = h.x;
       dot.hy = h.y;
       dot.role = slot.position;
@@ -254,7 +259,8 @@ export function MatchArena({
       const pid = slots[s.id];
       const player = pid != null ? playersById.get(pid) : null;
       const num = player ? (player.player_id % 30) + 1 : i + 1;
-      const h = homeFor(s.x, s.y, 0);
+      const coordinate = positions?.[s.id] ?? s;
+      const h = homeFor(coordinate.x, coordinate.y, 0);
       dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, react: 0.85 + rnd(i) * 0.4, nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28 });
     });
     slotsOf("4-3-3").forEach((s, i) => {
@@ -286,7 +292,7 @@ export function MatchArena({
     if (!s) return;
     applyUserFormationToState(s, pausedRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formation, slots, playersById]);
+  }, [formation, slots, positions, playersById]);
 
   useEffect(() => {
     stateRef.current = buildState();
@@ -903,7 +909,7 @@ export function MatchArena({
               <strong>팀 전술</strong>
               <span>{userTeamName}</span>
             </div>
-            <div className="arena-team-tactics__formation">{userCode} / {formation}</div>
+            <div className="arena-team-tactics__formation">{userCode} / {formationLabel ?? formation}</div>
 
             <TacticSelectRow
               label="수비 스타일"
