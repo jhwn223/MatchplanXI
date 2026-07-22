@@ -46,6 +46,74 @@ export function groupStandingsSim(
   return rows;
 }
 
+/** Monte Carlo estimate of `teamName` finishing top-2 in its group, simulating
+ *  any unplayed group matches by elo via quickSimScore. Already-played results
+ *  are held fixed each trial, so this updates as soon as a new match completes. */
+export function qualificationProbability(
+  data: TournamentData,
+  groupLetter: string,
+  played: PlayedMap,
+  teamName: string,
+  trials = 400
+): number {
+  const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
+  const elo = eloOf(data);
+  const groupMatchRows = data.matches.filter(
+    (m) =>
+      m.stage_name === "Group Stage" &&
+      groupTeams.some((t) => t.team_name === m.home_team_name) &&
+      groupTeams.some((t) => t.team_name === m.away_team_name)
+  );
+  const remaining = groupMatchRows.filter((m) => !played[m.match_id]);
+
+  if (remaining.length === 0) {
+    const rows = groupStandingsSim(data, groupLetter, played);
+    const pos = rows.findIndex((r) => r.teamName === teamName) + 1;
+    return pos >= 1 && pos <= 2 ? 100 : 0;
+  }
+
+  let top2Count = 0;
+  for (let trial = 0; trial < trials; trial++) {
+    const table = new Map<string, StandingRow>();
+    for (const t of groupTeams) {
+      table.set(t.team_name, {
+        teamName: t.team_name,
+        fifaCode: t.fifa_code,
+        played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0,
+      });
+    }
+    for (const m of groupMatchRows) {
+      const result = played[m.match_id];
+      let hs: number;
+      let as: number;
+      if (result) {
+        hs = result.homeGoals;
+        as = result.awayGoals;
+      } else {
+        const seed = (trial * 100003 + m.match_id * 7919) >>> 0;
+        const homeElo = elo.get(m.home_team_name)?.elo ?? 1600;
+        const awayElo = elo.get(m.away_team_name)?.elo ?? 1600;
+        const r = quickSimScore(seed, homeElo, awayElo);
+        hs = r.home;
+        as = r.away;
+      }
+      const h = table.get(m.home_team_name)!;
+      const a = table.get(m.away_team_name)!;
+      h.played++; a.played++;
+      h.gf += hs; h.ga += as; a.gf += as; a.ga += hs;
+      if (hs > as) { h.won++; h.points += 3; a.lost++; }
+      else if (hs < as) { a.won++; a.points += 3; h.lost++; }
+      else { h.drawn++; a.drawn++; h.points++; a.points++; }
+    }
+    const rows = [...table.values()];
+    for (const r of rows) r.gd = r.gf - r.ga;
+    rows.sort((x, y) => y.points - x.points || y.gd - x.gd || y.gf - x.gf);
+    const pos = rows.findIndex((r) => r.teamName === teamName) + 1;
+    if (pos >= 1 && pos <= 2) top2Count++;
+  }
+  return Math.round((top2Count / trials) * 100);
+}
+
 const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 
 export function allGroupStandings(data: TournamentData, played: PlayedMap): Record<string, StandingRow[]> {
