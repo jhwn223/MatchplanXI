@@ -42,6 +42,15 @@ export interface ArenaState {
   announcedET1: boolean;
   announcedET2: boolean;
   penT: number;
+  pkSequence: PenaltyKick[];
+  pkIndex: number;
+  pkScore: [number, number];
+  pkStage: "aim" | "strike" | "reveal";
+}
+
+export interface PenaltyKick {
+  team: 0 | 1;
+  scored: boolean;
 }
 
 export interface ArenaHud {
