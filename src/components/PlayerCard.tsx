@@ -25,6 +25,7 @@ export function PlayerCard({ player, condition, variant, dragFrom, ineligible, o
       player={player}
       condition={condition}
       variant={variant}
+      style={isDragging ? { visibility: "hidden" } : undefined}
       state={isDragging ? "dragging-source" : "idle"}
       listeners={listeners}
       attributes={attributes}
