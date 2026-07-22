@@ -299,31 +299,6 @@ export function MatchBoard({
 
   const activePlayer = activeDragId != null ? playersById.get(activeDragId) : null;
   const ready = placedIds.size === 11;
-  const halftimePanel = (
-    <div className="halftime-grid">
-      <aside className="halftime-grid__tactics">
-        <TacticsPanel
-          formation={lineup.formation}
-          onSelectFormation={selectFormation}
-          onApplyPreset={applyPreset}
-          onAutoFill={autoFill}
-          activePresetKey={lineup.presetKey ?? null}
-        />
-        <ConditionGauge value={teamIndex} filledCount={placedIds.size} />
-      </aside>
-      <main className="halftime-grid__pitch">
-        <Pitch
-          formation={formationDef}
-          slots={lineup.slots}
-          playersById={playersById}
-          conditions={conditions}
-        />
-      </main>
-      <section className="halftime-grid__bench">
-        <Bench benchPlayers={benchPlayers} conditions={conditions} />
-      </section>
-    </div>
-  );
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -402,52 +377,24 @@ export function MatchBoard({
                   : "▶ 킥오프 (경기 실행)"}
             </button>
           </aside>
-        {!sim && (
-  <div className="board__body">
-    <aside className="board__sidebar">
-      <TacticsPanel
-        formation={lineup.formation}
-        onSelectFormation={selectFormation}
-        onApplyPreset={applyPreset}
-        onAutoFill={autoFill}
-        activePresetKey={lineup.presetKey ?? null}
-      />
 
-      <ConditionGauge
-        value={teamIndex}
-        filledCount={placedIds.size}
-      />
+          <main className="board__pitch">
+            <Pitch
+              formation={formationDef}
+              slots={lineup.slots}
+              playersById={playersById}
+              conditions={conditions}
+            />
+          </main>
 
-      <button
-        type="button"
-        className="kickoff-btn"
-        disabled={!ready}
-        onClick={kickoff}
-      >
-        {ready
-          ? "▶ 킥오프 (경기 실행)"
-          : `선발 ${placedIds.size}/11 배치 필요`}
-      </button>
-    </aside>
-
-    <main className="board__pitch">
-      <Pitch
-        formation={formationDef}
-        slots={lineup.slots}
-        playersById={playersById}
-        conditions={conditions}
-      />
-    </main>
-
-    <section className="board__bench">
-      <Bench
-        benchPlayers={benchPlayers}
-        conditions={conditions}
-        benchedOut={benchedOut}
-      />
-    </section>
-  </div>
-)}
+          <section className="board__bench">
+            <Bench
+              benchPlayers={benchPlayers}
+              conditions={conditions}
+              benchedOut={benchedOut}
+            />
+          </section>
+        </div>
       </div>
 
       <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.2, 0, 0, 1)" }}>
@@ -505,8 +452,6 @@ export function MatchBoard({
               closeArena();
               onNextMatch();
             }}
-            halftimePanel={halftimePanel}
-            
           />
         )}
       </AnimatePresence>

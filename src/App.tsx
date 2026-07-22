@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import { useTournamentData } from "./hooks/useTournamentData";
 import { getTeamMatches, type PlayedMap, type PlayedResult, type TeamMatch } from "./data/tournament";
@@ -12,6 +12,8 @@ import { Bracket } from "./components/Bracket";
 import { MatchBoard, emptySlots, type Lineup } from "./components/MatchBoard";
 
 type View = "select" | "hub" | "match" | "bracket" | "komatch";
+
+const BGM_PATH = `${import.meta.env.BASE_URL}audio/dreamers.mp3`;
 
 function koMatchIdNum(id: string): number {
   let h = 0;
@@ -39,6 +41,7 @@ function App() {
     () => (data && team ? getTeamMatches(data, team.team_name) : []),
     [data, team]
   );
+  useDreamersBgm(view);
 
   if (loading) return <div className="status-screen">데이터를 불러오는 중…</div>;
   if (error || !data)
@@ -230,3 +233,57 @@ function App() {
 }
 
 export default App;
+
+function useDreamersBgm(view: View) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const unlockedRef = useRef(false);
+  const shouldPlayRef = useRef(true);
+  const shouldPlay = view !== "match" && view !== "komatch";
+
+  useEffect(() => {
+    shouldPlayRef.current = shouldPlay;
+  }, [shouldPlay]);
+
+  useEffect(() => {
+    const audio = new Audio(BGM_PATH);
+    audio.loop = true;
+    audio.volume = 0.32;
+    audio.preload = "auto";
+    audioRef.current = audio;
+
+    function unlockAudio() {
+      unlockedRef.current = true;
+      if (shouldPlayRef.current) {
+        void audio.play().catch(() => {
+          // Browser autoplay policy or a missing local file can block playback.
+        });
+      }
+    }
+
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+      audio.pause();
+      audioRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (shouldPlay) {
+      if (unlockedRef.current) {
+        void audio.play().catch(() => {
+          // Keep the app quiet if /audio/dreamers.mp3 is not present yet.
+        });
+      }
+    } else {
+      audio.pause();
+    }
+  }, [shouldPlay]);
+}
