@@ -1,4 +1,4 @@
-import { goalkeeper, outfield } from "./playerRuntime";
+import { goalkeeper, outfield, skill } from "./playerRuntime";
 import { clamp } from "./random";
 import type { PenaltyResult, PlacedPlayerLite, SimInput } from "./types";
 
@@ -12,12 +12,17 @@ export function simulatePenalties(rng: () => number, input: SimInput): PenaltyRe
   const userKeeper = goalkeeper(input.placed);
   const oppKeeper = goalkeeper(input.oppPlaced);
   const kick = (taker: PlacedPlayerLite, keeperPlayer: PlacedPlayerLite) => {
-    const takerSkill = taker.penalties * 0.55 + taker.composure * 0.3 + taker.finishing * 0.15;
-    const keeperSkill =
-      keeperPlayer.gkDiving * 0.25 +
-      keeperPlayer.gkReflexes * 0.35 +
-      keeperPlayer.gkPositioning * 0.25 +
-      keeperPlayer.reactions * 0.15;
+    const takerSkill = skill(taker, 120, input.elevation, [
+      [taker.penalties, 0.55],
+      [taker.composure, 0.3],
+      [taker.finishing, 0.15],
+    ]);
+    const keeperSkill = skill(keeperPlayer, 120, input.elevation, [
+      [keeperPlayer.gkDiving, 0.25],
+      [keeperPlayer.gkReflexes, 0.35],
+      [keeperPlayer.gkPositioning, 0.25],
+      [keeperPlayer.reactions, 0.15],
+    ]);
     return rng() < clamp(0.74 + (takerSkill - keeperSkill) / 190, 0.52, 0.93);
   };
   let userGoals = 0;
