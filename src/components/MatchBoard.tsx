@@ -38,6 +38,7 @@ import {
   combineHalves,
   simulateHalf,
   type HalfResult,
+  type PlacedPlayerLite,
   type SimInput,
   type SimResult,
 } from "../data/matchSim";
@@ -60,6 +61,48 @@ type MatchPhase = "idle" | "half1" | "halftime" | "half2" | "etbreak" | "extrati
 
 const MAX_SUBS = 5;
 const MAX_SUBS_ET = 6; // extra time grants one additional substitution
+
+function toSimPlayer(player: Player, assignedPosition: Player["position"], condition: number): PlacedPlayerLite {
+  const ability = player.ability;
+  const base = ability?.overall ?? 65;
+  const gkBase = player.position === "GK" ? base : 12;
+  return {
+    name: player.player_name,
+    naturalPosition: player.position,
+    position: assignedPosition,
+    overall: base,
+    pace: ability?.pace ?? base,
+    acceleration: ability?.acceleration ?? ability?.pace ?? base,
+    shooting: ability?.shooting ?? 58,
+    finishing: ability?.finishing ?? 58,
+    positioning: ability?.positioning ?? 60,
+    shotPower: ability?.shotPower ?? ability?.shooting ?? 58,
+    longShots: ability?.longShots ?? ability?.shooting ?? 55,
+    passing: ability?.passing ?? 62,
+    vision: ability?.vision ?? ability?.passing ?? 62,
+    shortPassing: ability?.shortPassing ?? ability?.passing ?? 62,
+    longPassing: ability?.longPassing ?? ability?.passing ?? 60,
+    dribbling: ability?.dribbling ?? 62,
+    ballControl: ability?.ballControl ?? ability?.dribbling ?? 62,
+    agility: ability?.agility ?? ability?.pace ?? 62,
+    composure: ability?.composure ?? base,
+    reactions: ability?.reactions ?? base,
+    defending: ability?.defending ?? 58,
+    interceptions: ability?.interceptions ?? ability?.defending ?? 58,
+    defensiveAwareness: ability?.defensiveAwareness ?? ability?.defending ?? 58,
+    standingTackle: ability?.standingTackle ?? ability?.defending ?? 58,
+    physical: ability?.physical ?? 65,
+    strength: ability?.strength ?? ability?.physical ?? 65,
+    aggression: ability?.aggression ?? ability?.physical ?? 62,
+    stamina: ability?.stamina ?? ability?.physical ?? 65,
+    penalties: ability?.penalties ?? ability?.finishing ?? 60,
+    gkDiving: ability?.gkDiving ?? gkBase,
+    gkHandling: ability?.gkHandling ?? gkBase,
+    gkPositioning: ability?.gkPositioning ?? gkBase,
+    gkReflexes: ability?.gkReflexes ?? gkBase,
+    condition,
+  };
+}
 
 export type { Slots } from "../data/tactics";
 
@@ -208,7 +251,7 @@ export function MatchBoard({
   // memoized so MatchArena's effect (keyed on `sim`) doesn't reset mid-animation
   // just because MatchBoard re-renders for an unrelated reason
   const half1ArenaSim: ArenaSim | null = useMemo(
-    () => (half1 ? { goals: half1.goals, userGoals: half1.userGoals, oppGoals: half1.oppGoals, userXg: half1.userXg, oppXg: half1.oppXg } : null),
+    () => (half1 ? { goals: half1.goals, events: half1.events, userGoals: half1.userGoals, oppGoals: half1.oppGoals, userXg: half1.userXg, oppXg: half1.oppXg, teamStats: half1.teamStats } : null),
     [half1]
   );
   const half2ArenaSim: ArenaSim | null = useMemo(
@@ -216,6 +259,7 @@ export function MatchBoard({
       half2 && regSim
         ? {
             goals: half2.goals,
+            events: half2.events,
             userGoals: regSim.userGoals,
             oppGoals: regSim.oppGoals,
             userXg: regSim.userXg,
@@ -235,6 +279,7 @@ export function MatchBoard({
       finalSim
         ? {
             goals: finalSim.goals.filter((g) => g.minute > 90),
+            events: finalSim.events.filter((event) => event.minute > 90),
             userGoals: finalSim.userGoals,
             oppGoals: finalSim.oppGoals,
             userXg: finalSim.userXg,
@@ -349,22 +394,16 @@ export function MatchBoard({
 
   function buildSimInput(): SimInput | null {
     if (placedIds.size < 11 || teamIndex == null) return null;
-    const placed = [...placedIds]
-      .map((id) => playersById.get(id))
-      .filter((p): p is Player => !!p)
-      .map((p) => ({
-        name: p.player_name,
-        position: p.position,
-        overall: p.ability?.overall ?? 65,
-        pace: p.ability?.pace ?? 65,
-        shooting: p.ability?.shooting ?? 60,
-        finishing: p.ability?.finishing ?? 60,
-        positioning: p.ability?.positioning ?? 60,
-        passing: p.ability?.passing ?? 65,
-        vision: p.ability?.vision ?? 65,
-        dribbling: p.ability?.dribbling ?? 65,
-        condition: conditions.get(p.player_id)?.score ?? 65,
-      }));
+    const placed = formationDef
+      .map((slot) => {
+        const playerId = lineup.slots[slot.id];
+        const player = playerId != null ? playersById.get(playerId) : null;
+        return player
+          ? toSimPlayer(player, slot.position, conditions.get(player.player_id)?.score ?? 65)
+          : null;
+      })
+      .filter((player): player is PlacedPlayerLite => player != null);
+    const oppPlaced = opponentEleven.map((player) => toSimPlayer(player, player.position, 72));
     const selectedPlayers = [...placedIds]
       .map((id) => playersById.get(id))
       .filter((p): p is Player => !!p);
@@ -391,6 +430,7 @@ export function MatchBoard({
       isHome: activeMatch.isHome,
       elevation: activeMatch.elevation,
       placed,
+      oppPlaced,
       userAbility: buildTeamAbilityProfile(selectedPlayers, conditions),
       oppAbility: buildTeamAbilityProfile(opponentEleven),
       actual: null,
@@ -628,6 +668,7 @@ export function MatchBoard({
             slots={lineup.slots}
             positions={lineup.positions}
             playersById={playersById}
+            opponentPlayers={opponentEleven}
             leaderboard={leaderboard}
             startMinute={0}
             endMinute={45}
@@ -653,6 +694,7 @@ export function MatchBoard({
             slots={lineup.slots}
             positions={lineup.positions}
             playersById={playersById}
+            opponentPlayers={opponentEleven}
             leaderboard={leaderboard}
             startMinute={45}
             endMinute={90}
@@ -687,6 +729,7 @@ export function MatchBoard({
             slots={lineup.slots}
             positions={lineup.positions}
             playersById={playersById}
+            opponentPlayers={opponentEleven}
             leaderboard={leaderboard}
             startMinute={90}
             endMinute={120}

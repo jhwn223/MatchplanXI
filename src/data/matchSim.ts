@@ -29,15 +29,38 @@ function clamp(v: number, min: number, max: number) {
 
 export interface PlacedPlayerLite {
   name: string;
+  naturalPosition: Position;
   position: Position;
   overall: number;
   pace: number;
+  acceleration: number;
   shooting: number;
   finishing: number;
   positioning: number;
+  shotPower: number;
+  longShots: number;
   passing: number;
   vision: number;
+  shortPassing: number;
+  longPassing: number;
   dribbling: number;
+  ballControl: number;
+  agility: number;
+  composure: number;
+  reactions: number;
+  defending: number;
+  interceptions: number;
+  defensiveAwareness: number;
+  standingTackle: number;
+  physical: number;
+  strength: number;
+  aggression: number;
+  stamina: number;
+  penalties: number;
+  gkDiving: number;
+  gkHandling: number;
+  gkPositioning: number;
+  gkReflexes: number;
   condition: number;
 }
 
@@ -48,6 +71,29 @@ export interface GoalEvent {
   assist?: string;
 }
 
+export type MatchEventType =
+  | "pass"
+  | "dribble"
+  | "interception"
+  | "tackle"
+  | "shot"
+  | "save"
+  | "block"
+  | "miss"
+  | "goal";
+
+/** One ability-resolved action in the match engine. The score and UI feed both use this log. */
+export interface MatchEvent {
+  minute: number;
+  side: "user" | "opp";
+  type: MatchEventType;
+  actor: string;
+  target?: string;
+  detail: string;
+  success: boolean;
+  xg?: number;
+}
+
 export interface TeamStats {
   /** pass completion probability for this match, 0-100 */
   passSuccessRate: number;
@@ -56,6 +102,13 @@ export interface TeamStats {
   saves: number;
   /** save probability among shots faced, 0-100 */
   saveRate: number;
+  possession: number;
+  passesAttempted: number;
+  passesCompleted: number;
+  shots: number;
+  shotsOnTarget: number;
+  tacklesWon: number;
+  interceptions: number;
 }
 
 export interface SimActual {
@@ -75,6 +128,7 @@ export interface SimInput {
   isHome: boolean;
   elevation: number;
   placed: PlacedPlayerLite[];
+  oppPlaced: PlacedPlayerLite[];
   userAbility: TeamAbilityProfile;
   oppAbility: TeamAbilityProfile;
   actual: SimActual | null;
@@ -109,112 +163,169 @@ export interface SimResult {
   userXg: number;
   oppXg: number;
   goals: GoalEvent[];
+  events: MatchEvent[];
   comparison: SimComparison;
   teamStats: { user: TeamStats; opp: TeamStats };
   wentToExtraTime: boolean;
   penalties: PenaltyResult | null;
 }
 
-function pickScorer(placed: PlacedPlayerLite[], rng: () => number): string {
-  const weight = (p: PlacedPlayerLite) => {
-    const positionWeight = p.position === "FWD" ? 4.8 : p.position === "MID" ? 2.3 : p.position === "DEF" ? 0.65 : 0.05;
-    const scoring = p.shooting * 0.45 + p.finishing * 0.35 + p.positioning * 0.2;
-    return positionWeight * Math.pow(Math.max(35, scoring) / 70, 2) * (0.65 + p.condition / 180);
-  };
-  const pool = placed.filter((p) => p.position !== "GK");
-  if (pool.length === 0) return "미드필더";
-  const total = pool.reduce((s, p) => s + weight(p), 0);
-  let r = rng() * total;
-  for (const p of pool) {
-    r -= weight(p);
-    if (r <= 0) return p.name;
-  }
-  return pool[pool.length - 1].name;
+type Side = "user" | "opp";
+
+interface RunningStats {
+  possessionTouches: number;
+  passesAttempted: number;
+  passesCompleted: number;
+  shots: number;
+  shotsOnTarget: number;
+  saves: number;
+  tacklesWon: number;
+  interceptions: number;
+  xg: number;
 }
 
-/** ~78% of goals have an assist; the rest are solo runs, set pieces, etc. */
-function pickAssist(placed: PlacedPlayerLite[], scorerName: string, rng: () => number): string | undefined {
-  if (rng() < 0.22) return undefined;
-  const weight = (p: PlacedPlayerLite) => {
-    const positionWeight = p.position === "MID" ? 3.8 : p.position === "DEF" ? 1.5 : p.position === "FWD" ? 2.1 : 0;
-    const creation = p.passing * 0.45 + p.vision * 0.35 + p.dribbling * 0.2;
-    return positionWeight * Math.pow(Math.max(35, creation) / 70, 2) * (0.65 + p.condition / 180);
-  };
-  const pool = placed.filter((p) => p.position !== "GK" && p.name !== scorerName);
-  if (pool.length === 0) return undefined;
-  const total = pool.reduce((s, p) => s + weight(p), 0);
-  if (total <= 0) return undefined;
-  let r = rng() * total;
-  for (const p of pool) {
-    r -= weight(p);
-    if (r <= 0) return p.name;
-  }
-  return pool[pool.length - 1].name;
-}
-
-/** Pass accuracy and GK save rate, derived probabilistically from the same match quality
- *  inputs as xG (elo gap, condition, tactical directness) plus shot volume off xG. */
-function computeTeamStats(
-  input: SimInput,
-  userXg: number,
-  oppXg: number,
-  userGoals: number,
-  oppGoals: number,
-  rng: () => number
-): { user: TeamStats; opp: TeamStats } {
-  const eloDiff = (input.userElo - input.oppElo) / 400;
-  const condFactor = (input.conditionIndex - 62) / 100;
-  const jitter = () => (rng() - 0.5) * 6;
-
-  const userPassPct = clamp(
-    69 + eloDiff * 5 + condFactor * 7 + (input.userAbility.creativity - 70) * 0.42 - input.attackBias * 3 + jitter(),
-    55,
-    94
-  );
-  const oppPassPct = clamp(
-    69 - eloDiff * 4 + (input.oppAbility.creativity - 70) * 0.42 + input.attackBias * 1.5 + jitter(),
-    55,
-    94
-  );
-
-  // shots faced by each GK; at least as many as the goals actually conceded
-  const shotsAgainstUser = Math.max(oppGoals, poisson(oppXg * 2.8, rng));
-  const shotsAgainstOpp = Math.max(userGoals, poisson(userXg * 2.8, rng));
-  const userSaves = Math.max(0, shotsAgainstUser - oppGoals);
-  const oppSaves = Math.max(0, shotsAgainstOpp - userGoals);
-
+function emptyRunningStats(): RunningStats {
   return {
-    user: {
-      passSuccessRate: Math.round(userPassPct),
-      shotsFaced: shotsAgainstUser,
-      saves: userSaves,
-      saveRate: shotsAgainstUser > 0 ? Math.round((userSaves / shotsAgainstUser) * 100) : 100,
-    },
-    opp: {
-      passSuccessRate: Math.round(oppPassPct),
-      shotsFaced: shotsAgainstOpp,
-      saves: oppSaves,
-      saveRate: shotsAgainstOpp > 0 ? Math.round((oppSaves / shotsAgainstOpp) * 100) : 100,
-    },
+    possessionTouches: 0,
+    passesAttempted: 0,
+    passesCompleted: 0,
+    shots: 0,
+    shotsOnTarget: 0,
+    saves: 0,
+    tacklesWon: 0,
+    interceptions: 0,
+    xg: 0,
   };
 }
 
-/** Penalty shootout: 5 rounds each, then sudden death. Mostly luck, with a small elo lean. */
-function simulatePenalties(rng: () => number, eloDiff: number): PenaltyResult {
-  const successProb = (bias: number) => clamp(0.76 + bias, 0.55, 0.92);
-  const uProb = successProb(eloDiff * 0.04);
-  const oProb = successProb(-eloDiff * 0.04);
+function weightedPick<T>(items: T[], weight: (item: T) => number, rng: () => number): T {
+  const total = items.reduce((sum, item) => sum + Math.max(0.01, weight(item)), 0);
+  let cursor = rng() * total;
+  for (const item of items) {
+    cursor -= Math.max(0.01, weight(item));
+    if (cursor <= 0) return item;
+  }
+  return items[items.length - 1];
+}
 
+/** Condition, stamina, altitude and playing out of position alter every individual action. */
+function performanceFactor(player: PlacedPlayerLite, minute: number, elevation: number): number {
+  const condition = 0.82 + player.condition / 430;
+  const fatigueProgress = clamp(minute / 120, 0, 1);
+  const staminaProtection = clamp((player.stamina - 45) / 100, 0, 0.5);
+  const altitudeLoad = clamp((elevation - 800) / 9000, 0, 0.22);
+  const fatigue = 1 - fatigueProgress * (0.17 - staminaProtection * 0.18 + altitudeLoad);
+  const positionFit = player.naturalPosition === player.position ? 1 : 0.88;
+  return clamp(condition * fatigue * positionFit, 0.62, 1.12);
+}
+
+function skill(
+  player: PlacedPlayerLite,
+  minute: number,
+  elevation: number,
+  parts: Array<[number, number]>
+): number {
+  return parts.reduce((sum, [value, weight]) => sum + value * weight, 0) * performanceFactor(player, minute, elevation);
+}
+
+function sidePlayers(input: SimInput, side: Side): PlacedPlayerLite[] {
+  return side === "user" ? input.placed : input.oppPlaced;
+}
+
+function otherSide(side: Side): Side {
+  return side === "user" ? "opp" : "user";
+}
+
+function outfield(players: PlacedPlayerLite[]): PlacedPlayerLite[] {
+  const selected = players.filter((player) => player.position !== "GK");
+  return selected.length ? selected : players;
+}
+
+function goalkeeper(players: PlacedPlayerLite[]): PlacedPlayerLite {
+  return players.find((player) => player.position === "GK") ?? players[0];
+}
+
+function finalizeStats(running: RunningStats, other: RunningStats): TeamStats {
+  const totalTouches = Math.max(1, running.possessionTouches + other.possessionTouches);
+  const shotsFaced = other.shotsOnTarget;
+  return {
+    passSuccessRate: running.passesAttempted
+      ? Math.round((running.passesCompleted / running.passesAttempted) * 100)
+      : 0,
+    shotsFaced,
+    saves: running.saves,
+    saveRate: shotsFaced ? Math.round((running.saves / shotsFaced) * 100) : 100,
+    possession: Math.round((running.possessionTouches / totalTouches) * 100),
+    passesAttempted: running.passesAttempted,
+    passesCompleted: running.passesCompleted,
+    shots: running.shots,
+    shotsOnTarget: running.shotsOnTarget,
+    tacklesWon: running.tacklesWon,
+    interceptions: running.interceptions,
+  };
+}
+
+function combineTeamStats(a: TeamStats, b: TeamStats, aWeight = 1, bWeight = 1): TeamStats {
+  const passesAttempted = a.passesAttempted + b.passesAttempted;
+  const passesCompleted = a.passesCompleted + b.passesCompleted;
+  const shotsFaced = a.shotsFaced + b.shotsFaced;
+  const saves = a.saves + b.saves;
+  return {
+    passSuccessRate: passesAttempted ? Math.round((passesCompleted / passesAttempted) * 100) : 0,
+    shotsFaced,
+    saves,
+    saveRate: shotsFaced ? Math.round((saves / shotsFaced) * 100) : 100,
+    possession: Math.round((a.possession * aWeight + b.possession * bWeight) / (aWeight + bWeight)),
+    passesAttempted,
+    passesCompleted,
+    shots: a.shots + b.shots,
+    shotsOnTarget: a.shotsOnTarget + b.shotsOnTarget,
+    tacklesWon: a.tacklesWon + b.tacklesWon,
+    interceptions: a.interceptions + b.interceptions,
+  };
+}
+
+function actionDetail(type: MatchEventType, actor: string, target?: string): string {
+  if (type === "pass") return `${actor} → ${target ?? "전방"} 패스`;
+  if (type === "dribble") return `${actor} 드리블 돌파`;
+  if (type === "interception") return `${actor} 패스 차단`;
+  if (type === "tackle") return `${actor} 태클 성공`;
+  if (type === "shot") return `${actor} 슈팅`;
+  if (type === "save") return `${actor} 선방`;
+  if (type === "block") return `${actor} 슈팅 블록`;
+  if (type === "miss") return `${actor} 슈팅 빗나감`;
+  return `${actor} 득점`;
+}
+
+/** Penalty shootout resolves each taker's penalties/composure against the opposing goalkeeper. */
+function simulatePenalties(rng: () => number, input: SimInput): PenaltyResult {
+  const userTakers = outfield(input.placed).sort(
+    (a, b) => b.penalties + b.composure - (a.penalties + a.composure)
+  );
+  const oppTakers = outfield(input.oppPlaced).sort(
+    (a, b) => b.penalties + b.composure - (a.penalties + a.composure)
+  );
+  const userKeeper = goalkeeper(input.placed);
+  const oppKeeper = goalkeeper(input.oppPlaced);
+  const kick = (taker: PlacedPlayerLite, keeperPlayer: PlacedPlayerLite) => {
+    const takerSkill = taker.penalties * 0.55 + taker.composure * 0.3 + taker.finishing * 0.15;
+    const keeperSkill =
+      keeperPlayer.gkDiving * 0.25 +
+      keeperPlayer.gkReflexes * 0.35 +
+      keeperPlayer.gkPositioning * 0.25 +
+      keeperPlayer.reactions * 0.15;
+    return rng() < clamp(0.74 + (takerSkill - keeperSkill) / 190, 0.52, 0.93);
+  };
   let userGoals = 0;
   let oppGoals = 0;
   for (let i = 0; i < 5; i++) {
-    if (rng() < uProb) userGoals++;
-    if (rng() < oProb) oppGoals++;
+    if (kick(userTakers[i % userTakers.length], oppKeeper)) userGoals++;
+    if (kick(oppTakers[i % oppTakers.length], userKeeper)) oppGoals++;
   }
   let guard = 0;
   while (userGoals === oppGoals && guard++ < 12) {
-    if (rng() < uProb) userGoals++;
-    if (rng() < oProb) oppGoals++;
+    if (kick(userTakers[guard % userTakers.length], oppKeeper)) userGoals++;
+    if (kick(oppTakers[guard % oppTakers.length], userKeeper)) oppGoals++;
   }
   const winner: "user" | "opp" =
     userGoals === oppGoals ? (rng() < 0.5 ? "user" : "opp") : userGoals > oppGoals ? "user" : "opp";
@@ -283,66 +394,251 @@ export function quickSimScore(
 
 export interface HalfResult {
   goals: GoalEvent[];
+  events: MatchEvent[];
   userGoals: number;
   oppGoals: number;
   userXg: number;
   oppXg: number;
+  teamStats: { user: TeamStats; opp: TeamStats };
 }
 
-function makeMinutePicker(rng: () => number) {
-  const used = new Set<number>();
-  return (lo: number, hi: number) => {
-    let m = lo + Math.floor(rng() * (hi - lo + 1));
-    let guard = 0;
-    while (used.has(m) && guard++ < 30) m = lo + Math.floor(rng() * (hi - lo + 1));
-    used.add(m);
-    return m;
+function simulatePeriod(
+  input: SimInput,
+  lo: number,
+  hi: number,
+  seedOffset: number
+): HalfResult {
+  const rng = mulberry32((input.seed + seedOffset) >>> 0);
+  const goals: GoalEvent[] = [];
+  const events: MatchEvent[] = [];
+  const running: Record<Side, RunningStats> = {
+    user: emptyRunningStats(),
+    opp: emptyRunningStats(),
+  };
+  const duration = hi - lo + 1;
+  const possessionCount = Math.max(24, Math.round(duration * 1.12));
+  const eloEdge = (input.userElo - input.oppElo) / 400;
+  const creativityEdge = (input.userAbility.creativity - input.oppAbility.creativity) / 100;
+  const userPossessionChance = clamp(
+    0.5 + eloEdge * 0.07 + creativityEdge * 0.1 - input.attackBias * 0.025 + (input.isHome ? 0.018 : -0.018),
+    0.33,
+    0.67
+  );
+
+  const addEvent = (
+    minute: number,
+    side: Side,
+    type: MatchEventType,
+    actor: string,
+    target: string | undefined,
+    success: boolean,
+    xg?: number
+  ) => {
+    events.push({ minute, side, type, actor, target, success, xg, detail: actionDetail(type, actor, target) });
+  };
+
+  for (let possession = 0; possession < possessionCount; possession++) {
+    const minute = Math.min(
+      hi,
+      lo + Math.floor(((possession + rng()) / possessionCount) * duration)
+    );
+    const side: Side = rng() < userPossessionChance ? "user" : "opp";
+    const defendingSide = otherSide(side);
+    const attackers = outfield(sidePlayers(input, side));
+    const defenders = outfield(sidePlayers(input, defendingSide));
+    const keeperPlayer = goalkeeper(sidePlayers(input, defendingSide));
+    if (!attackers.length || !defenders.length || !keeperPlayer) continue;
+
+    let carrier = weightedPick(
+      attackers,
+      (player) =>
+        (player.position === "MID" ? 2.8 : player.position === "DEF" ? 2.1 : 1.1) *
+        (0.6 + player.ballControl / 100),
+      rng
+    );
+    let lastPasser: PlacedPlayerLite | undefined;
+    let progress = 0;
+    const maxActions = 2 + Math.floor(rng() * 4);
+
+    for (let action = 0; action < maxActions; action++) {
+      running[side].possessionTouches++;
+      const defender = weightedPick(
+        defenders,
+        (player) => {
+          const roleWeight = player.position === "DEF" ? 2.8 : player.position === "MID" ? 1.8 : 0.7;
+          return roleWeight * (0.45 + (player.defensiveAwareness + player.aggression) / 200);
+        },
+        rng
+      );
+
+      const carrierDribble = skill(carrier, minute, input.elevation, [
+        [carrier.dribbling, 0.34],
+        [carrier.ballControl, 0.24],
+        [carrier.agility, 0.18],
+        [carrier.pace, 0.14],
+        [carrier.composure, 0.1],
+      ]);
+      const defenderTackle = skill(defender, minute, input.elevation, [
+        [defender.standingTackle, 0.3],
+        [defender.defensiveAwareness, 0.24],
+        [defender.strength, 0.17],
+        [defender.interceptions, 0.17],
+        [defender.reactions, 0.12],
+      ]);
+      const wantsDribble =
+        carrier.position === "FWD"
+          ? rng() < 0.32 + Math.max(0, carrier.dribbling - carrier.passing) / 180
+          : rng() < 0.16;
+
+      if (wantsDribble) {
+        const dribbleChance = clamp(0.5 + (carrierDribble - defenderTackle) / 115, 0.22, 0.86);
+        if (rng() < dribbleChance) {
+          progress += 1.2;
+          addEvent(minute, side, "dribble", carrier.name, defender.name, true);
+        } else {
+          running[defendingSide].tacklesWon++;
+          running[defendingSide].possessionTouches++;
+          addEvent(minute, defendingSide, "tackle", defender.name, carrier.name, true);
+          break;
+        }
+      } else {
+        const receivers = attackers.filter((player) => player.name !== carrier.name);
+        if (!receivers.length) break;
+        const receiver = weightedPick(
+          receivers,
+          (player) => {
+            const forwardWeight = player.position === "FWD" ? 2.8 : player.position === "MID" ? 2 : 0.75;
+            return forwardWeight * (0.45 + (player.positioning + player.pace + player.reactions) / 300);
+          },
+          rng
+        );
+        const passQuality = skill(carrier, minute, input.elevation, [
+          [carrier.passing, 0.24],
+          [carrier.shortPassing, 0.26],
+          [carrier.vision, 0.2],
+          [carrier.composure, 0.14],
+          [carrier.ballControl, 0.1],
+          [carrier.longPassing, 0.06],
+        ]);
+        const interceptionQuality = skill(defender, minute, input.elevation, [
+          [defender.interceptions, 0.32],
+          [defender.defensiveAwareness, 0.27],
+          [defender.reactions, 0.17],
+          [defender.aggression, 0.12],
+          [defender.pace, 0.12],
+        ]);
+        const directness = side === "user" ? input.attackBias : -input.attackBias * 0.35;
+        const passChance = clamp(
+          0.72 + (passQuality - interceptionQuality) / 175 - progress * 0.012 - directness * 0.025,
+          0.48,
+          0.94
+        );
+        running[side].passesAttempted++;
+        if (rng() < passChance) {
+          running[side].passesCompleted++;
+          progress += receiver.position === "FWD" ? 1.05 : receiver.position === "MID" ? 0.72 : 0.38;
+          addEvent(minute, side, "pass", carrier.name, receiver.name, true);
+          lastPasser = carrier;
+          carrier = receiver;
+        } else {
+          running[defendingSide].interceptions++;
+          running[defendingSide].possessionTouches++;
+          addEvent(minute, defendingSide, "interception", defender.name, carrier.name, true);
+          break;
+        }
+      }
+
+      const tacticShotBias = side === "user" ? input.attackBias * 0.07 : input.attackBias * 0.025;
+      const roleShotChance = carrier.position === "FWD" ? 0.3 : carrier.position === "MID" ? 0.16 : 0.06;
+      const shootNow = rng() < roleShotChance + progress * 0.045 + tacticShotBias || action === maxActions - 1 && rng() < 0.36;
+      if (!shootNow) continue;
+
+      const marker = weightedPick(
+        defenders,
+        (player) => 0.4 + (player.defending + player.defensiveAwareness) / 140,
+        rng
+      );
+      const chanceCreation =
+        (carrier.positioning - marker.defensiveAwareness) / 650 +
+        ((lastPasser?.vision ?? carrier.vision) - 65) / 1000 +
+        progress * 0.007;
+      const baseXg = carrier.position === "FWD" ? 0.065 : carrier.position === "MID" ? 0.04 : 0.022;
+      const shotXg = clamp(baseXg + chanceCreation + rng() * 0.045, 0.012, 0.48);
+      running[side].shots++;
+      running[side].xg += shotXg;
+      addEvent(minute, side, "shot", carrier.name, keeperPlayer.name, true, shotXg);
+
+      const shootingTechnique = skill(carrier, minute, input.elevation, [
+        [carrier.shooting, 0.22],
+        [carrier.finishing, 0.3],
+        [carrier.shotPower, 0.13],
+        [carrier.composure, 0.2],
+        [carrier.positioning, 0.15],
+      ]);
+      const blockQuality = skill(marker, minute, input.elevation, [
+        [marker.defending, 0.22],
+        [marker.defensiveAwareness, 0.28],
+        [marker.standingTackle, 0.2],
+        [marker.reactions, 0.16],
+        [marker.aggression, 0.14],
+      ]);
+      const keeperQuality = skill(keeperPlayer, minute, input.elevation, [
+        [keeperPlayer.gkReflexes, 0.3],
+        [keeperPlayer.gkDiving, 0.25],
+        [keeperPlayer.gkPositioning, 0.22],
+        [keeperPlayer.gkHandling, 0.13],
+        [keeperPlayer.reactions, 0.1],
+      ]);
+      const finishingMultiplier = clamp(0.72 + (shootingTechnique - 60) / 105, 0.58, 1.48);
+      const keeperMultiplier = clamp(1.08 - (keeperQuality - 65) / 155, 0.63, 1.2);
+      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier, 0.01, 0.72);
+      if (rng() < goalChance) {
+        running[side].shotsOnTarget++;
+        const assist = lastPasser?.name !== carrier.name ? lastPasser?.name : undefined;
+        goals.push({ minute, side, scorer: carrier.name, assist });
+        addEvent(minute, side, "goal", carrier.name, assist, true, shotXg);
+        break;
+      }
+
+      const blockChance = clamp(0.12 + (blockQuality - shootingTechnique) / 260, 0.04, 0.32);
+      if (rng() < blockChance) {
+        running[defendingSide].tacklesWon++;
+        addEvent(minute, defendingSide, "block", marker.name, carrier.name, true, shotXg);
+        break;
+      }
+
+      const onTargetChance = clamp(0.4 + (shootingTechnique - 65) / 150, 0.24, 0.82);
+      if (rng() >= onTargetChance) {
+        addEvent(minute, side, "miss", carrier.name, undefined, false, shotXg);
+        break;
+      }
+      running[side].shotsOnTarget++;
+      running[defendingSide].saves++;
+      addEvent(minute, defendingSide, "save", keeperPlayer.name, carrier.name, true, shotXg);
+      break;
+    }
+  }
+
+  goals.sort((a, b) => a.minute - b.minute);
+  events.sort((a, b) => a.minute - b.minute);
+  const teamStats = {
+    user: finalizeStats(running.user, running.opp),
+    opp: finalizeStats(running.opp, running.user),
+  };
+  return {
+    goals,
+    events,
+    userGoals: goals.filter((goal) => goal.side === "user").length,
+    oppGoals: goals.filter((goal) => goal.side === "opp").length,
+    userXg: running.user.xg,
+    oppXg: running.opp.xg,
+    teamStats,
   };
 }
 
-function genGoals(
-  count: number,
-  side: "user" | "opp",
-  lo: number,
-  hi: number,
-  placed: PlacedPlayerLite[],
-  nextMinute: (lo: number, hi: number) => number,
-  rng: () => number
-): GoalEvent[] {
-  const goals: GoalEvent[] = [];
-  for (let i = 0; i < count; i++) {
-    const minute = nextMinute(lo, hi);
-    if (side === "user") {
-      const scorer = pickScorer(placed, rng);
-      const assist = pickAssist(placed, scorer, rng);
-      goals.push({ minute, side, scorer, assist });
-    } else {
-      goals.push({ minute, side });
-    }
-  }
-  return goals;
-}
-
-/** Simulate one half (1 = 1'-45', 2 = 46'-90') using that half's lineup/tactics. */
+/** Simulate one half as a chain of player-vs-player decisions. */
 export function simulateHalf(input: SimInput, half: 1 | 2): HalfResult {
-  const rng = mulberry32((input.seed + half * 999983) >>> 0);
-  const { userXg, oppXg } = computeXg(input);
-  const halfUserXg = userXg / 2;
-  const halfOppXg = oppXg / 2;
-
-  const userGoals = poisson(halfUserXg, rng);
-  const oppGoals = poisson(halfOppXg, rng);
-
-  const lo = half === 1 ? 1 : 46;
-  const hi = half === 1 ? 45 : 90;
-  const nextMinute = makeMinutePicker(rng);
-
-  const goals: GoalEvent[] = [
-    ...genGoals(userGoals, "user", lo, hi, input.placed, nextMinute, rng),
-    ...genGoals(oppGoals, "opp", lo, hi, input.placed, nextMinute, rng),
-  ].sort((a, b) => a.minute - b.minute);
-
-  return { goals, userGoals, oppGoals, userXg: halfUserXg, oppXg: halfOppXg };
+  return simulatePeriod(input, half === 1 ? 1 : 46, half === 1 ? 45 : 90, half * 999983);
 }
 
 /** Combine both halves into a regulation-time result. Extra time (knockouts only,
@@ -352,13 +648,16 @@ export function combineHalves(input: SimInput, h1: HalfResult, h2: HalfResult): 
   const userGoals = h1.userGoals + h2.userGoals;
   const oppGoals = h1.oppGoals + h2.oppGoals;
   const goals = [...h1.goals, ...h2.goals].sort((a, b) => a.minute - b.minute);
+  const events = [...h1.events, ...h2.events].sort((a, b) => a.minute - b.minute);
   const userXg = h1.userXg + h2.userXg;
   const oppXg = h1.oppXg + h2.oppXg;
   const simOutcome: "W" | "D" | "L" =
     userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
 
-  const rng = mulberry32((input.seed + 5_000003) >>> 0);
-  const teamStats = computeTeamStats(input, userXg, oppXg, userGoals, oppGoals, rng);
+  const teamStats = {
+    user: combineTeamStats(h1.teamStats.user, h2.teamStats.user),
+    opp: combineTeamStats(h1.teamStats.opp, h2.teamStats.opp),
+  };
 
   return {
     userGoals,
@@ -368,6 +667,7 @@ export function combineHalves(input: SimInput, h1: HalfResult, h2: HalfResult): 
     userXg,
     oppXg,
     goals,
+    events,
     comparison: buildComparison(input, userGoals, oppGoals, simOutcome),
     teamStats,
     wentToExtraTime: false,
@@ -382,34 +682,28 @@ export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
   if (!input.isKnockout || base.userGoals !== base.oppGoals) return base;
 
   const rng = mulberry32((input.seed + 9_000029) >>> 0);
-  const { userXg, oppXg } = computeXg(input);
-  const etScale = 30 / 90; // two 15' extra-time periods
-  const etUserXg = userXg * etScale;
-  const etOppXg = oppXg * etScale;
-  const etUserGoals = poisson(etUserXg, rng);
-  const etOppGoals = poisson(etOppXg, rng);
-  const nextMinute = makeMinutePicker(rng);
-
-  const etGoals = [
-    ...genGoals(etUserGoals, "user", 91, 120, input.placed, nextMinute, rng),
-    ...genGoals(etOppGoals, "opp", 91, 120, input.placed, nextMinute, rng),
-  ];
+  const extraTime = simulatePeriod(input, 91, 120, 9_000029);
+  const etUserGoals = extraTime.userGoals;
+  const etOppGoals = extraTime.oppGoals;
 
   const userGoals = base.userGoals + etUserGoals;
   const oppGoals = base.oppGoals + etOppGoals;
-  const goals = [...base.goals, ...etGoals].sort((a, b) => a.minute - b.minute);
+  const goals = [...base.goals, ...extraTime.goals].sort((a, b) => a.minute - b.minute);
+  const events = [...base.events, ...extraTime.events].sort((a, b) => a.minute - b.minute);
 
   let penalties: PenaltyResult | null = null;
   if (userGoals === oppGoals) {
-    const eloDiff = (input.userElo - input.oppElo) / 400;
-    penalties = simulatePenalties(rng, eloDiff);
+    penalties = simulatePenalties(rng, input);
   }
 
   const simOutcome: "W" | "D" | "L" =
     userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
-  const totalUserXg = base.userXg + etUserXg;
-  const totalOppXg = base.oppXg + etOppXg;
-  const teamStats = computeTeamStats(input, totalUserXg, totalOppXg, userGoals, oppGoals, rng);
+  const totalUserXg = base.userXg + extraTime.userXg;
+  const totalOppXg = base.oppXg + extraTime.oppXg;
+  const teamStats = {
+    user: combineTeamStats(base.teamStats.user, extraTime.teamStats.user, 3, 1),
+    opp: combineTeamStats(base.teamStats.opp, extraTime.teamStats.opp, 3, 1),
+  };
 
   return {
     ...base,
@@ -418,6 +712,7 @@ export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
     userXg: totalUserXg,
     oppXg: totalOppXg,
     goals,
+    events,
     comparison: buildComparison(input, userGoals, oppGoals, simOutcome),
     teamStats,
     wentToExtraTime: true,
