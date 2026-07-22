@@ -372,6 +372,19 @@ export function MatchBoard({
 
   const activePlayer = activeDragId != null ? playersById.get(activeDragId) : null;
   const ready = placedIds.size === 11;
+  const primaryAction =
+    phase === "halftime"
+      ? startSecondHalf
+      : phase === "etbreak"
+        ? startExtraTime
+        : kickoff;
+  const primaryLabel = !ready
+    ? `선발 ${placedIds.size}/11 배치 필요`
+    : phase === "halftime"
+      ? "🔄 후반전 시작"
+      : phase === "etbreak"
+        ? "🔥 연장전 시작"
+        : "▶ 킥오프 (경기 실행)";
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { slotsOf, type FormationKey } from "../data/formation";
 import type { GoalEvent, PenaltyResult, SimComparison, TeamStats } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
-import { topAssists, topScorers, type Leaderboard } from "../data/leaderboard";
+import { topAssists, topScorers, type Leaderboard, type LeaderboardEntry } from "../data/leaderboard";
 
 /** Slimmed projection of a match result for one arena segment (a half, or extra time). */
 export interface ArenaSim {
@@ -34,6 +34,9 @@ interface Props {
   startScore?: [number, number];
   /** false = this segment ends at an interim break (halftime / pre-extra-time), not full time */
   final?: boolean;
+  interimLabel?: string;
+  interimCta?: string;
+  onInterimContinue?: () => void;
   onComplete: () => void;
   onClose: () => void;
   onNext?: () => void;
@@ -182,6 +185,9 @@ export function MatchArena({
   endMinute = 90,
   startScore = [0, 0],
   final = true,
+  interimLabel = "구간 종료",
+  interimCta = "계속하기 →",
+  onInterimContinue,
   onComplete,
   onClose,
   onNext,
@@ -197,7 +203,13 @@ export function MatchArena({
   const [speed, setSpeed] = useState(1);
   const [teamTactics, setTeamTactics] = useState<TeamTactics>(DEFAULT_TEAM_TACTICS);
   const [openTacticSelect, setOpenTacticSelect] = useState<TacticSelectKey | null>(null);
-  const [hud, setHud] = useState({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null as string | null });
+  const [hud, setHud] = useState({
+    minute: startMinute,
+    home: startScore[0],
+    away: startScore[1],
+    banner: null as string | null,
+    periodBanner: null as string | null,
+  });
   const [ended, setEnded] = useState(false);
 
   function updateTeamTactics(next: TeamTactics) {
@@ -261,6 +273,11 @@ export function MatchArena({
       banner: null,
       goalSide: null,
       time: 0,
+      periodBanner: null,
+      periodBannerT: 0,
+      announcedET1: false,
+      announcedET2: false,
+      penT: 0,
     };
   }
 
@@ -700,7 +717,7 @@ export function MatchArena({
     stateRef.current = buildState();
     completedRef.current = true;
     setEnded(false);
-    setHud({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null });
+    setHud({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null, periodBanner: null });
     setPaused(false);
     pausedRef.current = false;
   }
@@ -800,7 +817,7 @@ export function MatchArena({
             </div>
             <p className="sim-compare__verdict">전술과 라인업을 조정할 수 있습니다.</p>
             <div className="sim-compare__actions">
-              <button type="button" className="sim-btn" onClick={onInterimContinue}>
+              <button type="button" className="sim-btn" onClick={onInterimContinue ?? onClose}>
                 {interimCta}
               </button>
             </div>
@@ -992,6 +1009,70 @@ function TacticMeter({ label, value, onNudge }: { label: string; value: number; 
       <button type="button" className="tactic-step" onClick={() => onNudge(1)} aria-label={`${label} 높이기`}>
         ▸
       </button>
+    </div>
+  );
+}
+
+function TeamStatBar({
+  label,
+  userVal,
+  oppVal,
+  userSub,
+  oppSub,
+}: {
+  label: string;
+  userVal: number;
+  oppVal: number;
+  userSub?: string;
+  oppSub?: string;
+}) {
+  const total = Math.max(1, userVal + oppVal);
+  const userPct = Math.round((userVal / total) * 100);
+  return (
+    <div className="stat-bar">
+      <div className="stat-bar__nums">
+        <span className="stat-bar__val">
+          {Math.round(userVal)}%
+          {userSub && <span className="stat-bar__sub"> · {userSub}</span>}
+        </span>
+        <span className="stat-bar__label">{label}</span>
+        <span className="stat-bar__val stat-bar__val--opp">
+          {Math.round(oppVal)}%
+          {oppSub && <span className="stat-bar__sub"> · {oppSub}</span>}
+        </span>
+      </div>
+      <div className="stat-bar__track">
+        <div className="stat-bar__fill" style={{ width: `${userPct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function LeaderboardCol({
+  title,
+  rows,
+  field,
+}: {
+  title: string;
+  rows: LeaderboardEntry[];
+  field: "goals" | "assists";
+}) {
+  return (
+    <div className="leaderboard__col">
+      <h5 className="leaderboard__col-title">{title}</h5>
+      {rows.length === 0 ? (
+        <p className="leaderboard__empty">아직 기록 없음</p>
+      ) : (
+        <ol className="leaderboard__list">
+          {rows.map((row, i) => (
+            <li key={`${row.name}-${i}`} className="leaderboard__row">
+              <span className="leaderboard__rank">{i + 1}</span>
+              <span className="leaderboard__name">{row.name}</span>
+              <span className="leaderboard__count">{row[field]}</span>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
