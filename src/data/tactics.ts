@@ -1,5 +1,6 @@
 import { FORMATIONS, slotsOf, type FormationKey, type FormationSlot } from "./formation";
 import type { ConditionBreakdown } from "./conditionEngine";
+import type { TeamStats } from "./matchSim";
 import type { Player, Position } from "./types";
 
 export type Slots = Record<string, number | null>;
@@ -198,3 +199,197 @@ export const TACTICAL_PRESETS: TacticalPreset[] = [
 ];
 
 export const FORMATION_META = FORMATIONS;
+
+// ---- tactic style (playstyle) ----
+
+export type TacticStyleKey =
+  | "possession"
+  | "counter"
+  | "wing"
+  | "halfspace"
+  | "longball"
+  | "gegenpress";
+
+export interface TacticStyle {
+  key: TacticStyleKey;
+  label: string;
+  emoji: string;
+  description: string;
+  /** small nudge blended into the formation/position-derived attack bias */
+  attackBias: number;
+  /** -1..1, how aggressively the team presses/recovers the ball high up the pitch */
+  pressBias: number;
+  /** -1..1, how much fullbacks/wingers overlap and cross */
+  overlapBias: number;
+  /** -1..1, negative = short possession passing, positive = direct/long passing */
+  directnessBias: number;
+  /** -1..1, net tendency to create counters (positive) vs concede them (negative pressure) */
+  counterBias: number;
+}
+
+export const TACTIC_STYLES: TacticStyle[] = [
+  {
+    key: "possession",
+    label: "점유(패스) 전술",
+    emoji: "🎯",
+    description: "짧은 패스, 높은 점유율, 천천히 전개",
+    attackBias: -0.05,
+    pressBias: -0.3,
+    overlapBias: -0.2,
+    directnessBias: -0.9,
+    counterBias: -0.3,
+  },
+  {
+    key: "counter",
+    label: "역습 전술",
+    emoji: "⚡",
+    description: "공을 뺏으면 빠르게 전진",
+    attackBias: -0.15,
+    pressBias: -0.5,
+    overlapBias: -0.1,
+    directnessBias: 0.4,
+    counterBias: 0.9,
+  },
+  {
+    key: "wing",
+    label: "측면(크로스) 전술",
+    emoji: "↗",
+    description: "풀백·윙 활용, 크로스 비중 높음",
+    attackBias: 0.25,
+    pressBias: 0.0,
+    overlapBias: 0.9,
+    directnessBias: 0.1,
+    counterBias: 0.0,
+  },
+  {
+    key: "halfspace",
+    label: "중앙 침투 전술",
+    emoji: "🎯",
+    description: "원투패스, 스루패스, 하프스페이스 활용",
+    attackBias: 0.35,
+    pressBias: 0.1,
+    overlapBias: 0.1,
+    directnessBias: -0.4,
+    counterBias: 0.1,
+  },
+  {
+    key: "longball",
+    label: "롱볼 전술",
+    emoji: "🚀",
+    description: "긴 패스로 최전방 공략",
+    attackBias: 0.15,
+    pressBias: -0.1,
+    overlapBias: 0.0,
+    directnessBias: 0.9,
+    counterBias: 0.2,
+  },
+  {
+    key: "gegenpress",
+    label: "게겐프레싱",
+    emoji: "🔥",
+    description: "높은 압박 후 즉시 탈취",
+    attackBias: 0.45,
+    pressBias: 0.95,
+    overlapBias: 0.3,
+    directnessBias: 0.2,
+    counterBias: -0.4,
+  },
+];
+
+export function tacticStyleByKey(key: TacticStyleKey | null | undefined): TacticStyle {
+  return TACTIC_STYLES.find((s) => s.key === key) ?? TACTIC_STYLES[0];
+}
+
+export interface TacticStat {
+  label: string;
+  /** 0..100, for stat-bar rendering */
+  value: number;
+}
+
+/** bias is -1..1; convert to a 0..100 bar value. */
+function biasToStat(bias: number): number {
+  return Math.round(((bias + 1) / 2) * 100);
+}
+
+/**
+ * Attack/defense stat breakdown for a tactic style, meant to replace raw
+ * bias numbers with labeled bars a screen can render directly.
+ */
+export function tacticStatBreakdown(key: TacticStyleKey | null | undefined): {
+  attack: TacticStat[];
+  defense: TacticStat[];
+} {
+  const style = tacticStyleByKey(key);
+  return {
+    attack: [
+      { label: "공격 전개", value: biasToStat(style.attackBias) },
+      { label: "측면 오버래핑", value: biasToStat(style.overlapBias) },
+      { label: "직선적 전개(롱볼 성향)", value: biasToStat(style.directnessBias) },
+    ],
+    defense: [
+      { label: "전방 압박", value: biasToStat(style.pressBias) },
+      { label: "역습 전환", value: biasToStat(style.counterBias) },
+    ],
+  };
+}
+
+/** Style-flavoured, stat-backed bullet points for the post-match "AI 전술 분석" panel. */
+export function generateTacticAnalysis(key: TacticStyleKey | null | undefined, stats: TeamStats): string[] {
+  const style = tacticStyleByKey(key);
+  const shotAccuracy = stats.shots > 0 ? Math.round((stats.shotsOnTarget / stats.shots) * 100) : 0;
+
+  switch (style.key) {
+    case "possession":
+      return [
+        `점유율 ${stats.possession}%로 볼을 오래 소유했습니다.`,
+        `짧은 패스 전개 덕분에 패스 성공률 ${stats.passSuccessRate}%를 기록했습니다.`,
+        `슈팅 ${stats.shots}회 중 유효 슈팅은 ${stats.shotsOnTarget}회(${shotAccuracy}%)였습니다.`,
+      ];
+    case "counter":
+      return [
+        `인터셉트 ${stats.interceptions}회로 볼을 되찾은 뒤 빠르게 전환했습니다.`,
+        `태클 성공 ${stats.tacklesWon}회로 상대 공격을 끊어냈습니다.`,
+        `역습 과정에서 슈팅 ${stats.shots}회 중 ${stats.shotsOnTarget}회가 유효 슈팅으로 이어졌습니다.`,
+      ];
+    case "wing":
+      return [
+        `측면 위주 전개로 점유율 ${stats.possession}%를 기록했습니다.`,
+        `슈팅 ${stats.shots}회 중 ${stats.shotsOnTarget}회(${shotAccuracy}%)가 유효 슈팅이었습니다.`,
+        `패스 성공률 ${stats.passSuccessRate}%로 측면 연계가 원활했습니다.`,
+      ];
+    case "halfspace":
+      return [
+        `하프스페이스 침투로 패스 성공률 ${stats.passSuccessRate}%를 기록했습니다.`,
+        `중앙 집중 전개로 슈팅 ${stats.shots}회, 유효 슈팅 ${stats.shotsOnTarget}회를 만들었습니다.`,
+        `점유율 ${stats.possession}%로 안정적인 경기 운영을 보였습니다.`,
+      ];
+    case "longball":
+      return [
+        `롱볼 위주 전술로 패스 성공률은 ${stats.passSuccessRate}%에 머물렀습니다.`,
+        `최전방을 직접 공략해 슈팅 ${stats.shots}회를 시도했습니다.`,
+        `점유율은 ${stats.possession}%로 낮았지만 직선적인 공격을 노렸습니다.`,
+      ];
+    case "gegenpress":
+      return [
+        `높은 압박으로 인터셉트 ${stats.interceptions}회, 태클 성공 ${stats.tacklesWon}회를 기록했습니다.`,
+        `탈취 직후 빠른 전환으로 슈팅 ${stats.shots}회를 만들어냈습니다.`,
+        `점유율 ${stats.possession}%로 경기를 주도했습니다.`,
+      ];
+  }
+}
+
+/** Which tactic styles suit each formation best, most-recommended first. */
+export const FORMATION_RECOMMENDED_STYLES: Record<FormationKey, TacticStyleKey[]> = {
+  "5-4-1": ["counter", "possession"],
+  "5-3-2": ["counter", "longball"],
+  "4-5-1": ["possession", "counter"],
+  "4-4-2": ["wing", "longball"],
+  "4-2-3-1": ["halfspace", "possession"],
+  "3-5-2": ["wing", "possession"],
+  "4-3-3": ["wing", "gegenpress"],
+  "3-4-3": ["gegenpress", "halfspace"],
+};
+
+export function recommendedStylesFor(formation: FormationKey): TacticStyleKey[] {
+  return FORMATION_RECOMMENDED_STYLES[formation] ?? [];
+}

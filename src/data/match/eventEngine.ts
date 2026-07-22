@@ -2,6 +2,7 @@ import { goalkeeper, otherSide, outfield, sidePlayers, skill } from "./playerRun
 import { createLiveSnapshot, createPlayerStats, finalizePlayerStats, playerStat } from "./liveStats";
 import { clamp, mulberry32, weightedPick } from "./random";
 import { emptyRunningStats, finalizeTeamStatsPair, type RunningStats } from "./stats";
+import { tacticalWorkRate, tacticsForSide } from "./tactics";
 import type {
   GoalEvent,
   HalfResult,
@@ -34,16 +35,30 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   };
   const playerStats = createPlayerStats(input);
   const snapshots = new Map<number, ReturnType<typeof createLiveSnapshot>>();
+  const periodStartMinute = Math.max(0, lo - 1);
   const duration = hi - lo + 1;
   const possessionCount = Math.max(24, Math.round(duration * 1.12));
-  const eloEdge = (input.userElo - input.oppElo) / 400;
-  const creativityEdge = (input.userAbility.creativity - input.oppAbility.creativity) / 100;
+  const userTactics = tacticsForSide(input, "user");
+  const oppTactics = tacticsForSide(input, "opp");
+  const eloEdge = (input.userElo - input.oppElo) / 600;
+  const creativityEdge = (input.userAbility.creativity - input.oppAbility.creativity) / 120;
+  const tacticalPossessionEdge =
+    (oppTactics.directnessBias - userTactics.directnessBias) * 0.018 +
+    (userTactics.pressBias - oppTactics.pressBias) * 0.012;
   const userPossessionChance = clamp(
-    0.5 + eloEdge * 0.07 + creativityEdge * 0.1 - input.attackBias * 0.025 + (input.isHome ? 0.018 : -0.018),
-    0.33,
-    0.67
+    0.5 +
+      eloEdge * 0.06 +
+      creativityEdge * 0.08 -
+      input.attackBias * 0.025 +
+      tacticalPossessionEdge +
+      (input.isHome ? 0.018 : -0.018),
+    0.36,
+    0.64
   );
-  snapshots.set(Math.max(0, lo - 1), createLiveSnapshot(input, Math.max(0, lo - 1), running, playerStats, goals));
+  snapshots.set(
+    periodStartMinute,
+    createLiveSnapshot(input, periodStartMinute, running, playerStats, goals, periodStartMinute)
+  );
 
   const addEvent = (
     minute: number,
@@ -65,6 +80,72 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     const defenders = outfield(sidePlayers(input, defendingSide));
     const keeperPlayer = goalkeeper(sidePlayers(input, defendingSide));
     if (!attackers.length || !defenders.length || !keeperPlayer) continue;
+
+    const sideTactics = side === "user" ? userTactics : oppTactics;
+    const defendingTactics = side === "user" ? oppTactics : userTactics;
+    const formationAttackBias = side === "user" ? input.attackBias : 0;
+    const sideAttackBias = clamp(formationAttackBias + sideTactics.attackBias, -1.5, 1.5);
+    const directness = clamp(sideAttackBias * 0.45 + sideTactics.directnessBias, -1.4, 1.4);
+    const counterEdge = clamp(sideTactics.counterBias - defendingTactics.counterBias, -1.5, 1.5);
+    const sideWorkRate = tacticalWorkRate(sideTactics, minute);
+    const defendingWorkRate = tacticalWorkRate(defendingTactics, minute);
+    const routinePassCount = attackers.length > 1
+      ? Math.round(clamp(6 - directness * 1.6 + (rng() - 0.5) * 4, 3, 10))
+      : 0;
+    for (let pass = 0; pass < routinePassCount; pass++) {
+      const passer = weightedPick(
+        attackers,
+        (player) =>
+          (player.position === "DEF" ? 2.5 : player.position === "MID" ? 2.2 : 0.8) *
+          (0.6 + player.shortPassing / 100),
+        rng
+      );
+      const receiver = weightedPick(
+        attackers.filter((player) => player.name !== passer.name),
+        (player) => (player.position === "MID" ? 2.4 : player.position === "DEF" ? 1.8 : 1.1),
+        rng
+      );
+      const pressingDefender = weightedPick(
+        defenders,
+        (player) => 0.5 + (player.interceptions + player.aggression + player.reactions) / 240,
+        rng
+      );
+      const passQuality = skill(passer, minute, input.elevation, [
+        [passer.shortPassing, 0.42],
+        [passer.passing, 0.24],
+        [passer.vision, 0.14],
+        [passer.ballControl, 0.12],
+        [passer.composure, 0.08],
+      ]) * sideWorkRate;
+      const pressureQuality = skill(pressingDefender, minute, input.elevation, [
+        [pressingDefender.interceptions, 0.38],
+        [pressingDefender.defensiveAwareness, 0.28],
+        [pressingDefender.reactions, 0.2],
+        [pressingDefender.aggression, 0.14],
+      ]) * defendingWorkRate * (1 + defendingTactics.pressBias * 0.055);
+      const routinePassChance = clamp(
+        0.9 + (passQuality - pressureQuality) / 500 - directness * 0.018,
+        0.82,
+        0.97
+      );
+      const passerStats = playerStat(playerStats, side, passer);
+      running[side].possessionTouches++;
+      running[side].passesAttempted++;
+      if (passerStats) {
+        passerStats.touches++;
+        passerStats.passesAttempted++;
+      }
+      if (rng() < routinePassChance) {
+        running[side].passesCompleted++;
+        if (passerStats) passerStats.passesCompleted++;
+        const receiverStats = playerStat(playerStats, side, receiver);
+        if (receiverStats) receiverStats.touches++;
+      } else if (rng() < 0.35) {
+        running[defendingSide].interceptions++;
+        const defenderStats = playerStat(playerStats, defendingSide, pressingDefender);
+        if (defenderStats) defenderStats.interceptions++;
+      }
+    }
 
     let carrier = weightedPick(
       attackers,
@@ -96,14 +177,14 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         [carrier.agility, 0.18],
         [carrier.pace, 0.14],
         [carrier.composure, 0.1],
-      ]);
+      ]) * sideWorkRate;
       const defenderTackle = skill(defender, minute, input.elevation, [
         [defender.standingTackle, 0.3],
         [defender.defensiveAwareness, 0.24],
         [defender.strength, 0.17],
         [defender.interceptions, 0.17],
         [defender.reactions, 0.12],
-      ]);
+      ]) * defendingWorkRate * (1 + defendingTactics.pressBias * 0.045);
       const wantsDribble =
         carrier.position === "FWD"
           ? rng() < 0.32 + Math.max(0, carrier.dribbling - carrier.passing) / 180
@@ -111,7 +192,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
 
       if (wantsDribble) {
         if (carrierStats) carrierStats.dribblesAttempted++;
-        const dribbleChance = clamp(0.5 + (carrierDribble - defenderTackle) / 115, 0.22, 0.86);
+        const dribbleChance = clamp(0.5 + (carrierDribble - defenderTackle) / 145, 0.25, 0.82);
         if (rng() < dribbleChance) {
           progress += 1.2;
           if (carrierStats) carrierStats.dribblesCompleted++;
@@ -142,26 +223,26 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           [carrier.composure, 0.14],
           [carrier.ballControl, 0.1],
           [carrier.longPassing, 0.06],
-        ]);
+        ]) * sideWorkRate;
         const interceptionQuality = skill(defender, minute, input.elevation, [
           [defender.interceptions, 0.32],
           [defender.defensiveAwareness, 0.27],
           [defender.reactions, 0.17],
           [defender.aggression, 0.12],
           [defender.pace, 0.12],
-        ]);
-        const directness = side === "user" ? input.attackBias : -input.attackBias * 0.35;
+        ]) * defendingWorkRate * (1 + defendingTactics.pressBias * 0.05);
         const passChance = clamp(
-          0.72 + (passQuality - interceptionQuality) / 175 - progress * 0.012 - directness * 0.025,
-          0.48,
-          0.94
+          0.72 + (passQuality - interceptionQuality) / 220 - progress * 0.012 - directness * 0.025,
+          0.5,
+          0.92
         );
         running[side].passesAttempted++;
         if (carrierStats) carrierStats.passesAttempted++;
         if (rng() < passChance) {
           running[side].passesCompleted++;
           if (carrierStats) carrierStats.passesCompleted++;
-          progress += receiver.position === "FWD" ? 1.05 : receiver.position === "MID" ? 0.72 : 0.38;
+          const baseProgress = receiver.position === "FWD" ? 1.05 : receiver.position === "MID" ? 0.72 : 0.38;
+          progress += baseProgress * clamp(1 + directness * 0.2 + counterEdge * 0.08, 0.72, 1.35);
           addEvent(minute, side, "pass", carrier.name, receiver.name, true);
           lastPasser = carrier;
           carrier = receiver;
@@ -175,7 +256,10 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         }
       }
 
-      const tacticShotBias = side === "user" ? input.attackBias * 0.07 : input.attackBias * 0.025;
+      const tacticShotBias =
+        sideAttackBias * 0.06 +
+        sideTactics.overlapBias * 0.012 +
+        counterEdge * 0.022;
       const roleShotChance = carrier.position === "FWD" ? 0.3 : carrier.position === "MID" ? 0.16 : 0.06;
       const shootNow =
         rng() < roleShotChance + progress * 0.045 + tacticShotBias ||
@@ -188,15 +272,25 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         rng
       );
       const chanceCreation =
-        (carrier.positioning - marker.defensiveAwareness) / 650 +
-        ((lastPasser?.vision ?? carrier.vision) - 65) / 1000 +
-        progress * 0.007;
-      const baseXg = carrier.position === "FWD" ? 0.065 : carrier.position === "MID" ? 0.04 : 0.022;
+        (carrier.positioning - marker.defensiveAwareness) / 900 +
+        ((lastPasser?.vision ?? carrier.vision) - 65) / 1300 +
+        progress * 0.007 +
+        sideTactics.overlapBias * 0.004 +
+        counterEdge * 0.009 +
+        Math.max(0, defendingTactics.pressBias) * 0.004;
+      const baseXg = carrier.position === "FWD" ? 0.06 : carrier.position === "MID" ? 0.038 : 0.022;
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.045, 0.012, 0.48);
       running[side].shots++;
       running[side].xg += shotXg;
       const shooterStats = playerStat(playerStats, side, carrier);
       if (shooterStats) shooterStats.shots++;
+      if (lastPasser && lastPasser.name !== carrier.name) {
+        const creatorStats = playerStat(playerStats, side, lastPasser);
+        if (creatorStats) creatorStats.keyPasses++;
+      }
+      const recordBigChanceMiss = () => {
+        if (shotXg >= 0.18 && shooterStats) shooterStats.bigChancesMissed++;
+      };
       addEvent(minute, side, "shot", carrier.name, keeperPlayer.name, true, shotXg);
 
       const shootingTechnique = skill(carrier, minute, input.elevation, [
@@ -205,23 +299,23 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         [carrier.shotPower, 0.13],
         [carrier.composure, 0.2],
         [carrier.positioning, 0.15],
-      ]);
+      ]) * sideWorkRate;
       const blockQuality = skill(marker, minute, input.elevation, [
         [marker.defending, 0.22],
         [marker.defensiveAwareness, 0.28],
         [marker.standingTackle, 0.2],
         [marker.reactions, 0.16],
         [marker.aggression, 0.14],
-      ]);
+      ]) * defendingWorkRate;
       const keeperQuality = skill(keeperPlayer, minute, input.elevation, [
         [keeperPlayer.gkReflexes, 0.3],
         [keeperPlayer.gkDiving, 0.25],
         [keeperPlayer.gkPositioning, 0.22],
         [keeperPlayer.gkHandling, 0.13],
         [keeperPlayer.reactions, 0.1],
-      ]);
-      const finishingMultiplier = clamp(0.72 + (shootingTechnique - 60) / 105, 0.58, 1.48);
-      const keeperMultiplier = clamp(1.08 - (keeperQuality - 65) / 155, 0.63, 1.2);
+      ]) * defendingWorkRate;
+      const finishingMultiplier = clamp(0.84 + (shootingTechnique - 60) / 160, 0.68, 1.28);
+      const keeperMultiplier = clamp(1.04 - (keeperQuality - 65) / 260, 0.76, 1.16);
       const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier, 0.01, 0.72);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
@@ -234,6 +328,11 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           const assisterStats = playerStat(playerStats, side, lastPasser);
           if (assisterStats) assisterStats.assists++;
         }
+        for (const defenderPlayer of sidePlayers(input, defendingSide)) {
+          if (defenderPlayer.position !== "GK" && defenderPlayer.position !== "DEF") continue;
+          const defenderStats = playerStat(playerStats, defendingSide, defenderPlayer);
+          if (defenderStats) defenderStats.goalsConceded++;
+        }
         goals.push({ minute, side, scorer: carrier.name, assist });
         addEvent(minute, side, "goal", carrier.name, assist, true, shotXg);
         break;
@@ -243,12 +342,14 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       if (rng() < blockChance) {
         running[defendingSide].tacklesWon++;
         const markerStats = playerStat(playerStats, defendingSide, marker);
-        if (markerStats) markerStats.tacklesWon++;
+        if (markerStats) markerStats.blocks++;
+        recordBigChanceMiss();
         addEvent(minute, defendingSide, "block", marker.name, carrier.name, true, shotXg);
         break;
       }
       const onTargetChance = clamp(0.4 + (shootingTechnique - 65) / 150, 0.24, 0.82);
       if (rng() >= onTargetChance) {
+        recordBigChanceMiss();
         addEvent(minute, side, "miss", carrier.name, undefined, false, shotXg);
         break;
       }
@@ -257,15 +358,16 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       if (shooterStats) shooterStats.shotsOnTarget++;
       const keeperStats = playerStat(playerStats, defendingSide, keeperPlayer);
       if (keeperStats) keeperStats.saves++;
+      recordBigChanceMiss();
       addEvent(minute, defendingSide, "save", keeperPlayer.name, carrier.name, true, shotXg);
       break;
     }
-    snapshots.set(minute, createLiveSnapshot(input, minute, running, playerStats, goals));
+    snapshots.set(minute, createLiveSnapshot(input, minute, running, playerStats, goals, periodStartMinute));
   }
 
   goals.sort((a, b) => a.minute - b.minute);
   events.sort((a, b) => a.minute - b.minute);
-  snapshots.set(hi, createLiveSnapshot(input, hi, running, playerStats, goals));
+  snapshots.set(hi, createLiveSnapshot(input, hi, running, playerStats, goals, periodStartMinute));
   return {
     goals,
     events,
@@ -274,7 +376,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     userXg: running.user.xg,
     oppXg: running.opp.xg,
     teamStats: finalizeTeamStatsPair(running),
-    playerStats: finalizePlayerStats(input, playerStats, hi),
+    playerStats: finalizePlayerStats(input, playerStats, hi, periodStartMinute),
     liveSnapshots: [...snapshots.values()].sort((a, b) => a.minute - b.minute),
   };
 }

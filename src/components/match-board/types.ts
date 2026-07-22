@@ -1,7 +1,7 @@
 import type { FormationKey, SlotPositions } from "../../data/formation";
 import type { Leaderboard } from "../../data/leaderboard";
 import type { SimResult } from "../../data/matchSim";
-import type { Slots } from "../../data/tactics";
+import type { Slots, TacticStyleKey } from "../../data/tactics";
 import type { PlayedResult, TeamMatch } from "../../data/tournament";
 import type { Team, TournamentData } from "../../data/types";
 
@@ -15,6 +15,7 @@ export interface Lineup {
   slots: Slots;
   positions?: SlotPositions;
   presetKey?: string | null;
+  tacticStyleKey?: TacticStyleKey | null;
 }
 
 export interface MatchBoardProps {

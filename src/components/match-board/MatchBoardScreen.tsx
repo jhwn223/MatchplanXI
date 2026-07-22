@@ -2,7 +2,7 @@ import type { RefObject } from "react";
 import type { ConditionBreakdown } from "../../data/conditionEngine";
 import type { FormationKey, FormationSlot } from "../../data/formation";
 import type { HalfResult, SimResult } from "../../data/matchSim";
-import type { TacticalPreset } from "../../data/tactics";
+import type { TacticStyleKey } from "../../data/tactics";
 import { stageLabelKo, type TeamMatch } from "../../data/tournament";
 import type { Player, Team } from "../../data/types";
 import { AppTopbar } from "../AppTopbar";
@@ -20,6 +20,8 @@ interface Props {
   formation: FormationSlot[];
   detectedFormation: string;
   effectiveAttackBias: number;
+  tacticStyleKey: TacticStyleKey | null;
+  onSelectTacticStyle: (key: TacticStyleKey) => void;
   teamIndex: number | null;
   conditionSubIndices: ConditionSubIndices;
   conditions: Map<number, ConditionBreakdown>;
@@ -41,7 +43,6 @@ interface Props {
   onBack: () => void;
   onSoundChange: (enabled: boolean) => void;
   onSelectFormation: (key: FormationKey) => void;
-  onApplyPreset: (preset: TacticalPreset) => void;
   onAutoFill: () => void;
   onResetPositions: () => void;
   onResetLineup: () => void;
@@ -57,6 +58,8 @@ export function MatchBoardScreen({
   formation,
   detectedFormation,
   effectiveAttackBias,
+  tacticStyleKey,
+  onSelectTacticStyle,
   teamIndex,
   conditionSubIndices,
   conditions,
@@ -78,7 +81,6 @@ export function MatchBoardScreen({
   onBack,
   onSoundChange,
   onSelectFormation,
-  onApplyPreset,
   onAutoFill,
   onResetPositions,
   onResetLineup,
@@ -122,12 +124,13 @@ export function MatchBoardScreen({
       <div className="board__body">
         <aside className="board__sidebar">
           <TacticsPanel
+            selectedFormation={lineup.formation}
             detectedFormation={detectedFormation}
             attackBias={effectiveAttackBias}
             onSelectFormation={onSelectFormation}
-            onApplyPreset={onApplyPreset}
             onAutoFill={onAutoFill}
-            activePresetKey={lineup.presetKey ?? null}
+            tacticStyleKey={tacticStyleKey}
+            onSelectTacticStyle={onSelectTacticStyle}
             subsLocked={startingXI != null}
           />
           <ConditionGauge value={teamIndex} filledCount={placedCount} subIndices={conditionSubIndices} />
