@@ -24,11 +24,56 @@ export function experienceOffset(caps: number, altPenalty: number): number {
   return Math.min(altPenalty, capFactor);
 }
 
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/** Rough club-league UTC offset buckets, picked deterministically per player so the
+ *  same player always "lives" in the same timezone across renders. */
+const CLUB_LEAGUE_TZ = [1, 0, -3, -6, 3, 9, 3];
+
+/** Deterministic (but arbitrary) club timezone offset for a player, keyed by a stable string. */
+export function clubTimezoneOffset(seedKey: string): number {
+  return CLUB_LEAGUE_TZ[hashStr(seedKey) % CLUB_LEAGUE_TZ.length];
+}
+
+/** Rough host-city UTC offset estimated from longitude (~15° per hour). */
+export function estimateTimezoneOffset(longitude: number): number {
+  return Math.round(longitude / 15);
+}
+
+/** Estimated flight hours for the trip: base + jetlag-scaled distance + a per-player noise term. */
+export function estimateFlightHours(jetlagHours: number, seedKey: string): number {
+  const noise = (hashStr(seedKey + ":flight") % 100) / 100;
+  return clamp(2 + jetlagHours * 1.3 + noise * 2, 2, 16);
+}
+
+/** Penalty from crossing timezones to reach the host city. */
+export function jetlagPenalty(jetlagHours: number): number {
+  return clamp(jetlagHours * 2.2, 0, 20);
+}
+
+/** Penalty from time spent travelling, beyond what jetlag already accounts for. */
+export function flightPenalty(flightHours: number): number {
+  return clamp((flightHours - 2) * 1.1, 0, 14);
+}
+
+/** Rest⇄training slider effect: 0 = full rest (+10), 50 = neutral, 100 = full training (-10). */
+export function restBiasAdjust(restBias: number): number {
+  return ((50 - restBias) / 50) * 10;
+}
+
 export interface ConditionInputs {
   elevationMeters: number;
   restDays: number;
   recentMinutes: number;
   caps: number;
+  jetlagHours: number;
+  flightHours: number;
+  /** 0-100 rest⇄training slider, defaults to 50 (neutral) if omitted. */
+  restBias?: number;
 }
 
 export interface ConditionBreakdown {
@@ -37,6 +82,11 @@ export interface ConditionBreakdown {
   restPenalty: number;
   fatiguePenalty: number;
   experienceOffset: number;
+  jetlagPenalty: number;
+  flightPenalty: number;
+  jetlagHours: number;
+  flightHours: number;
+  restBiasAdjust: number;
 }
 
 export function computePlayerCondition(inputs: ConditionInputs): ConditionBreakdown {
@@ -44,7 +94,10 @@ export function computePlayerCondition(inputs: ConditionInputs): ConditionBreakd
   const rest = restPenalty(inputs.restDays);
   const fatigue = fatiguePenalty(inputs.recentMinutes);
   const offset = experienceOffset(inputs.caps, alt);
-  const score = clamp(100 - alt - rest - fatigue + offset, 0, 100);
+  const jetlag = jetlagPenalty(inputs.jetlagHours);
+  const flight = flightPenalty(inputs.flightHours);
+  const biasAdjust = restBiasAdjust(inputs.restBias ?? 50);
+  const score = clamp(100 - alt - rest - fatigue - jetlag - flight + offset + biasAdjust, 0, 100);
 
   return {
     score,
@@ -52,6 +105,11 @@ export function computePlayerCondition(inputs: ConditionInputs): ConditionBreakd
     restPenalty: rest,
     fatiguePenalty: fatigue,
     experienceOffset: offset,
+    jetlagPenalty: jetlag,
+    flightPenalty: flight,
+    jetlagHours: inputs.jetlagHours,
+    flightHours: inputs.flightHours,
+    restBiasAdjust: biasAdjust,
   };
 }
 

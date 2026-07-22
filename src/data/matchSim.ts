@@ -132,18 +132,31 @@ export function quickSimScore(
   return { home: poisson(userXg, rng), away: poisson(oppXg, rng) };
 }
 
-export function simulateMatch(input: SimInput): SimResult {
+export interface HalfSimInput extends SimInput {
+  /** inclusive minute range this half's goals may land in, e.g. [2,44] or [46,90] */
+  minuteMin: number;
+  minuteMax: number;
+  /** fraction of a full match's xG this half accounts for (0.5 for an even split) */
+  halfScale: number;
+}
+
+/** Simulate a single half: goals confined to [minuteMin, minuteMax], xG scaled by halfScale.
+ *  Used twice per match so a halftime substitution/formation change can change the second half's odds. */
+export function simulateHalf(input: HalfSimInput): SimResult {
   const rng = mulberry32(input.seed);
   const { userXg, oppXg } = computeXg(input);
+  const halfUserXg = userXg * input.halfScale;
+  const halfOppXg = oppXg * input.halfScale;
 
-  const userGoals = poisson(userXg, rng);
-  const oppGoals = poisson(oppXg, rng);
+  const userGoals = poisson(halfUserXg, rng);
+  const oppGoals = poisson(halfOppXg, rng);
 
+  const span = input.minuteMax - input.minuteMin;
   const used = new Set<number>();
   const randMinute = () => {
-    let m = 2 + Math.floor(rng() * 88);
+    let m = input.minuteMin + Math.floor(rng() * span);
     let guard = 0;
-    while (used.has(m) && guard++ < 30) m = 2 + Math.floor(rng() * 88);
+    while (used.has(m) && guard++ < 30) m = input.minuteMin + Math.floor(rng() * span);
     used.add(m);
     return m;
   };
@@ -161,14 +174,14 @@ export function simulateMatch(input: SimInput): SimResult {
   return {
     userGoals,
     oppGoals,
-    userXg,
-    oppXg,
+    userXg: halfUserXg,
+    oppXg: halfOppXg,
     goals,
     comparison: buildComparison(input, userGoals, oppGoals, simOutcome),
   };
 }
 
-function buildComparison(
+export function buildComparison(
   input: SimInput,
   simU: number,
   simO: number,

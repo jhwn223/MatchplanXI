@@ -8,8 +8,9 @@ import { CountrySelect } from "./components/CountrySelect";
 import { TeamHub } from "./components/TeamHub";
 import { Bracket } from "./components/Bracket";
 import { MatchBoard, emptySlots, type Lineup } from "./components/MatchBoard";
+import { ConditionDesk } from "./components/ConditionDesk";
 
-type View = "select" | "hub" | "match" | "bracket" | "komatch";
+type View = "select" | "hub" | "match" | "bracket" | "komatch" | "condition";
 
 function koMatchIdNum(id: string): number {
   let h = 0;
@@ -28,6 +29,7 @@ function App() {
   const [koResults, setKoResults] = useState<KOResults>({});
   const [koLineups, setKoLineups] = useState<Record<string, Lineup>>({});
   const [activeKo, setActiveKo] = useState<KOMatch | null>(null);
+  const [restBias, setRestBias] = useState<Record<number, number>>({});
 
   const team = useMemo(
     () => (data && teamId != null ? data.teams.find((t) => t.team_id === teamId) ?? null : null),
@@ -48,11 +50,34 @@ function App() {
     setPlayed({});
     setKoResults({});
     setKoLineups({});
+    setRestBias({});
     setView("hub");
+  }
+
+  function changeRestBias(playerId: number, value: number) {
+    setRestBias((prev) => ({ ...prev, [playerId]: value }));
   }
 
   function recordResult(matchId: number, result: PlayedResult) {
     setPlayed((prev) => ({ ...prev, [matchId]: result }));
+  }
+
+  /** next unplayed group-stage fixture after the given one, chronologically; null if none left. */
+  function nextGroupMatch(afterMatchId: number): number | null {
+    const groupMatches = teamMatches
+      .filter((tm) => tm.match.stage_name === "Group Stage")
+      .sort((a, b) => a.order - b.order);
+    const idx = groupMatches.findIndex((tm) => tm.match.match_id === afterMatchId);
+    for (let i = idx + 1; i < groupMatches.length; i++) {
+      if (!played[groupMatches[i].match.match_id]) return groupMatches[i].match.match_id;
+    }
+    return null;
+  }
+
+  function goToNextGroupMatch(afterMatchId: number) {
+    const nextId = nextGroupMatch(afterMatchId);
+    if (nextId != null) openMatch(nextId);
+    else setView("hub");
   }
 
   function openMatch(matchId: number) {
@@ -126,6 +151,19 @@ function App() {
         onBack={() => setView("select")}
         onOpenMatch={openMatch}
         onOpenBracket={() => setView("bracket")}
+        onOpenCondition={() => setView("condition")}
+      />
+    );
+  }
+
+  if (view === "condition" && team) {
+    return (
+      <ConditionDesk
+        data={data}
+        team={team}
+        restBias={restBias}
+        onChangeRestBias={changeRestBias}
+        onBack={() => setView("hub")}
       />
     );
   }
@@ -154,9 +192,11 @@ function App() {
           teamMatches={teamMatches}
           activeMatch={activeMatch}
           lineup={lineup}
+          restBias={restBias}
           onChangeLineup={(next) => setLineups((prev) => ({ ...prev, [activeMatchId]: next }))}
           onBack={() => setView("hub")}
           onPlayed={recordResult}
+          onNextMatch={() => goToNextGroupMatch(activeMatchId)}
         />
       );
     }
@@ -173,6 +213,7 @@ function App() {
           teamMatches={teamMatches}
           activeMatch={activeMatch}
           lineup={lineup}
+          restBias={restBias}
           onChangeLineup={(next) => setKoLineups((prev) => ({ ...prev, [activeKo.id]: next }))}
           onBack={() => setView("bracket")}
           onPlayed={(_, result) =>
@@ -181,6 +222,7 @@ function App() {
               [activeKo.id]: { userGoals: result.homeGoals, oppGoals: result.awayGoals },
             }))
           }
+          onNextMatch={() => setView("bracket")}
         />
       );
     }

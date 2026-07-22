@@ -12,7 +12,7 @@ export function CountrySelect({ teams, onPick }: Props) {
   return (
     <div className="country-select">
       <header className="country-select__header">
-        <h1 className="country-select__title">고지대 컨디션 전술보드</h1>
+        <h1 className="country-select__title">내가 국가대표팀 감독이라면</h1>
         <p className="country-select__subtitle">
           감독이 될 국가를 선택하세요. 2026 월드컵 실제 대진을 따라 경기를 치르며,
           경기장 고도에 맞춰 포메이션과 전술을 짜게 됩니다.

@@ -25,10 +25,32 @@ function resolveGroupMatch(
   return quickSimScore(matchId * 131 + 7, eh, ea);
 }
 
+/** last matchday date the user has actually completed in this group, if any. */
+function userRevealThroughDate(
+  data: TournamentData,
+  userTeamName: string | undefined,
+  played: PlayedMap
+): string | null {
+  if (!userTeamName) return null;
+  let through: string | null = null;
+  for (const m of data.matches) {
+    if (m.stage_name !== "Group Stage") continue;
+    if (m.home_team_name !== userTeamName && m.away_team_name !== userTeamName) continue;
+    if (played[m.match_id] && (through == null || m.date > through)) through = m.date;
+  }
+  return through;
+}
+
+/** Group table. When `userTeamName` is given, only matches the user has actually played
+ *  (plus other teams' fixtures on matchdays the user has already reached) are counted —
+ *  so the table starts at 0 and fills in as the user progresses, instead of the whole
+ *  group being pre-simulated. Omit it (as `allGroupStandings` does for bracket seeding)
+ *  to get the fully-simulated final table. */
 export function groupStandingsSim(
   data: TournamentData,
   groupLetter: string,
   played: PlayedMap,
+  userTeamName?: string,
   elo = eloOf(data)
 ): StandingRow[] {
   const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
@@ -41,9 +63,20 @@ export function groupStandingsSim(
       played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0,
     });
   }
+  const revealThrough = userRevealThroughDate(data, userTeamName, played);
   for (const m of data.matches) {
     if (m.stage_name !== "Group Stage") continue;
     if (!names.has(m.home_team_name) || !names.has(m.away_team_name)) continue;
+
+    const isUserMatch = userTeamName != null && (m.home_team_name === userTeamName || m.away_team_name === userTeamName);
+    const alreadyPlayed = played[m.match_id] != null;
+    if (userTeamName != null && !alreadyPlayed) {
+      // gated mode: the user's own unplayed fixtures don't count yet, and other teams'
+      // fixtures only reveal once the user has reached that matchday.
+      if (isUserMatch) continue;
+      if (revealThrough == null || m.date > revealThrough) continue;
+    }
+
     const { home: hs, away: as } = resolveGroupMatch(
       m.match_id, m.home_team_name, m.away_team_name, played, elo
     );
@@ -66,7 +99,7 @@ const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 export function allGroupStandings(data: TournamentData, played: PlayedMap): Record<string, StandingRow[]> {
   const elo = eloOf(data);
   const out: Record<string, StandingRow[]> = {};
-  for (const g of GROUPS) out[g] = groupStandingsSim(data, g, played, elo);
+  for (const g of GROUPS) out[g] = groupStandingsSim(data, g, played, undefined, elo);
   return out;
 }
 

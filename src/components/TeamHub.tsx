@@ -17,6 +17,7 @@ interface Props {
   onBack: () => void;
   onOpenMatch: (matchId: number) => void;
   onOpenBracket: () => void;
+  onOpenCondition: () => void;
 }
 
 function elevationTag(elev: number): string {
@@ -40,10 +41,19 @@ function userResultOf(tm: TeamMatch, played: PlayedMap): UserResult | null {
   return { gf, ga, outcome: gf > ga ? "W" : gf < ga ? "L" : "D" };
 }
 
-export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch, onOpenBracket }: Props) {
+export function TeamHub({
+  data,
+  team,
+  lineupCounts,
+  played,
+  onBack,
+  onOpenMatch,
+  onOpenBracket,
+  onOpenCondition,
+}: Props) {
   const allMatches = getTeamMatches(data, team.team_name);
   const groupMatches = allMatches.filter((m) => m.match.stage_name === "Group Stage");
-  const standings = groupStandingsSim(data, team.group_letter, played);
+  const standings = groupStandingsSim(data, team.group_letter, played, team.team_name);
 
   const groupPlayedCount = groupMatches.filter((m) => played[m.match.match_id]).length;
   const groupComplete = groupPlayedCount === groupMatches.length;
@@ -77,6 +87,9 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
             </p>
           </div>
         </div>
+        <button type="button" className="condition-cta" onClick={onOpenCondition}>
+          ✈️ 컨디션 트래커
+        </button>
       </header>
 
       <div className={`hub__banner hub__banner--${banner.tone}`}>{banner.text}</div>

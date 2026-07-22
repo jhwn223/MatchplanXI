@@ -16,6 +16,14 @@ interface Props {
   playersById: Map<number, Player>;
   onComplete: () => void;
   onClose: () => void;
+  /** minute this instance starts animating from (45 for a post-halftime restart). */
+  startMinute?: number;
+  /** minute this instance stops at and fires onComplete (45 to pause for halftime). */
+  endMinute?: number;
+  /** running score carried over from a previous half. */
+  startScore?: [number, number];
+  /** when provided, the full-time result screen offers a shortcut straight to the next fixture. */
+  onNext?: () => void;
 }
 
 interface Dot {
@@ -81,16 +89,21 @@ export function MatchArena({
   playersById,
   onComplete,
   onClose,
+  startMinute = 0,
+  endMinute = 90,
+  startScore = [0, 0],
+  onNext,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<ArenaState | null>(null);
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
   const completedRef = useRef(false);
+  const showFinalScreen = endMinute >= 90;
 
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [hud, setHud] = useState({ minute: 0, home: 0, away: 0, banner: null as string | null });
+  const [hud, setHud] = useState({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null as string | null });
   const [ended, setEnded] = useState(false);
 
   function buildState(): ArenaState {
@@ -108,11 +121,11 @@ export function MatchArena({
       dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 1, num: i + 1, role: s.position, react: 0.85 + rnd(i + 20) * 0.4, nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28 });
     });
     return {
-      clock: 0,
+      clock: startMinute,
       phase: "play",
       celebrateT: 0,
       actionT: 0.5,
-      score: [0, 0],
+      score: [...startScore],
       nextGoal: 0,
       dots,
       ball: { x: 50, y: 50, owner: 8, flightTo: -1, lastTeam: 0 },
@@ -241,10 +254,10 @@ export function MatchArena({
       }
 
       s.clock += dt * MIN_PER_SEC;
-      if (s.clock >= 90) {
-        s.clock = 90;
+      if (s.clock >= endMinute) {
+        s.clock = endMinute;
         s.phase = "ended";
-        s.score = [sim.userGoals, sim.oppGoals];
+        if (endMinute >= 90) s.score = [sim.userGoals, sim.oppGoals];
         if (!completedRef.current) {
           completedRef.current = true;
           onComplete();
@@ -474,7 +487,7 @@ export function MatchArena({
     stateRef.current = buildState();
     completedRef.current = true;
     setEnded(false);
-    setHud({ minute: 0, home: 0, away: 0, banner: null });
+    setHud({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null });
   }
 
   const cmp = sim.comparison;
@@ -540,12 +553,12 @@ export function MatchArena({
             <button
               type="button"
               className="arena-ctrl arena-ctrl--skip"
-              onClick={() => { stateRef.current!.clock = 90; }}
+              onClick={() => { stateRef.current!.clock = endMinute; }}
             >
-              결과로 건너뛰기 ⏭
+              {showFinalScreen ? "결과로 건너뛰기 ⏭" : "하프타임으로 건너뛰기 ⏭"}
             </button>
           </div>
-        ) : (
+        ) : showFinalScreen ? (
           <motion.div className="sim-compare" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <div className="sim-compare__row">
               <div className="sim-compare__col">
@@ -569,12 +582,30 @@ export function MatchArena({
               <button type="button" className="sim-btn sim-btn--ghost" onClick={replay}>
                 다시 보기
               </button>
-              <button type="button" className="sim-btn" onClick={onClose}>
-                확인
-              </button>
+              {onNext ? (
+                <>
+                  <button type="button" className="sim-btn sim-btn--ghost" onClick={onClose}>
+                    확인
+                  </button>
+                  <button
+                    type="button"
+                    className="sim-btn"
+                    onClick={() => {
+                      onClose();
+                      onNext();
+                    }}
+                  >
+                    다음 경기 →
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="sim-btn" onClick={onClose}>
+                  확인
+                </button>
+              )}
             </div>
           </motion.div>
-        )}
+        ) : null}
       </motion.div>
     </motion.div>
   );
