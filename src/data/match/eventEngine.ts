@@ -1,7 +1,7 @@
 import { goalkeeper, otherSide, outfield, sidePlayers, skill } from "./playerRuntime";
 import { createLiveSnapshot, createPlayerStats, finalizePlayerStats, playerStat } from "./liveStats";
 import { clamp, mulberry32, weightedPick } from "./random";
-import { emptyRunningStats, finalizeStats, type RunningStats } from "./stats";
+import { emptyRunningStats, finalizeTeamStatsPair, type RunningStats } from "./stats";
 import type {
   GoalEvent,
   HalfResult,
@@ -273,10 +273,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     oppGoals: goals.filter((goal) => goal.side === "opp").length,
     userXg: running.user.xg,
     oppXg: running.opp.xg,
-    teamStats: {
-      user: finalizeStats(running.user, running.opp),
-      opp: finalizeStats(running.opp, running.user),
-    },
+    teamStats: finalizeTeamStatsPair(running),
     playerStats: finalizePlayerStats(input, playerStats, hi),
     liveSnapshots: [...snapshots.values()].sort((a, b) => a.minute - b.minute),
   };
