@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { slotsOf, type FormationKey, type SlotPositions } from "../data/formation";
-import type { GoalEvent, PenaltyResult, SimComparison, TeamStats } from "../data/matchSim";
+import type { GoalEvent, MatchEvent, PenaltyResult, SimComparison, TeamStats } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
 import { topAssists, topScorers, type Leaderboard, type LeaderboardEntry } from "../data/leaderboard";
 
 /** Slimmed projection of a match result for one arena segment (a half, or extra time). */
 export interface ArenaSim {
   goals: GoalEvent[];
+  events?: MatchEvent[];
   userGoals: number;
   oppGoals: number;
   userXg?: number;
@@ -32,6 +33,7 @@ interface Props {
   slots: Record<string, number | null>;
   positions?: SlotPositions;
   playersById: Map<number, Player>;
+  opponentPlayers: Player[];
   leaderboard: Leaderboard;
   startMinute?: number;
   endMinute?: number;
@@ -56,6 +58,14 @@ interface Dot {
   name: string;
   role: Position;
   react: number; // reaction-speed multiplier
+  pace: number;
+  passing: number;
+  dribbling: number;
+  shooting: number;
+  defending: number;
+  goalkeeping: number;
+  stamina: number;
+  condition: number;
   nz: number; // idle-noise frequency
   ph: number; // noise phase offset
 }
@@ -131,6 +141,18 @@ const TACTIC_SELECTS: Record<TacticSelectKey, { title: string; options: Array<{ 
 
 const KOREAN_CANVAS_FONT = `"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Segoe UI", sans-serif`;
 
+const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = {
+  pass: { icon: "↗", label: "패스" },
+  dribble: { icon: "◇", label: "돌파" },
+  interception: { icon: "◆", label: "가로채기" },
+  tackle: { icon: "✦", label: "태클" },
+  shot: { icon: "◎", label: "슈팅" },
+  save: { icon: "✋", label: "선방" },
+  block: { icon: "■", label: "블록" },
+  miss: { icon: "○", label: "빗나감" },
+  goal: { icon: "⚽", label: "득점" },
+};
+
 interface ArenaState {
   clock: number;
   phase: "play" | "celebrate" | "penalties" | "interim" | "ended";
@@ -138,8 +160,9 @@ interface ArenaState {
   actionT: number;
   score: [number, number];
   nextGoal: number;
+  nextEvent: number;
   dots: Dot[];
-  ball: { x: number; y: number; owner: number; flightTo: number; lastTeam: 0 | 1 };
+  ball: { x: number; y: number; owner: number; flightTo: number; lastTeam: 0 | 1; scripted: boolean };
   banner: string | null;
   goalSide: 0 | 1 | null;
   time: number;
@@ -186,6 +209,7 @@ export function MatchArena({
   slots,
   positions,
   playersById,
+  opponentPlayers,
   leaderboard,
   startMinute = 0,
   endMinute = 90,
@@ -233,6 +257,23 @@ export function MatchArena({
     updateTeamTactics({ ...teamTactics, [key]: clampf(teamTactics[key] + delta, 1, 10) });
   }
 
+  function ratingsFor(player: Player | null | undefined, fallback = 65) {
+    const ability = player?.ability;
+    return {
+      react: clampf((ability?.reactions ?? fallback) / 70, 0.72, 1.32),
+      pace: ability?.pace ?? fallback,
+      passing: ability?.passing ?? fallback,
+      dribbling: ability?.dribbling ?? fallback,
+      shooting: ability?.shooting ?? fallback,
+      defending: ability?.defending ?? fallback,
+      goalkeeping: player?.position === "GK"
+        ? ((ability?.gkDiving ?? fallback) + (ability?.gkReflexes ?? fallback) + (ability?.gkPositioning ?? fallback)) / 3
+        : 10,
+      stamina: ability?.stamina ?? fallback,
+      condition: 72,
+    };
+  }
+
   function applyUserFormationToState(s: ArenaState, snapToShape: boolean) {
     const userSlots = slotsOf(formation);
     userSlots.forEach((slot, i) => {
@@ -247,6 +288,7 @@ export function MatchArena({
       dot.role = slot.position;
       dot.num = player ? (player.player_id % 30) + 1 : i + 1;
       dot.name = player?.player_name ?? slot.label;
+      Object.assign(dot, ratingsFor(player));
       if (snapToShape) {
         dot.x = h.x;
         dot.y = h.y;
@@ -264,11 +306,18 @@ export function MatchArena({
       const num = player ? (player.player_id % 30) + 1 : i + 1;
       const coordinate = positions?.[s.id] ?? s;
       const h = homeFor(coordinate.x, coordinate.y, 0);
-      dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, react: 0.85 + rnd(i) * 0.4, nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28 });
+      dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, ...ratingsFor(player), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28 });
     });
+    const opponentQueues: Record<Position, Player[]> = {
+      GK: opponentPlayers.filter((player) => player.position === "GK"),
+      DEF: opponentPlayers.filter((player) => player.position === "DEF"),
+      MID: opponentPlayers.filter((player) => player.position === "MID"),
+      FWD: opponentPlayers.filter((player) => player.position === "FWD"),
+    };
     slotsOf("4-3-3").forEach((s, i) => {
       const h = homeFor(s.x, s.y, 1);
-      dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 1, num: i + 1, name: `${oppCode} ${i + 1}`, role: s.position, react: 0.85 + rnd(i + 20) * 0.4, nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28 });
+      const player = opponentQueues[s.position].shift() ?? opponentPlayers[i] ?? null;
+      dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28 });
     });
     return {
       clock: startMinute,
@@ -277,8 +326,9 @@ export function MatchArena({
       actionT: 0.5,
       score: [...startScore],
       nextGoal: 0,
+      nextEvent: 0,
       dots,
-      ball: { x: 50, y: 50, owner: 8, flightTo: -1, lastTeam: 0 },
+      ball: { x: 50, y: 50, owner: 8, flightTo: -1, lastTeam: 0, scripted: false },
       banner: null,
       goalSide: null,
       time: 0,
@@ -328,11 +378,15 @@ export function MatchArena({
       const attackingRight = ownerTeam === 0;
       const gm = goalMouth(ownerTeam);
       const owner = s.dots[s.ball.owner];
+      const fatigue = clampf(1 - (s.clock / 120) * (0.2 - owner.stamina / 700), 0.76, 1);
       const nearGoal = Math.abs(owner.x - gm.x) < 30;
-      if (nearGoal && rng() < 0.4) {
+      const defendingKeeper = s.dots.find((dot) => dot.team !== ownerTeam && dot.role === "GK");
+      const shotChance = clampf(0.16 + owner.shooting / 260 - (defendingKeeper?.goalkeeping ?? 65) / 520, 0.12, 0.46);
+      if (nearGoal && rng() < shotChance) {
         // shot saved -> goal kick to defending keeper
         s.ball.owner = -1;
         s.ball.flightTo = -1;
+        s.ball.scripted = false;
         s.ball.x = gm.x;
         s.ball.y = gm.y;
         s.pendingKick = ownerTeam === 0 ? 11 : 0;
@@ -346,11 +400,27 @@ export function MatchArena({
       mates.sort((a, b) => {
         const fa = attackingRight ? s.dots[a].x : -s.dots[a].x;
         const fb = attackingRight ? s.dots[b].x : -s.dots[b].x;
-        return fb - fa;
+        const qualityA = fa + s.dots[a].pace * 0.12 + s.dots[a].dribbling * 0.08;
+        const qualityB = fb + s.dots[b].pace * 0.12 + s.dots[b].dribbling * 0.08;
+        return qualityB - qualityA;
       });
-      const pick = mates[Math.floor(rng() * Math.min(4, mates.length))];
+      let pick = mates[Math.floor(rng() * Math.min(4, mates.length))];
+      let nearestDefender = -1;
+      let nearestDistance = Infinity;
+      s.dots.forEach((dot, index) => {
+        if (dot.team === ownerTeam) return;
+        const distance = d2(dot.x, dot.y, owner.x, owner.y);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestDefender = index;
+        }
+      });
+      const pressure = nearestDefender >= 0 ? s.dots[nearestDefender].defending : 65;
+      const passSuccess = clampf(0.62 + (owner.passing * fatigue - pressure) / 115, 0.42, 0.94);
+      if (nearestDefender >= 0 && rng() > passSuccess) pick = nearestDefender;
       s.ball.owner = -1;
       s.ball.flightTo = pick;
+      s.ball.scripted = false;
       s.actionT = 0.35 + rng() * 0.45;
     }
 
@@ -364,6 +434,7 @@ export function MatchArena({
       const gm = goalMouth(side);
       s.ball.owner = -1;
       s.ball.flightTo = -1;
+      s.ball.scripted = false;
       s.ball.x = gm.x;
       s.ball.y = gm.y;
       s.banner =
@@ -379,6 +450,7 @@ export function MatchArena({
       s.ball.y = 50;
       s.ball.owner = toTeam === 0 ? 8 : 19;
       s.ball.flightTo = -1;
+      s.ball.scripted = false;
       s.ball.lastTeam = toTeam;
       s.banner = null;
       s.goalSide = null;
@@ -392,19 +464,78 @@ export function MatchArena({
       if (s.scoring) return;
       s.scoring = { side, scorer, assist, t: 0 };
       const gm = goalMouth(side);
-      let best = -1;
+      let best = dotForEvent(s, side, scorer);
       let bmin = Infinity;
-      s.dots.forEach((d, i) => {
-        if (d.team !== side) return;
-        const bias = d.role === "FWD" ? -300 : d.role === "MID" ? 0 : 300;
-        const score = Math.abs(d.x - gm.x) + bias;
-        if (score < bmin) {
-          bmin = score;
-          best = i;
-        }
-      });
+      if (best < 0) {
+        s.dots.forEach((d, i) => {
+          if (d.team !== side) return;
+          const bias = d.role === "FWD" ? -300 : d.role === "MID" ? 0 : 300;
+          const score = Math.abs(d.x - gm.x) + bias;
+          if (score < bmin) {
+            bmin = score;
+            best = i;
+          }
+        });
+      }
       if (best >= 0) s.ball.owner = best;
       s.ball.flightTo = -1;
+      s.ball.scripted = false;
+    }
+
+    function dotForEvent(s: ArenaState, side: 0 | 1, name?: string) {
+      if (!name) return -1;
+      const exact = s.dots.findIndex((dot) => dot.team === side && dot.name === name);
+      if (exact >= 0) return exact;
+      return s.dots.findIndex((dot) => dot.team === side && displayArenaName(dot.name) === displayArenaName(name));
+    }
+
+    /** Project the exact engine action onto the pitch instead of inventing an unrelated visual play. */
+    function playMatchEvent(s: ArenaState, event: MatchEvent) {
+      const side: 0 | 1 = event.side === "user" ? 0 : 1;
+      const actor = dotForEvent(s, side, event.actor);
+      const target = dotForEvent(s, side, event.target);
+      if (event.type === "goal") {
+        startScoring(s, side, event.actor, event.target);
+        return;
+      }
+      if (event.type === "pass" && actor >= 0 && target >= 0) {
+        s.ball.owner = -1;
+        s.ball.x = s.dots[actor].x;
+        s.ball.y = s.dots[actor].y;
+        s.ball.flightTo = target;
+        s.ball.lastTeam = side;
+        s.ball.scripted = true;
+        return;
+      }
+      if (actor >= 0 && (event.type === "dribble" || event.type === "interception" || event.type === "tackle")) {
+        s.ball.owner = actor;
+        s.ball.flightTo = -1;
+        s.ball.lastTeam = side;
+        s.ball.scripted = false;
+        return;
+      }
+      if (event.type === "shot" && actor >= 0) {
+        s.ball.owner = actor;
+        s.ball.flightTo = -1;
+        s.ball.scripted = false;
+        return;
+      }
+      if ((event.type === "save" || event.type === "block") && actor >= 0) {
+        s.ball.owner = actor;
+        s.ball.flightTo = -1;
+        s.ball.lastTeam = side;
+        s.ball.scripted = false;
+        return;
+      }
+      if (event.type === "miss") {
+        const keeperIndex = s.dots.findIndex((dot) => dot.team !== side && dot.role === "GK");
+        if (keeperIndex >= 0) {
+          s.ball.owner = keeperIndex;
+          s.ball.flightTo = -1;
+          s.ball.lastTeam = side === 0 ? 1 : 0;
+          s.ball.scripted = false;
+        }
+      }
     }
 
     function finishSegment(s: ArenaState) {
@@ -474,8 +605,12 @@ export function MatchArena({
         return;
       }
 
-      // a scheduled goal starts an attacking run (not an instant teleport-to-net)
-      if (!s.scoring && s.nextGoal < sim.goals.length && s.clock >= sim.goals[s.nextGoal].minute) {
+      // Consume the same player-by-player action log that produced the score.
+      if (!s.scoring && sim.events?.length && s.nextEvent < sim.events.length && s.clock >= sim.events[s.nextEvent].minute) {
+        playMatchEvent(s, sim.events[s.nextEvent]);
+        s.nextEvent++;
+        s.actionT = Math.max(s.actionT, 0.1);
+      } else if (!sim.events?.length && !s.scoring && s.nextGoal < sim.goals.length && s.clock >= sim.goals[s.nextGoal].minute) {
         const g = sim.goals[s.nextGoal];
         s.nextGoal++;
         startScoring(s, g.side === "user" ? 0 : 1, g.scorer, g.assist);
@@ -514,12 +649,13 @@ export function MatchArena({
           s.dots.forEach((d, i) => {
             if (d.team !== flightTeam && d2(d.x, d.y, s.ball.x, s.ball.y) < 5) stolen = i;
           });
-          if (stolen >= 0) {
+          if (stolen >= 0 && !s.ball.scripted) {
             s.ball.owner = stolen;
             s.ball.flightTo = -1;
           } else if (d2(s.ball.x, s.ball.y, tgt.x, tgt.y) < 4) {
             s.ball.owner = s.ball.flightTo;
             s.ball.flightTo = -1;
+            s.ball.scripted = false;
           }
         } else if (s.ball.owner >= 0) {
           const o = s.dots[s.ball.owner];
@@ -548,12 +684,14 @@ export function MatchArena({
       s.dots.forEach((d, i) => {
         if (d.team === ballTeam) return;
         const dd = d2(d.x, d.y, s.ball.x, s.ball.y);
-        if (dd < pmin) {
-          pmin = dd;
+        const defensiveRead = 0.62 + d.defending / 170 + d.react * 0.12;
+        const pressScore = dd / defensiveRead;
+        if (pressScore < pmin) {
+          pmin = pressScore;
           presser = i;
         }
-        if (deep && d.role === "FWD" && dd < hpMin) {
-          hpMin = dd;
+        if (deep && d.role === "FWD" && pressScore < hpMin) {
+          hpMin = pressScore;
           highPress = i;
         }
       });
@@ -562,6 +700,8 @@ export function MatchArena({
         let tx: number, ty: number, sp: number;
         const dir = fwdDir(d.team);
         const oppGoal = goalMouth(d.team);
+        const abilitySpeed = 0.72 + d.pace / 245;
+        const fatigue = clampf(1 - (s.clock / 120) * (0.21 - d.stamina / 720), 0.76, 1);
 
         if (s.scoring && i === s.ball.owner) {
           // scoring run: sprint straight at the goal
@@ -614,8 +754,8 @@ export function MatchArena({
         tx += Math.sin(s.time * d.nz + d.ph) * 1.4;
         ty += Math.cos(s.time * d.nz * 1.2 + d.ph) * 1.4;
 
-        d.x = lerp(d.x, clampf(tx, 2, 98), dt * sp * d.react);
-        d.y = lerp(d.y, clampf(ty, 3, 97), dt * sp * d.react);
+        d.x = lerp(d.x, clampf(tx, 2, 98), dt * sp * d.react * abilitySpeed * fatigue);
+        d.y = lerp(d.y, clampf(ty, 3, 97), dt * sp * d.react * abilitySpeed * fatigue);
       });
     }
 
@@ -734,7 +874,19 @@ export function MatchArena({
   const cmp = sim.comparison;
   const scorers = topScorers(leaderboard);
   const assisters = topAssists(leaderboard);
-  const visibleEvents = sim.goals.filter((goal) => goal.minute <= hud.minute).slice().reverse();
+  const elapsedEvents = (sim.events ?? []).filter((event) => event.minute <= hud.minute);
+  const visibleEvents = elapsedEvents
+    .filter((event) => event.type !== "pass" && event.type !== "shot")
+    .slice(-7)
+    .reverse();
+  const liveCompletedPasses = elapsedEvents.filter((event) => event.side === "user" && event.type === "pass").length;
+  const liveLostPasses = elapsedEvents.filter((event) => event.side === "opp" && event.type === "interception").length;
+  const livePassRate = liveCompletedPasses + liveLostPasses
+    ? Math.round((liveCompletedPasses / (liveCompletedPasses + liveLostPasses)) * 100)
+    : 0;
+  const liveXg = elapsedEvents
+    .filter((event) => event.side === "user" && event.type === "shot")
+    .reduce((sum, event) => sum + (event.xg ?? 0), 0);
 
   return (
     <motion.div className="sim-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -803,16 +955,16 @@ export function MatchArena({
                 <p className="arena-events__empty">경기 흐름을 분석하고 있습니다.</p>
               ) : (
                 visibleEvents.map((event, index) => (
-                  <div className="arena-event" key={`${event.minute}-${index}`} data-side={event.side}>
-                    <span>⚽</span>
-                    <p><strong>{event.minute}′ {event.scorer ?? (event.side === "user" ? userTeamName : oppTeamName)} 득점</strong>{event.assist && <small>도움: {event.assist}</small>}</p>
+                  <div className="arena-event" key={`${event.minute}-${event.type}-${index}`} data-side={event.side} data-event={event.type}>
+                    <span>{EVENT_META[event.type].icon}</span>
+                    <p><strong>{event.minute}′ {event.detail}</strong><small>{EVENT_META[event.type].label}{event.xg != null ? ` · xG ${event.xg.toFixed(2)}` : ""}</small></p>
                   </div>
                 ))
               )}
             </div>
             <div className="arena-events__stats">
-              <div><span>패스 성공</span><strong>{sim.teamStats?.user.passSuccessRate ?? "–"}%</strong></div>
-              <div><span>xG</span><strong>{sim.userXg?.toFixed(2) ?? "–"}</strong></div>
+              <div><span>실시간 패스 성공</span><strong>{livePassRate || "–"}%</strong></div>
+              <div><span>실시간 xG</span><strong>{liveXg.toFixed(2)}</strong></div>
             </div>
           </aside>
         </div>}
@@ -903,9 +1055,16 @@ export function MatchArena({
               <div className="team-stats">
                 <h4 className="team-stats__title">팀 스탯</h4>
                 <TeamStatBar
+                  label="점유율"
+                  userVal={sim.teamStats.user.possession}
+                  oppVal={sim.teamStats.opp.possession}
+                />
+                <TeamStatBar
                   label="패스 성공률"
                   userVal={sim.teamStats.user.passSuccessRate}
                   oppVal={sim.teamStats.opp.passSuccessRate}
+                  userSub={`${sim.teamStats.user.passesCompleted}/${sim.teamStats.user.passesAttempted}`}
+                  oppSub={`${sim.teamStats.opp.passesCompleted}/${sim.teamStats.opp.passesAttempted}`}
                 />
                 <TeamStatBar
                   label="GK 선방률"
@@ -913,6 +1072,14 @@ export function MatchArena({
                   oppVal={sim.teamStats.opp.saveRate}
                   userSub={`${sim.teamStats.user.saves}/${sim.teamStats.user.shotsFaced} 선방`}
                   oppSub={`${sim.teamStats.opp.saves}/${sim.teamStats.opp.shotsFaced} 선방`}
+                />
+                <TeamStatBar
+                  label="슈팅"
+                  userVal={sim.teamStats.user.shots}
+                  oppVal={sim.teamStats.opp.shots}
+                  userSub={`${sim.teamStats.user.shotsOnTarget} 유효`}
+                  oppSub={`${sim.teamStats.opp.shotsOnTarget} 유효`}
+                  suffix=""
                 />
               </div>
             )}
@@ -1062,12 +1229,14 @@ function TeamStatBar({
   oppVal,
   userSub,
   oppSub,
+  suffix = "%",
 }: {
   label: string;
   userVal: number;
   oppVal: number;
   userSub?: string;
   oppSub?: string;
+  suffix?: string;
 }) {
   const total = Math.max(1, userVal + oppVal);
   const userPct = Math.round((userVal / total) * 100);
@@ -1075,12 +1244,12 @@ function TeamStatBar({
     <div className="stat-bar">
       <div className="stat-bar__nums">
         <span className="stat-bar__val">
-          {Math.round(userVal)}%
+          {Math.round(userVal)}{suffix}
           {userSub && <span className="stat-bar__sub"> · {userSub}</span>}
         </span>
         <span className="stat-bar__label">{label}</span>
         <span className="stat-bar__val stat-bar__val--opp">
-          {Math.round(oppVal)}%
+          {Math.round(oppVal)}{suffix}
           {oppSub && <span className="stat-bar__sub"> · {oppSub}</span>}
         </span>
       </div>
