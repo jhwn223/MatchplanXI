@@ -9,9 +9,10 @@ interface Props {
   slot: FormationSlot;
   player: Player | null;
   condition?: ConditionBreakdown;
+  onSelectPlayer?: (player: Player) => void;
 }
 
-export function Slot({ slot, player, condition }: Props) {
+export function Slot({ slot, player, condition, onSelectPlayer }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: slot.id });
 
   return (
@@ -28,6 +29,7 @@ export function Slot({ slot, player, condition }: Props) {
           condition={condition}
           variant="slot"
           dragFrom={slot.id}
+          onSelect={onSelectPlayer}
         />
       ) : (
         <motion.div

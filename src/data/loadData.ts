@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import fc26Ratings from "./fc26PlayerRatings.json";
 import { POSITION_OVERRIDES, ROLE_OVERRIDES } from "./playerOverrides";
 import { displayPlayerName } from "./playerNames";
 import type {
@@ -9,7 +10,10 @@ import type {
   Team,
   TournamentData,
   Venue,
+  PlayerAbility,
 } from "./types";
+
+const PLAYER_ABILITIES = fc26Ratings as Record<string, PlayerAbility>;
 
 async function parseCsv<T>(path: string): Promise<T[]> {
   const res = await fetch(path);
@@ -40,6 +44,7 @@ export async function loadTournamentData(): Promise<TournamentData> {
   // commonly goes by. (overrides are keyed by the original dataset name, so
   // apply them before renaming)
   for (const p of players) {
+    p.ability = PLAYER_ABILITIES[String(p.player_id)];
     const posOv = POSITION_OVERRIDES[p.player_name];
     if (posOv) p.position = posOv;
     const roleOv = ROLE_OVERRIDES[p.player_name];

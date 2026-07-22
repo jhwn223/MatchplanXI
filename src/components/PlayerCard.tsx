@@ -9,9 +9,10 @@ interface Props {
   variant: "bench" | "slot";
   dragFrom: string; // "bench" or slotId, carried in draggable data
   ineligible?: boolean;
+  onSelect?: (player: Player) => void;
 }
 
-export function PlayerCard({ player, condition, variant, dragFrom, ineligible }: Props) {
+export function PlayerCard({ player, condition, variant, dragFrom, ineligible, onSelect }: Props) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `player-${player.player_id}`,
     data: { playerId: player.player_id, from: dragFrom },
@@ -28,6 +29,7 @@ export function PlayerCard({ player, condition, variant, dragFrom, ineligible }:
       listeners={listeners}
       attributes={attributes}
       ineligible={ineligible}
+      onSelect={onSelect}
     />
   );
 }
