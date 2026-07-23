@@ -14,7 +14,7 @@ const PK_REVEAL_T = 1.1;
 
 const MIN_PER_SEC = 3.4;
 interface Options {
-  sim: ArenaSim;
+  simRef: RefObject<ArenaSim>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
   stateRef: RefObject<ArenaState | null>;
   completedRef: RefObject<boolean>;
@@ -25,7 +25,10 @@ interface Options {
   userTeamName: string;
   oppTeamName: string;
   userColor: string;
+  startMinute: number;
   endMinute: number;
+  onMinuteEnter: (minute: number) => void;
+  onPeriodEnd: () => void;
   onComplete: () => void;
   setEnded: Dispatch<SetStateAction<boolean>>;
   setPaused: Dispatch<SetStateAction<boolean>>;
@@ -33,7 +36,7 @@ interface Options {
 }
 
 export function useArenaLoop({
-  sim,
+  simRef,
   canvasRef,
   stateRef,
   completedRef,
@@ -44,7 +47,10 @@ export function useArenaLoop({
   userTeamName,
   oppTeamName,
   userColor,
+  startMinute,
   endMinute,
+  onMinuteEnter,
+  onPeriodEnd,
   onComplete,
   setEnded,
   setPaused,
@@ -72,7 +78,7 @@ export function useArenaLoop({
     let raf = 0;
     let last = performance.now();
     let hudAcc = 0;
-    const rng = mulbFromSeed(sim.goals.length * 7 + sim.userGoals * 131 + 97);
+    const rng = mulbFromSeed(startMinute * 977 + endMinute * 131 + 97);
 
     const goalMouth = (side: 0 | 1) => (side === 0 ? { x: 99, y: 50 } : { x: 1, y: 50 });
 
@@ -188,7 +194,8 @@ export function useArenaLoop({
 
     function finishSegment(s: ArenaState) {
       s.phase = "ended";
-      s.score = [sim.userGoals, sim.oppGoals];
+      const currentSim = simRef.current;
+      s.score = [currentSim.userGoals, currentSim.oppGoals];
       if (!completedRef.current) {
         completedRef.current = true;
         onComplete();
@@ -230,8 +237,9 @@ export function useArenaLoop({
     }
 
     function startPenalties(s: ArenaState) {
+      const currentSim = simRef.current;
       s.phase = "penalties";
-      s.pkSequence = buildPenaltySequence(sim.penalties!, rng);
+      s.pkSequence = buildPenaltySequence(currentSim.penalties!, rng);
       s.pkIndex = 0;
       s.pkScore = [0, 0];
       s.pkStage = "aim";
@@ -319,10 +327,15 @@ export function useArenaLoop({
       }
 
       s.clock += dt * MIN_PER_SEC;
+      // Generate a minute only after the clock reaches it. No future minute is
+      // present in memory, so a tactical change can still alter every next play.
+      onMinuteEnter(Math.min(endMinute, Math.max(startMinute, Math.floor(s.clock))));
       if (s.clock >= endMinute) {
         s.clock = endMinute;
-        s.score = [sim.userGoals, sim.oppGoals];
-        if (sim.penalties) {
+        onPeriodEnd();
+        const currentSim = simRef.current;
+        s.score = [currentSim.userGoals, currentSim.oppGoals];
+        if (currentSim.penalties) {
           startPenalties(s);
           return;
         }
@@ -331,12 +344,13 @@ export function useArenaLoop({
       }
 
       // Consume the same player-by-player action log that produced the score.
-      if (!s.scoring && sim.events?.length && s.nextEvent < sim.events.length && s.clock >= sim.events[s.nextEvent].minute) {
-        projectMatchEvent(s, sim.events[s.nextEvent], startScoring);
+      const currentSim = simRef.current;
+      if (!s.scoring && currentSim.events?.length && s.nextEvent < currentSim.events.length && s.clock >= currentSim.events[s.nextEvent].minute) {
+        projectMatchEvent(s, currentSim.events[s.nextEvent], startScoring);
         s.nextEvent++;
         s.actionT = Math.max(s.actionT, 0.1);
-      } else if (!sim.events?.length && !s.scoring && s.nextGoal < sim.goals.length && s.clock >= sim.goals[s.nextGoal].minute) {
-        const g = sim.goals[s.nextGoal];
+      } else if (!currentSim.events?.length && !s.scoring && s.nextGoal < currentSim.goals.length && s.clock >= currentSim.goals[s.nextGoal].minute) {
+        const g = currentSim.goals[s.nextGoal];
         s.nextGoal++;
         startScoring(s, g.side === "user" ? 0 : 1, g.scorer, g.assist);
       }
@@ -475,6 +489,14 @@ export function useArenaLoop({
           sp = d.role === "GK" ? 1.2 : 1.9 + attackPress * 0.9;
         }
 
+        // The selected team width must be visible on the pitch, not just in
+        // probability calculations. Narrow teams compress toward the centre;
+        // wide teams stretch both attacking and defensive support positions.
+        if (d.team === 0 && d.role !== "GK") {
+          const widthScale = 0.62 + (intensity.teamWidth / 100) * 0.76;
+          ty = 50 + (ty - 50) * widthScale;
+        }
+
         // per-player idle noise so nobody glides in lockstep
         tx += Math.sin(s.time * d.nz + d.ph) * 1.4;
         ty += Math.cos(s.time * d.nz * 1.2 + d.ph) * 1.4;
@@ -515,7 +537,7 @@ export function useArenaLoop({
       window.removeEventListener("resize", resize);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sim]);
+  }, [endMinute, startMinute]);
 }
 
 function mulbFromSeed(seed: number) {

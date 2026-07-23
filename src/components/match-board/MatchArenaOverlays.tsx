@@ -1,19 +1,17 @@
 import { AnimatePresence } from "framer-motion";
 import type { Leaderboard } from "../../data/leaderboard";
-import type { HalfResult, SimResult } from "../../data/matchSim";
+import type { HalfResult, SimInput, SimResult } from "../../data/matchSim";
 import type { TeamMatch } from "../../data/tournament";
 import type { Player, Team } from "../../data/types";
 import { MatchArena, type ArenaSim } from "../MatchArena";
+import type { TeamTactics } from "../match-arena/tactics";
 import type { Lineup, MatchPhase } from "./types";
 
 interface Props {
   phase: MatchPhase;
-  firstHalfSim: ArenaSim | null;
-  secondHalfSim: ArenaSim | null;
-  extraTimeSim: ArenaSim | null;
+  simInput: SimInput | null;
   firstHalf: HalfResult | null;
   regulation: SimResult | null;
-  finalResult: SimResult | null;
   tiedAfterRegulation: boolean;
   team: Team;
   activeMatch: TeamMatch;
@@ -22,20 +20,21 @@ interface Props {
   playersById: Map<number, Player>;
   opponentPlayers: Player[];
   leaderboard: Leaderboard;
+  liveTactics: TeamTactics;
+  onTacticChange: (tactics: TeamTactics) => void;
+  onFirstHalfComplete: (period: HalfResult) => ArenaSim;
+  onSecondHalfComplete: (period: HalfResult) => ArenaSim;
+  onExtraTimeComplete: (period: HalfResult) => ArenaSim;
   onPhaseChange: (phase: MatchPhase) => void;
-  onMatchEnd: (result: SimResult) => void;
   onClose: () => void;
   onNextMatch: () => void;
 }
 
 export function MatchArenaOverlays({
   phase,
-  firstHalfSim,
-  secondHalfSim,
-  extraTimeSim,
+  simInput,
   firstHalf,
   regulation,
-  finalResult,
   tiedAfterRegulation,
   team,
   activeMatch,
@@ -44,8 +43,12 @@ export function MatchArenaOverlays({
   playersById,
   opponentPlayers,
   leaderboard,
+  liveTactics,
+  onTacticChange,
+  onFirstHalfComplete,
+  onSecondHalfComplete,
+  onExtraTimeComplete,
   onPhaseChange,
-  onMatchEnd,
   onClose,
   onNextMatch,
 }: Props) {
@@ -62,30 +65,33 @@ export function MatchArenaOverlays({
     playersById,
     opponentPlayers,
     leaderboard,
+    initialTactics: liveTactics,
+    onTacticChange,
     onClose,
   } as const;
 
   return (
     <AnimatePresence>
-      {phase === "half1" && firstHalfSim && (
+      {phase === "half1" && simInput && (
         <MatchArena
           key="half1"
           {...shared}
-          sim={firstHalfSim}
+          simInput={simInput}
           startMinute={0}
           endMinute={45}
           final={false}
           interimLabel="전반전 종료"
           interimCta="후반전 준비하기 →"
           onInterimContinue={() => onPhaseChange("halftime")}
+          onPeriodComplete={onFirstHalfComplete}
           onComplete={() => {}}
         />
       )}
-      {phase === "half2" && secondHalfSim && (
+      {phase === "half2" && simInput && (
         <MatchArena
           key="half2"
           {...shared}
-          sim={secondHalfSim}
+          simInput={simInput}
           startMinute={45}
           endMinute={90}
           startScore={[firstHalf?.userGoals ?? 0, firstHalf?.oppGoals ?? 0]}
@@ -93,20 +99,22 @@ export function MatchArenaOverlays({
           interimLabel="정규시간 종료"
           interimCta="연장전 준비하기 →"
           onInterimContinue={() => onPhaseChange("etbreak")}
-          onComplete={() => regulation && onMatchEnd(regulation)}
+          onPeriodComplete={onSecondHalfComplete}
+          onComplete={() => {}}
           onNext={tiedAfterRegulation ? undefined : onNextMatch}
         />
       )}
-      {phase === "extratime" && extraTimeSim && finalResult && (
+      {phase === "extratime" && simInput && (
         <MatchArena
           key="extratime"
           {...shared}
-          sim={extraTimeSim}
+          simInput={simInput}
           startMinute={90}
           endMinute={120}
-          startScore={[finalResult.regulationUserGoals, finalResult.regulationOppGoals]}
+          startScore={[regulation?.userGoals ?? 0, regulation?.oppGoals ?? 0]}
           final
-          onComplete={() => onMatchEnd(finalResult)}
+          onPeriodComplete={onExtraTimeComplete}
+          onComplete={() => {}}
           onNext={onNextMatch}
         />
       )}

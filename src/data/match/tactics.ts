@@ -7,6 +7,13 @@ export const BALANCED_SIM_TACTICS: Readonly<SimTacticProfile> = {
   overlapBias: 0,
   directnessBias: 0,
   counterBias: 0,
+  tempoBias: 0,
+  creativityBias: 0,
+  shootingBias: 0,
+  defensiveLineBias: 0,
+  tacklingBias: 0,
+  widthBias: 0,
+  focusBias: 0,
 };
 
 export function normalizeSimTactics(tactics?: SimTacticProfile): SimTacticProfile {
@@ -17,6 +24,13 @@ export function normalizeSimTactics(tactics?: SimTacticProfile): SimTacticProfil
     overlapBias: clamp(source.overlapBias, -1, 1),
     directnessBias: clamp(source.directnessBias, -1, 1),
     counterBias: clamp(source.counterBias, -1, 1),
+    tempoBias: clamp(source.tempoBias, -1, 1),
+    creativityBias: clamp(source.creativityBias, -1, 1),
+    shootingBias: clamp(source.shootingBias, -1, 1),
+    defensiveLineBias: clamp(source.defensiveLineBias, -1, 1),
+    tacklingBias: clamp(source.tacklingBias, -1, 1),
+    widthBias: clamp(source.widthBias, -1, 1),
+    focusBias: clamp(source.focusBias, -1, 1),
   };
 }
 
@@ -29,5 +43,7 @@ export function tacticalWorkRate(tactics: SimTacticProfile, minute: number): num
   const pressingLoad = Math.max(0, tactics.pressBias) * 0.065;
   const overlapLoad = Math.max(0, tactics.overlapBias) * 0.025;
   const attackingLoad = Math.max(0, tactics.attackBias) * 0.015;
-  return clamp(1 - elapsed * (pressingLoad + overlapLoad + attackingLoad), 0.9, 1);
+  const tempoLoad = Math.max(0, tactics.tempoBias) * 0.035;
+  const tacklingLoad = Math.max(0, tactics.tacklingBias) * 0.02;
+  return clamp(1 - elapsed * (pressingLoad + overlapLoad + attackingLoad + tempoLoad + tacklingLoad), 0.86, 1);
 }

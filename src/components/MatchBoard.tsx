@@ -20,10 +20,10 @@ import {
   type TacticStyleKey,
 } from "../data/tactics";
 import {
-  applyExtraTime,
+  combineExtraTime,
   combineHalves,
-  simulateHalf,
   type HalfResult,
+  type SimInput,
   type SimResult,
 } from "../data/matchSim";
 import { selectBestEleven } from "../data/playerAbility";
@@ -34,7 +34,7 @@ import type { ConditionSubIndices } from "./ConditionGauge";
 import { PlayerCardVisual } from "./PlayerCardVisual";
 import { PlayerStatsModal } from "./PlayerStatsModal";
 import {
-  extraTimeArenaSim as buildExtraTimeArenaSim,
+  extraTimeArenaSim,
   firstHalfArenaSim,
   secondHalfArenaSim,
 } from "./match-board/arenaSegments";
@@ -48,6 +48,7 @@ import {
   type MatchBoardProps,
   type MatchPhase,
 } from "./match-board/types";
+import { DEFAULT_TEAM_TACTICS, type TeamTactics } from "./match-arena/tactics";
 
 export function MatchBoard({
   data,
@@ -66,9 +67,10 @@ export function MatchBoard({
   const [soundOn, setSoundOn] = useState(false);
   const [phase, setPhase] = useState<MatchPhase>("idle");
   const [half1, setHalf1] = useState<HalfResult | null>(null);
-  const [half2, setHalf2] = useState<HalfResult | null>(null);
   const [regSim, setRegSim] = useState<SimResult | null>(null);
   const [finalSim, setFinalSim] = useState<SimResult | null>(null);
+  const [activeSimInput, setActiveSimInput] = useState<SimInput | null>(null);
+  const [liveTactics, setLiveTactics] = useState<TeamTactics>(DEFAULT_TEAM_TACTICS);
   const [startingXI, setStartingXI] = useState<Set<number> | null>(null);
   const [benchedOut, setBenchedOut] = useState<Set<number>>(new Set());
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
@@ -159,10 +161,6 @@ export function MatchBoard({
     setBenchedOut,
     setActiveDragId,
   });
-  const firstArena = useMemo(() => firstHalfArenaSim(half1), [half1]);
-  const secondArena = useMemo(() => secondHalfArenaSim(half2, regSim), [half2, regSim]);
-  const extraArena = useMemo(() => buildExtraTimeArenaSim(finalSim), [finalSim]);
-
   function selectFormation(key: FormationKey) {
     if (key === lineup.formation) return;
     onChangeLineup({
@@ -210,29 +208,51 @@ export function MatchBoard({
   function kickoff() {
     const input = buildSimInput();
     if (!input) return;
-    setHalf1(simulateHalf(input, 1));
-    setHalf2(null);
+    setActiveSimInput(input);
+    setHalf1(null);
     setRegSim(null);
     setFinalSim(null);
     setStartingXI(new Set(placedIds));
     setBenchedOut(new Set());
+    setLiveTactics(DEFAULT_TEAM_TACTICS);
     setPhase("half1");
   }
 
   function startSecondHalf() {
     const input = buildSimInput();
     if (!input || !half1) return;
-    const result = simulateHalf(input, 2);
-    setHalf2(result);
-    setRegSim(combineHalves(input, half1, result));
+    setActiveSimInput(input);
     setPhase("half2");
   }
 
   function startExtraTime() {
     const input = buildSimInput();
     if (!input || !regSim) return;
-    setFinalSim(applyExtraTime(input, regSim));
+    setActiveSimInput(input);
     setPhase("extratime");
+  }
+
+  function completeFirstHalf(period: HalfResult) {
+    setHalf1(period);
+    return firstHalfArenaSim(period)!;
+  }
+
+  function completeSecondHalf(period: HalfResult) {
+    const input = activeSimInput;
+    if (!input || !half1) return secondHalfArenaSim(period, regSim)!;
+    const result = combineHalves(input, half1, period);
+    setRegSim(result);
+    if (!input.isKnockout || result.userGoals !== result.oppGoals) handleMatchEnd(result);
+    return secondHalfArenaSim(period, result)!;
+  }
+
+  function completeExtraTime(period: HalfResult) {
+    const input = activeSimInput;
+    if (!input || !regSim) return extraTimeArenaSim(finalSim)!;
+    const result = combineExtraTime(input, regSim, period);
+    setFinalSim(result);
+    handleMatchEnd(result);
+    return extraTimeArenaSim(result)!;
   }
 
   function handleMatchEnd(result: SimResult) {
@@ -253,9 +273,9 @@ export function MatchBoard({
   function closeArena() {
     setPhase("idle");
     setHalf1(null);
-    setHalf2(null);
     setRegSim(null);
     setFinalSim(null);
+    setActiveSimInput(null);
     setStartingXI(null);
     setBenchedOut(new Set());
   }
@@ -325,12 +345,9 @@ export function MatchBoard({
 
       <MatchArenaOverlays
         phase={phase}
-        firstHalfSim={firstArena}
-        secondHalfSim={secondArena}
-        extraTimeSim={extraArena}
+        simInput={activeSimInput}
         firstHalf={half1}
         regulation={regSim}
-        finalResult={finalSim}
         tiedAfterRegulation={tiedAfterRegulation}
         team={team}
         activeMatch={activeMatch}
@@ -339,8 +356,12 @@ export function MatchBoard({
         playersById={playersById}
         opponentPlayers={opponentEleven}
         leaderboard={leaderboard}
+        liveTactics={liveTactics}
+        onTacticChange={setLiveTactics}
+        onFirstHalfComplete={completeFirstHalf}
+        onSecondHalfComplete={completeSecondHalf}
+        onExtraTimeComplete={completeExtraTime}
         onPhaseChange={setPhase}
-        onMatchEnd={handleMatchEnd}
         onClose={closeArena}
         onNextMatch={() => {
           closeArena();
