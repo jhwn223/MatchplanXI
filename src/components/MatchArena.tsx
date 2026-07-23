@@ -298,6 +298,13 @@ export function MatchArena({
   }
 
   const liveSnapshot = snapshotAtMinute(sim.liveSnapshots ?? [], hud.minute);
+  // 연장전(90~120분)은 한 화면 안에서 105분을 기준으로 연장 전반/후반 두 구간으로 나눠서 게이지를 채운다.
+  const isExtraTime = endMinute > 90;
+  const extraTimeHalf = isExtraTime && hud.minute >= 105;
+  const segmentStart = isExtraTime ? (extraTimeHalf ? 105 : 90) : startMinute;
+  const segmentEnd = isExtraTime ? (extraTimeHalf ? 120 : 105) : endMinute;
+  // 눈금은 항상 90분 고정이 아니라 현재 구간(전반/후반/연장 전반/연장 후반)의 시작~종료 분에 맞춰 계산
+  const timelineTicks = Array.from({ length: 7 }, (_, i) => Math.round(segmentStart + ((segmentEnd - segmentStart) * i) / 6));
 
   return (
     <motion.div className="sim-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -314,7 +321,7 @@ export function MatchArena({
             <div><span style={{ background: userColor }}>{userCode}</span><strong>{userTeamName}</strong></div>
           </div>
           <div className="arena-score__center">
-            <span className="arena-score__clock">● {hud.minute}′ {endMinute <= 45 ? "전반전" : endMinute <= 90 ? "후반전" : "연장전"}</span>
+            <span className="arena-score__clock">● {hud.minute}′ {endMinute <= 45 ? "전반전" : endMinute <= 90 ? "후반전" : extraTimeHalf ? "연장 후반" : "연장 전반"}</span>
             <strong className="arena-score__nums">{hud.home} <i>:</i> {hud.away}</strong>
           </div>
           <div className="arena-score__team arena-score__team--away">
@@ -401,8 +408,8 @@ export function MatchArena({
         {!ended ? (
           <div className="arena-live-controls">
             <div className="arena-timeline">
-              <i style={{ width: `${Math.max(0, Math.min(100, ((hud.minute - startMinute) / Math.max(1, endMinute - startMinute)) * 100))}%` }} />
-              <span>0′</span><span>15′</span><span>30′</span><span>45′</span><span>60′</span><span>75′</span><span>90′</span>
+              <i style={{ width: `${Math.max(0, Math.min(100, ((hud.minute - segmentStart) / Math.max(1, segmentEnd - segmentStart)) * 100))}%` }} />
+              {timelineTicks.map((tick, index) => <span key={index}>{tick}′</span>)}
             </div>
             <div className="arena-controls">
             <button type="button" className="arena-ctrl" disabled={activePanel != null} onClick={() => { pausedRef.current = !paused; setPaused(!paused); }}>
