@@ -149,6 +149,7 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
                 placed={lineupCounts[tm.match.match_id] ?? 0}
                 result={userResultOf(tm, played)}
                 featured={index === nextFixtureIndex}
+                locked={nextFixtureIndex !== -1 && index > nextFixtureIndex}
                 matchday={index + 1}
                 onOpen={() => onOpenMatch(tm.match.match_id)}
               />
@@ -166,6 +167,7 @@ function FixtureCard({
   placed,
   result,
   featured,
+  locked,
   matchday,
   onOpen,
 }: {
@@ -174,6 +176,7 @@ function FixtureCard({
   placed: number;
   result: UserResult | null;
   featured: boolean;
+  locked: boolean;
   matchday: number;
   onOpen: () => void;
 }) {
@@ -186,9 +189,12 @@ function FixtureCard({
       className="fixture"
       data-played={result ? true : undefined}
       data-featured={featured || undefined}
-      onClick={onOpen}
-      whileHover={{ scale: 1.01, y: -2 }}
-      whileTap={{ scale: 0.99 }}
+      data-locked={locked || undefined}
+      disabled={locked}
+      aria-disabled={locked || undefined}
+      onClick={locked ? undefined : onOpen}
+      whileHover={locked ? undefined : { scale: 1.01, y: -2 }}
+      whileTap={locked ? undefined : { scale: 0.99 }}
     >
       <div className="fixture__meta-panel">
         <span className="fixture__matchday">MATCHDAY {String(matchday).padStart(2, "0")}</span>
@@ -197,6 +203,7 @@ function FixtureCard({
       </div>
       <div className="fixture__content">
         {featured && <span className="fixture__next-label">NEXT FIXTURE</span>}
+        {locked && <span className="fixture__locked-label">🔒 LOCKED</span>}
         <div className="fixture__match">
           <span className="fixture__team-code">{teamCode}</span>
           {result ? (
@@ -219,11 +226,13 @@ function FixtureCard({
           <strong className={result ? `fixture__result fixture__result--${result.outcome.toLowerCase()}` : "fixture__status"}>
             {result
               ? `${result.outcome === "W" ? "승" : result.outcome === "D" ? "무" : "패"} · 다시보기`
-              : placed === 11
-                ? "라인업 완성 · 경기 시작"
-                : placed > 0
-                  ? `${placed}/11 배치 계속하기`
-                  : "전술 설정"}
+              : locked
+                ? "이전 경기를 먼저 진행하세요"
+                : placed === 11
+                  ? "라인업 완성 · 경기 시작"
+                  : placed > 0
+                    ? `${placed}/11 배치 계속하기`
+                    : "전술 설정"}
           </strong>
         </div>
       </div>
