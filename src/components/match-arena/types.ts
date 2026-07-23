@@ -1,6 +1,15 @@
 import type { FormationKey, SlotPositions } from "../../data/formation";
 import type { Leaderboard } from "../../data/leaderboard";
-import type { GoalEvent, LiveMatchSnapshot, MatchEvent, PenaltyResult, SimComparison, TeamStats } from "../../data/matchSim";
+import type {
+  GoalEvent,
+  HalfResult,
+  LiveMatchSnapshot,
+  MatchEvent,
+  PenaltyResult,
+  SimComparison,
+  SimInput,
+  TeamStats,
+} from "../../data/matchSim";
 import type { TacticStyleKey } from "../../data/tactics";
 import type { Player } from "../../data/types";
 import type { TeamTactics } from "./tactics";
@@ -22,7 +31,7 @@ export interface ArenaSim {
 }
 
 export interface MatchArenaProps {
-  sim: ArenaSim;
+  simInput: SimInput;
   userTeamName: string;
   userCode: string;
   oppTeamName: string;
@@ -43,7 +52,9 @@ export interface MatchArenaProps {
   interimLabel?: string;
   interimCta?: string;
   onInterimContinue?: () => void;
+  initialTactics?: TeamTactics;
   onTacticChange?: (tactics: TeamTactics) => void;
+  onPeriodComplete: (period: HalfResult) => ArenaSim;
   onComplete: () => void;
   onClose: () => void;
   onNext?: () => void;

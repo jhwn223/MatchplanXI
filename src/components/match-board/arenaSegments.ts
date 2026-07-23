@@ -11,6 +11,7 @@ export function firstHalfArenaSim(half: HalfResult | null): ArenaSim | null {
     userXg: half.userXg,
     oppXg: half.oppXg,
     teamStats: half.teamStats,
+    liveSnapshots: half.liveSnapshots,
   };
 }
 
@@ -25,6 +26,7 @@ export function secondHalfArenaSim(half: HalfResult | null, regulation: SimResul
     oppXg: regulation.oppXg,
     comparison: regulation.comparison,
     teamStats: regulation.teamStats,
+    liveSnapshots: regulation.liveSnapshots,
     wentToExtraTime: regulation.wentToExtraTime,
     penalties: regulation.penalties,
     regulationUserGoals: regulation.regulationUserGoals,
@@ -43,6 +45,7 @@ export function extraTimeArenaSim(result: SimResult | null): ArenaSim | null {
     oppXg: result.oppXg,
     comparison: result.comparison,
     teamStats: result.teamStats,
+    liveSnapshots: result.liveSnapshots,
     wentToExtraTime: result.wentToExtraTime,
     penalties: result.penalties,
     regulationUserGoals: result.regulationUserGoals,

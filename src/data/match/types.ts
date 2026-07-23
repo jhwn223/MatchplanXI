@@ -58,6 +58,8 @@ export type MatchEventType =
   | "miss"
   | "goal";
 
+export type PassType = "cross" | "short" | "through" | "longBall" | "normal";
+
 export interface MatchEvent {
   minute: number;
   side: MatchSide;
@@ -67,6 +69,11 @@ export interface MatchEvent {
   detail: string;
   success: boolean;
   xg?: number;
+  passType?: PassType;
+  x?: number;
+  y?: number;
+  endX?: number;
+  endY?: number;
 }
 
 export interface TeamStats {
@@ -133,6 +140,13 @@ export interface SimTacticProfile {
   overlapBias: number;
   directnessBias: number;
   counterBias: number;
+  tempoBias: number;
+  creativityBias: number;
+  shootingBias: number;
+  defensiveLineBias: number;
+  tacklingBias: number;
+  widthBias: number;
+  focusBias: number;
 }
 
 export interface SimInput {

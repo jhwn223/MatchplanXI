@@ -35,10 +35,22 @@ export function combineHalves(input: SimInput, firstHalf: HalfResult, secondHalf
   };
 }
 
-export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
-  if (!input.isKnockout || base.userGoals !== base.oppGoals) return base;
+export function combinePeriods(previous: HalfResult | null, next: HalfResult): HalfResult {
+  if (!previous) return next;
+  return {
+    goals: [...previous.goals, ...next.goals].sort((a, b) => a.minute - b.minute),
+    events: [...previous.events, ...next.events].sort((a, b) => a.minute - b.minute),
+    userGoals: previous.userGoals + next.userGoals,
+    oppGoals: previous.oppGoals + next.oppGoals,
+    userXg: previous.userXg + next.userXg,
+    oppXg: previous.oppXg + next.oppXg,
+    teamStats: combineTeamStatsPair(previous.teamStats, next.teamStats),
+    playerStats: combinePlayerStats(previous.playerStats, next.playerStats),
+    liveSnapshots: combineLiveSnapshots(previous.liveSnapshots, next.liveSnapshots),
+  };
+}
 
-  const extraTime = simulatePeriod(input, 91, 120, 9_000029);
+export function combineExtraTime(input: SimInput, base: SimResult, extraTime: HalfResult): SimResult {
   const userGoals = base.userGoals + extraTime.userGoals;
   const oppGoals = base.oppGoals + extraTime.oppGoals;
   const goals = [...base.goals, ...extraTime.goals].sort((a, b) => a.minute - b.minute);
@@ -47,16 +59,14 @@ export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
     ? simulatePenalties(mulberry32((input.seed + 9_000029) >>> 0), input)
     : null;
   const outcome = userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
-  const userXg = base.userXg + extraTime.userXg;
-  const oppXg = base.oppXg + extraTime.oppXg;
   const playerStats = combinePlayerStats(base.playerStats, extraTime.playerStats);
 
   return {
     ...base,
     userGoals,
     oppGoals,
-    userXg,
-    oppXg,
+    userXg: base.userXg + extraTime.userXg,
+    oppXg: base.oppXg + extraTime.oppXg,
     goals,
     events,
     comparison: buildComparison(input, userGoals, oppGoals, outcome),
@@ -67,6 +77,12 @@ export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
     wentToExtraTime: true,
     penalties,
   };
+}
+
+export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
+  if (!input.isKnockout || base.userGoals !== base.oppGoals) return base;
+
+  return combineExtraTime(input, base, simulatePeriod(input, 91, 120, 9_000029));
 }
 
 function buildComparison(

@@ -1,29 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { slotsOf } from "../data/formation";
-import { snapshotAtMinute } from "../data/matchSim";
+import {
+  combinePeriods,
+  simulatePeriod,
+  snapshotAtMinute,
+  type HalfResult,
+  type LiveMatchSnapshot,
+} from "../data/matchSim";
 import type { Player, Position } from "../data/types";
 import { ArenaEventFeed } from "./match-arena/ArenaEventFeed";
+import { ArenaMatchCenter, type MatchCenterTab } from "./match-arena/ArenaMatchCenter";
 import { ArenaResultPanel } from "./match-arena/ArenaResultPanel";
-import { ArenaTacticsPanel } from "./match-arena/ArenaTacticsPanel";
 import {
-  DEFAULT_LIVE_INTENSITY,
   DEFAULT_TEAM_TACTICS,
+  describeTeamTactics,
   intensityFromTeamTactics,
+  simProfileFromTeamTactics,
   type LiveIntensity,
-  type TacticMeterKey,
-  type TacticSelectKey,
   type TeamTactics,
 } from "./match-arena/tactics";
 import { clamp as clampf, homeFor } from "./match-arena/runtimeMath";
 import type { ArenaDot as Dot, ArenaState } from "./match-arena/runtimeTypes";
-import type { MatchArenaProps } from "./match-arena/types";
+import type { ArenaSim, MatchArenaProps } from "./match-arena/types";
 import { useArenaLoop } from "./match-arena/useArenaLoop";
+import { TacticImpactPanel } from "./match-arena/TacticImpactPanel";
 
 export type { ArenaSim } from "./match-arena/types";
 
 export function MatchArena({
-  sim,
+  simInput,
   userTeamName,
   userCode,
   oppTeamName,
@@ -44,7 +50,9 @@ export function MatchArena({
   interimLabel = "구간 종료",
   interimCta = "계속하기 →",
   onInterimContinue,
+  initialTactics = DEFAULT_TEAM_TACTICS,
   onTacticChange,
+  onPeriodComplete,
   onComplete,
   onClose,
   onNext,
@@ -53,14 +61,26 @@ export function MatchArena({
   const stateRef = useRef<ArenaState | null>(null);
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
-  const liveIntensityRef = useRef<LiveIntensity>(DEFAULT_LIVE_INTENSITY);
+  const pausedBeforePanelRef = useRef(false);
+  const liveIntensityRef = useRef<LiveIntensity>(intensityFromTeamTactics(initialTactics));
   const completedRef = useRef(false);
+  const tacticsRef = useRef<TeamTactics>(initialTactics);
+  const periodRef = useRef<HalfResult | null>(null);
+  const simulatedThroughRef = useRef(startMinute);
+  const periodEndedRef = useRef(false);
+  const simRef = useRef<ArenaSim>({
+    goals: [],
+    events: [],
+    userGoals: startScore[0],
+    oppGoals: startScore[1],
+    userXg: 0,
+    oppXg: 0,
+  });
 
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [showTactics, setShowTactics] = useState(false);
-  const [teamTactics, setTeamTactics] = useState<TeamTactics>(DEFAULT_TEAM_TACTICS);
-  const [openTacticSelect, setOpenTacticSelect] = useState<TacticSelectKey | null>(null);
+  const [activePanel, setActivePanel] = useState<MatchCenterTab | null>(null);
+  const [teamTactics, setTeamTactics] = useState<TeamTactics>(initialTactics);
   const [hud, setHud] = useState({
     minute: startMinute,
     home: startScore[0],
@@ -69,20 +89,85 @@ export function MatchArena({
     periodBanner: null as string | null,
   });
   const [ended, setEnded] = useState(false);
+  const [sim, setSim] = useState<ArenaSim>(simRef.current);
+  const [simulatedThrough, setSimulatedThrough] = useState(startMinute);
+  const [impactBaseline, setImpactBaseline] = useState<LiveMatchSnapshot | null>(null);
+  const [tacticChangedAt, setTacticChangedAt] = useState(startMinute);
+  const [hasTacticChange, setHasTacticChange] = useState(false);
 
   function updateTeamTactics(next: TeamTactics) {
+    const currentLive = snapshotAtMinute(simRef.current.liveSnapshots ?? [], hud.minute);
+    setImpactBaseline(currentLive);
+    setTacticChangedAt(hud.minute);
+    setHasTacticChange(true);
+    tacticsRef.current = next;
     liveIntensityRef.current = intensityFromTeamTactics(next);
     setTeamTactics(next);
     onTacticChange?.(next);
   }
 
-  function setTacticSelect<K extends TacticSelectKey>(key: K, value: TeamTactics[K]) {
-    updateTeamTactics({ ...teamTactics, [key]: value });
-    setOpenTacticSelect(null);
+  function arenaSimFromPeriod(period: HalfResult): ArenaSim {
+    return {
+      goals: period.goals,
+      events: period.events,
+      userGoals: startScore[0] + period.userGoals,
+      oppGoals: startScore[1] + period.oppGoals,
+      userXg: period.userXg,
+      oppXg: period.oppXg,
+      teamStats: period.teamStats,
+      liveSnapshots: period.liveSnapshots,
+    };
   }
 
-  function nudgeMeter(key: TacticMeterKey, delta: number) {
-    updateTeamTactics({ ...teamTactics, [key]: clampf(teamTactics[key] + delta, 1, 10) });
+  function ensureSimulatedThrough(targetMinute: number) {
+    const target = Math.min(endMinute, Math.max(startMinute, Math.floor(targetMinute)));
+    if (target <= simulatedThroughRef.current || periodEndedRef.current) return;
+
+    let accumulated = periodRef.current;
+    for (let minute = simulatedThroughRef.current + 1; minute <= target; minute++) {
+      const minuteInput = {
+        ...simInput,
+        userTactics: simProfileFromTeamTactics(tacticsRef.current),
+      };
+      const next = simulatePeriod(minuteInput, minute, minute, minute * 999_983);
+      accumulated = combinePeriods(accumulated, next);
+    }
+    if (!accumulated) return;
+    periodRef.current = accumulated;
+    simulatedThroughRef.current = target;
+    const nextSim = arenaSimFromPeriod(accumulated);
+    simRef.current = nextSim;
+    setSim(nextSim);
+    setSimulatedThrough(target);
+  }
+
+  function finishLivePeriod() {
+    if (periodEndedRef.current) return;
+    ensureSimulatedThrough(endMinute);
+    const period = periodRef.current;
+    if (!period) return;
+    periodEndedRef.current = true;
+    const completedSim = onPeriodComplete(period);
+    simRef.current = completedSim;
+    setSim(completedSim);
+  }
+
+  function openMatchCenter(tab: MatchCenterTab) {
+    if (activePanel == null) pausedBeforePanelRef.current = pausedRef.current;
+    pausedRef.current = true;
+    setPaused(true);
+    setActivePanel(tab);
+  }
+
+  function closeMatchCenter() {
+    setActivePanel(null);
+    pausedRef.current = pausedBeforePanelRef.current;
+    setPaused(pausedBeforePanelRef.current);
+  }
+
+  function applyTeamTactics(next: TeamTactics) {
+    updateTeamTactics(next);
+    closeMatchCenter();
   }
 
   function ratingsFor(player: Player | null | undefined, fallback = 65) {
@@ -180,7 +265,7 @@ export function MatchArena({
   }, [formation, slots, positions, playersById]);
 
   useArenaLoop({
-    sim,
+    simRef,
     canvasRef,
     stateRef,
     completedRef,
@@ -191,7 +276,10 @@ export function MatchArena({
     userTeamName,
     oppTeamName,
     userColor,
+    startMinute,
     endMinute,
+    onMinuteEnter: ensureSimulatedThrough,
+    onPeriodEnd: finishLivePeriod,
     onComplete,
     setEnded,
     setPaused,
@@ -201,12 +289,15 @@ export function MatchArena({
 
   function replay() {
     stateRef.current = buildState();
+    // Replay the finished timeline without simulating or recording the match again.
     completedRef.current = true;
     setEnded(false);
     setHud({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null, periodBanner: null });
     setPaused(false);
     pausedRef.current = false;
   }
+
+  const liveSnapshot = snapshotAtMinute(sim.liveSnapshots ?? [], hud.minute);
 
   return (
     <motion.div className="sim-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -235,10 +326,31 @@ export function MatchArena({
           </button>
         </div>
 
-        {!ended && <div className="arena-live-grid">
+        {!ended && activePanel && (
+          <ArenaMatchCenter
+            activeTab={activePanel}
+            onTabChange={setActivePanel}
+            sim={sim}
+            live={liveSnapshot}
+            minute={hud.minute}
+            userTeamName={userTeamName}
+            userCode={userCode}
+            oppTeamName={oppTeamName}
+            formation={formation}
+            formationLabel={formationLabel}
+            tactics={teamTactics}
+            onApplyTactics={applyTeamTactics}
+            onClose={closeMatchCenter}
+          />
+        )}
+
+        <div
+          className={`arena-live-grid${activePanel || ended ? " arena-live-grid--panel-open" : ""}`}
+          aria-hidden={activePanel != null || ended}
+        >
           <div className="arena-canvas-wrap">
             <canvas ref={canvasRef} className="arena-canvas" />
-            <div className="arena-live-tactic">진행 중인 전술<br /><strong>{formation} · {teamTactics.buildUpPlay === "fastBuildUp" ? "빠른 빌드업" : "균형 운영"}</strong></div>
+            <div className="arena-live-tactic">진행 중인 전술<br /><strong>{formation} · {describeTeamTactics(teamTactics)}</strong></div>
             <AnimatePresence>
               {hud.periodBanner && (
                 <motion.div
@@ -268,12 +380,23 @@ export function MatchArena({
               )}
             </AnimatePresence>
           </div>
-          <ArenaEventFeed
-            events={sim.events ?? []}
-            minute={hud.minute}
-            live={snapshotAtMinute(sim.liveSnapshots ?? [], hud.minute)}
-          />
-        </div>}
+          <div className="arena-insights">
+            <ArenaEventFeed
+              events={sim.events ?? []}
+              minute={hud.minute}
+              live={liveSnapshot}
+            />
+            <TacticImpactPanel
+              tactics={teamTactics}
+              changedAt={tacticChangedAt}
+              hasChanged={hasTacticChange}
+              baseline={impactBaseline}
+              live={liveSnapshot}
+              currentMinute={hud.minute}
+              simulatedThrough={simulatedThrough}
+            />
+          </div>
+        </div>
 
         {!ended ? (
           <div className="arena-live-controls">
@@ -282,8 +405,8 @@ export function MatchArena({
               <span>0′</span><span>15′</span><span>30′</span><span>45′</span><span>60′</span><span>75′</span><span>90′</span>
             </div>
             <div className="arena-controls">
-            <button type="button" className="arena-ctrl" onClick={() => { pausedRef.current = !paused; setPaused(!paused); }}>
-              {paused ? "▶ 재생" : "⏸ 일시정지"}
+            <button type="button" className="arena-ctrl" disabled={activePanel != null} onClick={() => { pausedRef.current = !paused; setPaused(!paused); }}>
+              {activePanel ? "분석 중 · 일시정지" : paused ? "▶ 재생" : "⏸ 일시정지"}
             </button>
             {[1, 2, 4].map((sp) => (
               <button
@@ -291,19 +414,17 @@ export function MatchArena({
                 type="button"
                 className="arena-ctrl"
                 data-active={speed === sp || undefined}
+                disabled={activePanel != null}
                 onClick={() => { speedRef.current = sp; setSpeed(sp); }}
               >
                 {sp}배속
               </button>
             ))}
-            <button
-              type="button"
-              className="arena-ctrl arena-ctrl--skip"
-              onClick={() => setShowTactics((value) => !value)}
-            >
-              ✎ 전술 변경
-            </button>
-            <button type="button" className="arena-ctrl arena-ctrl--end" onClick={() => { stateRef.current!.clock = endMinute; }}>경기 종료</button>
+            <button type="button" className="arena-ctrl arena-ctrl--section" data-active={activePanel === "overview" || undefined} onClick={() => openMatchCenter("overview")}>◉ 경기 개요</button>
+            <button type="button" className="arena-ctrl arena-ctrl--section" data-active={activePanel === "ratings" || undefined} onClick={() => openMatchCenter("ratings")}>★ 선수 평점</button>
+            <button type="button" className="arena-ctrl arena-ctrl--section" data-active={activePanel === "analysis" || undefined} onClick={() => openMatchCenter("analysis")}>▥ 경기 분석</button>
+            <button type="button" className="arena-ctrl arena-ctrl--section arena-ctrl--skip" data-active={activePanel === "tactics" || undefined} onClick={() => openMatchCenter("tactics")}>✎ 전술 변경</button>
+            <button type="button" className="arena-ctrl arena-ctrl--end" disabled={activePanel != null} onClick={() => { stateRef.current!.clock = endMinute; }}>경기 종료</button>
             </div>
           </div>
         ) : (
@@ -320,19 +441,6 @@ export function MatchArena({
             onReplay={replay}
             onClose={onClose}
             onNext={onNext}
-          />
-        )}
-        {!ended && showTactics && (
-          <ArenaTacticsPanel
-            userTeamName={userTeamName}
-            userCode={userCode}
-            formation={formation}
-            formationLabel={formationLabel}
-            tactics={teamTactics}
-            openSelect={openTacticSelect}
-            onOpenSelect={setOpenTacticSelect}
-            onSelect={setTacticSelect}
-            onNudge={nudgeMeter}
           />
         )}
       </motion.div>
