@@ -24,13 +24,16 @@ interface Props {
 
 const VARIANTS = {
   idle: { scale: 1, opacity: 1, rotate: 0, boxShadow: "0 2px 6px rgba(0,0,0,0.2)" },
-  "dragging-source": { scale: 1, opacity: 0, rotate: 0, boxShadow: "none" },
+  // opacity stays 1 here on purpose: the drag source is hidden via the plain
+  // `visibility: hidden` style instead, so the shared layoutId transition
+  // doesn't inherit a stale opacity:0 when the card reappears at its new slot.
+  "dragging-source": { scale: 1, opacity: 1, rotate: 0, boxShadow: "none" },
   floating: { scale: 1.07, opacity: 1, rotate: -2, boxShadow: "0 16px 28px rgba(0,0,0,0.4)" },
 };
 
 export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
   (
-    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = true, ineligible, onSelect },
+    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = false, ineligible, onSelect },
     ref
   ) => {
     const color = condition ? conditionColor(condition.score) : "hsl(210, 10%, 55%)";
