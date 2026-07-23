@@ -8,7 +8,7 @@ import {
   type PlayedMap,
   type TeamMatch,
 } from "../data/tournament";
-import { groupStandingsSim, qualificationProbability } from "../data/tournamentEngine";
+import { groupStandingsHub, qualificationProbability } from "../data/tournamentEngine";
 import { AppTopbar } from "./AppTopbar";
 
 interface Props {
@@ -38,7 +38,7 @@ function userResultOf(tm: TeamMatch, played: PlayedMap): UserResult | null {
 export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch, onOpenBracket }: Props) {
   const allMatches = getTeamMatches(data, team.team_name);
   const groupMatches = allMatches.filter((m) => m.match.stage_name === "Group Stage");
-  const standings = groupStandingsSim(data, team.group_letter, played);
+  const standings = groupStandingsHub(data, team.group_letter, played, team.team_name);
 
   const groupPlayedCount = groupMatches.filter((m) => played[m.match.match_id]).length;
   const groupComplete = groupPlayedCount === groupMatches.length;
@@ -96,7 +96,7 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
 
       <div className="hub__body">
         <section className="hub__standings">
-          <h2 className="hub__section-title">그룹 {team.group_letter} 순위 (플레이한 경기만 반영)</h2>
+          <h2 className="hub__section-title">그룹 {team.group_letter} 순위 (내 경기는 실제 결과 · 다른 경기는 전력 기준 시뮬레이션)</h2>
           <table className="standings">
             <thead>
               <tr>
@@ -125,7 +125,7 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
               ))}
             </tbody>
           </table>
-          <p className="hub__hint">상위 2팀이 토너먼트 진출 · 아직 치르지 않은 경기는 순위에 반영되지 않습니다</p>
+          <p className="hub__hint">상위 2팀이 토너먼트 진출 · 내가 아직 안 치른 내 경기만 순위에서 제외됩니다</p>
           <div className="qualification-card">
             <span>32강 진출 확률</span>
             <div><strong>{advanceProbability}%</strong><em>{pos <= 2 ? "진출권" : "추격 필요"}</em></div>
