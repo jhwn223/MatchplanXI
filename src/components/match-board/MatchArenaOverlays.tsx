@@ -3,6 +3,7 @@ import type { Leaderboard } from "../../data/leaderboard";
 import type { HalfResult, SimInput, SimResult } from "../../data/matchSim";
 import type { TeamMatch } from "../../data/tournament";
 import type { Player, Team } from "../../data/types";
+import type { FormationKey } from "../../data/formation";
 import { MatchArena, type ArenaSim } from "../MatchArena";
 import type { TeamTactics } from "../match-arena/tactics";
 import type { Lineup, MatchPhase } from "./types";
@@ -22,6 +23,7 @@ interface Props {
   leaderboard: Leaderboard;
   liveTactics: TeamTactics;
   onTacticChange: (tactics: TeamTactics) => void;
+  onFormationChange: (formation: FormationKey) => void;
   onFirstHalfComplete: (period: HalfResult) => ArenaSim;
   onSecondHalfComplete: (period: HalfResult) => ArenaSim;
   onExtraTimeComplete: (period: HalfResult) => ArenaSim;
@@ -45,6 +47,7 @@ export function MatchArenaOverlays({
   leaderboard,
   liveTactics,
   onTacticChange,
+  onFormationChange,
   onFirstHalfComplete,
   onSecondHalfComplete,
   onExtraTimeComplete,
@@ -67,6 +70,7 @@ export function MatchArenaOverlays({
     leaderboard,
     initialTactics: liveTactics,
     onTacticChange,
+    onFormationChange,
     onClose,
   } as const;
 

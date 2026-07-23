@@ -4,6 +4,7 @@ import type { SimResult } from "../../data/matchSim";
 import type { Slots, TacticStyleKey } from "../../data/tactics";
 import type { PlayedResult, TeamMatch } from "../../data/tournament";
 import type { Team, TournamentData } from "../../data/types";
+import type { TeamTactics } from "../match-arena/tactics";
 
 export type MatchPhase = "idle" | "half1" | "halftime" | "half2" | "etbreak" | "extratime";
 
@@ -16,6 +17,7 @@ export interface Lineup {
   positions?: SlotPositions;
   presetKey?: string | null;
   tacticStyleKey?: TacticStyleKey | null;
+  teamTactics?: TeamTactics;
 }
 
 export interface MatchBoardProps {

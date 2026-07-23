@@ -245,27 +245,54 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
   };
 }
 
-export type QuickTacticKey = "protectLead" | "control" | "highPress" | "chaseGoal";
+export type QuickTacticKey =
+  | "defensive"
+  | "protectLead"
+  | "balanced"
+  | "control"
+  | "attacking"
+  | "highPress"
+  | "overload"
+  | "chaseGoal";
 
 export const QUICK_TACTICS: Array<{ key: QuickTacticKey; label: string; description: string }> = [
+  { key: "defensive", label: "수비 지향", description: "낮은 블록과 안정적인 간격" },
   { key: "protectLead", label: "리드 지키기", description: "낮은 라인과 신중한 운영" },
+  { key: "balanced", label: "밸런스", description: "공수 균형을 유지하는 기본형" },
   { key: "control", label: "경기 주도", description: "짧은 패스와 점유율 확보" },
+  { key: "attacking", label: "공격 지향", description: "적극적인 전진과 박스 침투" },
   { key: "highPress", label: "강한 압박", description: "높은 라인과 즉시 압박" },
+  { key: "overload", label: "측면 과부하", description: "넓은 폭과 풀백 오버래핑" },
   { key: "chaseGoal", label: "득점 총력", description: "공격 숫자와 템포 극대화" },
 ];
 
 export function applyQuickTactic(base: TeamTactics, key: QuickTacticKey): TeamTactics {
+  if (key === "defensive") return {
+    ...base, mentality: "defensive", tempo: "balanced", width: "narrow", defensiveLine: "low",
+    pressing: "low", tackling: "balanced", defenseStyle: "dropBack", depth: 3, boxPlayers: 4,
+  };
   if (key === "protectLead") return {
     ...base, mentality: "defensive", tempo: "slow", workRate: "conserve", defensiveLine: "low", width: "narrow",
     pressing: "low", tackling: "cautious", shooting: "patient", counterAttack: true, depth: 2, boxPlayers: 3,
+  };
+  if (key === "balanced") return {
+    ...DEFAULT_TEAM_TACTICS,
   };
   if (key === "control") return {
     ...base, mentality: "positive", tempo: "slow", creativity: "disciplined", passingStyle: "short", width: "balanced",
     buildUpPlay: "shortPass", chanceCreation: "possession", pressing: "standard", shooting: "patient",
   };
+  if (key === "attacking") return {
+    ...base, mentality: "attacking", tempo: "fast", width: "balanced", chanceCreation: "forwardRuns",
+    shooting: "balanced", defensiveLine: "high", pressing: "standard", boxPlayers: 8,
+  };
   if (key === "highPress") return {
     ...base, mentality: "positive", tempo: "fast", workRate: "intense", defenseStyle: "constantPress", width: "wide",
     defensiveLine: "high", pressing: "high", tackling: "aggressive", depth: 8,
+  };
+  if (key === "overload") return {
+    ...base, mentality: "positive", tempo: "fast", width: "wide", widePlay: "overlap",
+    fullbackRole: "overlap", attackFocus: "balanced", boxPlayers: 8, corners: 6,
   };
   return {
     ...base, mentality: "attacking", tempo: "fast", fluidity: "fluid", creativity: "expressive", width: "wide",

@@ -52,12 +52,14 @@ export function MatchArena({
   onInterimContinue,
   initialTactics = DEFAULT_TEAM_TACTICS,
   onTacticChange,
+  onFormationChange,
   onPeriodComplete,
   onComplete,
   onClose,
   onNext,
 }: MatchArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const simInputRef = useRef(simInput);
   const stateRef = useRef<ArenaState | null>(null);
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
@@ -95,6 +97,10 @@ export function MatchArena({
   const [tacticChangedAt, setTacticChangedAt] = useState(startMinute);
   const [hasTacticChange, setHasTacticChange] = useState(false);
 
+  useEffect(() => {
+    simInputRef.current = simInput;
+  }, [simInput]);
+
   function updateTeamTactics(next: TeamTactics) {
     const currentLive = snapshotAtMinute(simRef.current.liveSnapshots ?? [], hud.minute);
     setImpactBaseline(currentLive);
@@ -126,7 +132,7 @@ export function MatchArena({
     let accumulated = periodRef.current;
     for (let minute = simulatedThroughRef.current + 1; minute <= target; minute++) {
       const minuteInput = {
-        ...simInput,
+        ...simInputRef.current,
         userTactics: simProfileFromTeamTactics(tacticsRef.current),
       };
       const next = simulatePeriod(minuteInput, minute, minute, minute * 999_983);
@@ -347,6 +353,7 @@ export function MatchArena({
             formationLabel={formationLabel}
             tactics={teamTactics}
             onApplyTactics={applyTeamTactics}
+            onFormationChange={onFormationChange}
             onClose={closeMatchCenter}
           />
         )}

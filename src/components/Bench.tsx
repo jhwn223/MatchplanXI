@@ -18,7 +18,9 @@ const POSITION_ORDER: Position[] = ["GK", "DEF", "MID", "FWD"];
 export function Bench({ benchPlayers, conditions, benchedOut, onSelectPlayer }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: BENCH_ZONE_ID });
   const [filter, setFilter] = useState<"ALL" | Position>("ALL");
+  const [query, setQuery] = useState("");
   const visiblePositions = filter === "ALL" ? POSITION_ORDER : [filter];
+  const normalizedQuery = query.trim().toLocaleLowerCase();
 
   return (
     <div ref={setNodeRef} className="bench" data-over={isOver || undefined}>
@@ -26,6 +28,16 @@ export function Bench({ benchPlayers, conditions, benchedOut, onSelectPlayer }: 
         <div><span>◉</span><h2 className="bench__title">선수단</h2></div>
         <small>{benchPlayers.length} PLAYERS</small>
       </div>
+      <label className="bench__search">
+        <span aria-hidden="true">⌕</span>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="선수 검색"
+          aria-label="선수 검색"
+        />
+      </label>
       <div className="bench__filters" aria-label="포지션 필터">
         {(["ALL", ...POSITION_ORDER] as const).map((position) => (
           <button
@@ -39,7 +51,11 @@ export function Bench({ benchPlayers, conditions, benchedOut, onSelectPlayer }: 
         ))}
       </div>
       {visiblePositions.map((pos) => {
-        const group = benchPlayers.filter((p) => p.position === pos);
+        const group = benchPlayers.filter(
+          (player) =>
+            player.position === pos &&
+            (!normalizedQuery || player.player_name.toLocaleLowerCase().includes(normalizedQuery))
+        );
         if (group.length === 0) return null;
         return (
           <div key={pos} className="bench__group">
