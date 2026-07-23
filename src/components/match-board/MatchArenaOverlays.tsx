@@ -22,7 +22,10 @@ interface Props {
   opponentPlayers: Player[];
   leaderboard: Leaderboard;
   liveTactics: TeamTactics;
+  opponentTactics?: TeamTactics;
+  opponentFormation?: FormationKey;
   onTacticChange: (tactics: TeamTactics) => void;
+  onOpponentTacticChange: (tactics: TeamTactics) => void;
   onFormationChange: (formation: FormationKey) => void;
   onFirstHalfComplete: (period: HalfResult) => ArenaSim;
   onSecondHalfComplete: (period: HalfResult) => ArenaSim;
@@ -46,7 +49,10 @@ export function MatchArenaOverlays({
   opponentPlayers,
   leaderboard,
   liveTactics,
+  opponentTactics,
+  opponentFormation,
   onTacticChange,
+  onOpponentTacticChange,
   onFormationChange,
   onFirstHalfComplete,
   onSecondHalfComplete,
@@ -69,7 +75,10 @@ export function MatchArenaOverlays({
     opponentPlayers,
     leaderboard,
     initialTactics: liveTactics,
+    initialOpponentTactics: opponentTactics,
+    opponentFormation,
     onTacticChange,
+    onOpponentTacticChange,
     onFormationChange,
     onClose,
   } as const;

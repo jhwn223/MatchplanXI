@@ -25,6 +25,10 @@ import type { ArenaDot as Dot, ArenaState } from "./match-arena/runtimeTypes";
 import type { ArenaSim, MatchArenaProps } from "./match-arena/types";
 import { useArenaLoop } from "./match-arena/useArenaLoop";
 import { TacticImpactPanel } from "./match-arena/TacticImpactPanel";
+import {
+  decideOpponentTacticChange,
+  type OpponentTacticChange,
+} from "./match-board/opponentPlan";
 
 export type { ArenaSim } from "./match-arena/types";
 
@@ -51,7 +55,10 @@ export function MatchArena({
   interimCta = "계속하기 →",
   onInterimContinue,
   initialTactics = DEFAULT_TEAM_TACTICS,
+  initialOpponentTactics = DEFAULT_TEAM_TACTICS,
+  opponentFormation = "4-3-3",
   onTacticChange,
+  onOpponentTacticChange,
   onFormationChange,
   onPeriodComplete,
   onComplete,
@@ -67,6 +74,7 @@ export function MatchArena({
   const liveIntensityRef = useRef<LiveIntensity>(intensityFromTeamTactics(initialTactics));
   const completedRef = useRef(false);
   const tacticsRef = useRef<TeamTactics>(initialTactics);
+  const opponentTacticsRef = useRef<TeamTactics>(initialOpponentTactics);
   const periodRef = useRef<HalfResult | null>(null);
   const simulatedThroughRef = useRef(startMinute);
   const periodEndedRef = useRef(false);
@@ -83,6 +91,7 @@ export function MatchArena({
   const [speed, setSpeed] = useState(1);
   const [activePanel, setActivePanel] = useState<MatchCenterTab | null>(null);
   const [teamTactics, setTeamTactics] = useState<TeamTactics>(initialTactics);
+  const [opponentTactics, setOpponentTactics] = useState<TeamTactics>(initialOpponentTactics);
   const [hud, setHud] = useState({
     minute: startMinute,
     home: startScore[0],
@@ -96,6 +105,7 @@ export function MatchArena({
   const [impactBaseline, setImpactBaseline] = useState<LiveMatchSnapshot | null>(null);
   const [tacticChangedAt, setTacticChangedAt] = useState(startMinute);
   const [hasTacticChange, setHasTacticChange] = useState(false);
+  const [opponentTacticChanges, setOpponentTacticChanges] = useState<OpponentTacticChange[]>([]);
 
   useEffect(() => {
     simInputRef.current = simInput;
@@ -131,9 +141,31 @@ export function MatchArena({
 
     let accumulated = periodRef.current;
     for (let minute = simulatedThroughRef.current + 1; minute <= target; minute++) {
+      const liveBeforeChange = snapshotAtMinute(
+        accumulated?.liveSnapshots ?? [],
+        minute - 1,
+      );
+      const opponentDecision = decideOpponentTacticChange({
+        minute,
+        userGoals: startScore[0] + (accumulated?.userGoals ?? 0),
+        oppGoals: startScore[1] + (accumulated?.oppGoals ?? 0),
+        current: opponentTacticsRef.current,
+        userTactics: tacticsRef.current,
+        live: liveBeforeChange,
+      });
+      if (
+        opponentDecision &&
+        JSON.stringify(opponentDecision.tactics) !== JSON.stringify(opponentTacticsRef.current)
+      ) {
+        opponentTacticsRef.current = opponentDecision.tactics;
+        setOpponentTactics(opponentDecision.tactics);
+        onOpponentTacticChange?.(opponentDecision.tactics);
+        setOpponentTacticChanges((current) => [...current, opponentDecision]);
+      }
       const minuteInput = {
         ...simInputRef.current,
         userTactics: simProfileFromTeamTactics(tacticsRef.current),
+        oppTactics: simProfileFromTeamTactics(opponentTacticsRef.current),
       };
       const next = simulatePeriod(minuteInput, minute, minute, minute * 999_983);
       accumulated = combinePeriods(accumulated, next);
@@ -233,7 +265,7 @@ export function MatchArena({
       MID: opponentPlayers.filter((player) => player.position === "MID"),
       FWD: opponentPlayers.filter((player) => player.position === "FWD"),
     };
-    slotsOf("4-3-3").forEach((s, i) => {
+    slotsOf(opponentFormation).forEach((s, i) => {
       const h = homeFor(s.x, s.y, 1);
       const player = opponentQueues[s.position].shift() ?? opponentPlayers[i] ?? null;
       dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28 });
@@ -399,6 +431,8 @@ export function MatchArena({
               events={sim.events ?? []}
               minute={hud.minute}
               live={liveSnapshot}
+              opponentTacticChanges={opponentTacticChanges}
+              opponentTactics={opponentTactics}
             />
             <TacticImpactPanel
               tactics={teamTactics}
