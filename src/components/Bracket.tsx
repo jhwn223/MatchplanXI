@@ -46,8 +46,8 @@ export function Bracket({ data, team, played, koResults, leaderboard = {}, onBac
   const awards = champ
     ? buildTournamentLeaderboard(data, played, rounds, team.team_name, leaderboard)
     : null;
-  const topScorer = awards?.topScorers[0] ?? null;
-  const topAssist = awards?.topAssists[0] ?? null;
+  const topScorers = awards?.topScorers.slice(0, 3) ?? [];
+  const topAssists = awards?.topAssists.slice(0, 3) ?? [];
   const champRecord = champ ? teamTournamentRecord(standings, rounds, champ.name) : null;
   const runnerUpRecord = runnerUp ? teamTournamentRecord(standings, rounds, runnerUp.name) : null;
 
@@ -84,8 +84,8 @@ export function Bracket({ data, team, played, koResults, leaderboard = {}, onBac
         champRecord={champRecord}
         runnerUpRecord={runnerUpRecord}
         finalMatch={finalMatch}
-        topScorer={topScorer}
-        topAssist={topAssist}
+        topScorers={topScorers}
+        topAssists={topAssists}
         onShowBracket={() => setShowBracket(true)}
         onBack={onBack}
         onRestart={onRestart}
@@ -151,8 +151,8 @@ function FinalResults({
   champRecord,
   runnerUpRecord,
   finalMatch,
-  topScorer,
-  topAssist,
+  topScorers,
+  topAssists,
   onShowBracket,
   onBack,
   onRestart,
@@ -163,8 +163,8 @@ function FinalResults({
   champRecord: TeamTournamentRecord | null;
   runnerUpRecord: TeamTournamentRecord | null;
   finalMatch: KOMatch | null;
-  topScorer: TournamentLeader | null;
-  topAssist: TournamentLeader | null;
+  topScorers: TournamentLeader[];
+  topAssists: TournamentLeader[];
   onShowBracket: () => void;
   onBack: () => void;
   onRestart?: () => void;
@@ -192,32 +192,28 @@ function FinalResults({
         <PodiumCard place={1} label="CHAMPION" code={champ.code} name={champ.name} highlight subtitle={finalScoreLine} record={recordLine(champRecord)} />
       </div>
 
-      {(topScorer || topAssist) && (
+      {(topScorers.length > 0 || topAssists.length > 0) && (
         <section className="awards">
           <h2 className="hub__section-title">🏅 대회 개인상</h2>
           <div className="awards__grid">
-            {topScorer && (
+            {topScorers.length > 0 && (
               <AwardCard
                 label="GOLDEN BOOT"
-                title="대회 득점 1위"
+                title="대회 득점 Top 3"
                 icon="⚽"
-                playerId={topScorer.playerId}
-                name={topScorer.name}
-                team={topScorer.teamName}
-                value={topScorer.goals}
+                players={topScorers}
                 unit="GOALS"
+                value={(p) => p.goals}
               />
             )}
-            {topAssist && (
+            {topAssists.length > 0 && (
               <AwardCard
                 label="PLAYMAKER AWARD"
-                title="대회 어시스트 1위"
+                title="대회 어시스트 Top 3"
                 icon="🎯"
-                playerId={topAssist.playerId}
-                name={topAssist.name}
-                team={topAssist.teamName}
-                value={topAssist.assists}
+                players={topAssists}
                 unit="ASSISTS"
+                value={(p) => p.assists}
               />
             )}
           </div>
@@ -274,20 +270,16 @@ function AwardCard({
   label,
   title,
   icon,
-  playerId,
-  name,
-  team,
-  value,
+  players,
   unit,
+  value,
 }: {
   label: string;
   title: string;
   icon: string;
-  playerId: number;
-  name: string;
-  team: string;
-  value: number;
+  players: TournamentLeader[];
   unit: string;
+  value: (p: TournamentLeader) => number;
 }) {
   return (
     <div className="award-card">
@@ -296,17 +288,22 @@ function AwardCard({
         <span className="award-card__icon">{icon}</span>
       </div>
       <p className="award-card__title">{title}</p>
-      <div className="award-card__person">
-        <AwardAvatar playerId={playerId} name={name} />
-        <div>
-          <div className="award-card__name">{name}</div>
-          <p className="award-card__team">{team}</p>
-        </div>
-      </div>
-      <div className="award-card__stat">
-        <strong>{value}</strong>
-        <span>{unit}</span>
-      </div>
+      <ol className="award-card__list">
+        {players.map((p, i) => (
+          <li className="award-card__row" key={p.playerId}>
+            <span className="award-card__rank">{i + 1}</span>
+            <AwardAvatar playerId={p.playerId} name={p.name} />
+            <div className="award-card__person-info">
+              <div className="award-card__name">{p.name}</div>
+              <p className="award-card__team">{p.teamName}</p>
+            </div>
+            <div className="award-card__stat">
+              <strong>{value(p)}</strong>
+              <span>{unit}</span>
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

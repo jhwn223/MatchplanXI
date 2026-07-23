@@ -183,10 +183,26 @@
 .award-card__label { font-size: 11px; font-weight: 800; color: var(--accent); letter-spacing: 0.4px; }
 .award-card__icon { font-size: 16px; }
 .award-card__title { margin: 6px 0 10px; font-size: 14px; font-weight: 700; color: var(--text); }
-.award-card__person { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.award-card__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.award-card__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.award-card__row + .award-card__row { border-top: 1px solid var(--border); padding-top: 8px; }
+.award-card__rank {
+  flex-shrink: 0;
+  width: 18px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-dim);
+  text-align: center;
+}
+.award-card__person-info { flex: 1; min-width: 0; }
 .award-card__avatar {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
   border-radius: 999px;
   display: flex;
@@ -194,22 +210,23 @@
   justify-content: center;
   background: rgba(79,209,197,0.16);
   color: var(--accent);
-  font-size: 13px;
+  font-size: 12px;
   object-fit: cover;
   border: 1px solid var(--border);
   font-weight: 800;
 }
-.award-card__name { font-size: 15px; font-weight: 800; color: var(--text); }
-.award-card__team { margin: 2px 0 0; font-size: 12px; color: var(--text-dim); }
+.award-card__name { font-size: 14px; font-weight: 800; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.award-card__team { margin: 2px 0 0; font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .award-card__stat {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 5px;
+  flex-shrink: 0;
   background: rgba(79,209,197,0.1);
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 6px 9px;
 }
-.award-card__stat strong { font-size: 20px; color: var(--accent); }
+.award-card__stat strong { font-size: 16px; color: var(--accent); }
 .award-card__stat span { font-size: 11px; font-weight: 700; color: var(--text-dim); }
 
 .final-results__actions {
