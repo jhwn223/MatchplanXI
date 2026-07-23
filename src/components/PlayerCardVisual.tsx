@@ -33,7 +33,7 @@ const VARIANTS = {
 
 export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
   (
-    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = true, ineligible, onSelect },
+    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = false, ineligible, onSelect },
     ref
   ) => {
     const color = condition ? conditionColor(condition.score) : "hsl(210, 10%, 55%)";
