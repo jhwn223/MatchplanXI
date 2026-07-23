@@ -21,10 +21,17 @@ import {
   intensityFromTeamTactics,
   type TeamTactics,
 } from "../match-arena/tactics";
+import { OpponentAnalysisPanel } from "./OpponentAnalysisPanel";
+import type { OpponentPlan, TacticalMatchup } from "./opponentPlan";
 import type { Lineup, MatchPhase } from "./types";
 
 interface Props {
   team: Team;
+  opponent?: Team;
+  opponentPlayers: Player[];
+  opponentConditions: Map<number, ConditionBreakdown>;
+  opponentPlan: OpponentPlan | null;
+  matchups: TacticalMatchup[];
   activeMatch: TeamMatch;
   phase: MatchPhase;
   lineup: Lineup;
@@ -62,6 +69,11 @@ interface Props {
 
 export function MatchBoardScreen({
   team,
+  opponent,
+  opponentPlayers,
+  opponentConditions,
+  opponentPlan,
+  matchups,
   activeMatch,
   phase,
   lineup,
@@ -98,6 +110,7 @@ export function MatchBoardScreen({
 }: Props) {
   const [saved, setSaved] = useState(true);
   const [workspaceMode, setWorkspaceMode] = useState<"lineup" | "tactics">("lineup");
+  const [rightPanel, setRightPanel] = useState<"squad" | "opponent">("squad");
   const match = activeMatch.match;
   const intensity = intensityFromTeamTactics(teamTactics);
   const staminaRisk = intensity.attackPress >= 72 || teamTactics.workRate === "intense";
@@ -304,12 +317,47 @@ export function MatchBoardScreen({
         </main>
 
         <section className="board__bench">
-          <Bench
-            benchPlayers={benchPlayers}
-            conditions={conditions}
-            benchedOut={benchedOut}
-            onSelectPlayer={onSelectPlayer}
-          />
+          <div className="board-side-tabs" role="tablist" aria-label="팀 정보">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={rightPanel === "squad"}
+              data-active={rightPanel === "squad" || undefined}
+              onClick={() => setRightPanel("squad")}
+            >
+              우리 선수단
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={rightPanel === "opponent"}
+              data-active={rightPanel === "opponent" || undefined}
+              onClick={() => setRightPanel("opponent")}
+            >
+              상대 분석
+            </button>
+          </div>
+          {rightPanel === "squad" ? (
+            <Bench
+              benchPlayers={benchPlayers}
+              conditions={conditions}
+              benchedOut={benchedOut}
+              onSelectPlayer={onSelectPlayer}
+            />
+          ) : opponent && opponentPlan ? (
+            <OpponentAnalysisPanel
+              opponent={opponent}
+              players={opponentPlayers}
+              conditions={opponentConditions}
+              plan={opponentPlan}
+              matchups={matchups}
+              onApplyMatchup={(patch) => updateTactics({ ...teamTactics, ...patch })}
+            />
+          ) : (
+            <div className="opponent-report opponent-report--empty">
+              상대 팀 분석 데이터를 불러올 수 없습니다.
+            </div>
+          )}
         </section>
       </div>
 

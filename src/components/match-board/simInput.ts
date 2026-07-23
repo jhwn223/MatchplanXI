@@ -60,12 +60,14 @@ interface BuildSimInputOptions {
   playersById: Map<number, Player>;
   conditions: Map<number, ConditionBreakdown>;
   opponentEleven: Player[];
+  opponentConditions: Map<number, ConditionBreakdown>;
   activeMatch: TeamMatch;
   team: Team;
   opponent?: Team;
   effectiveAttackBias: number;
   isKnockout: boolean;
   teamTactics: TeamTactics;
+  opponentTactics?: TeamTactics;
 }
 
 export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | null {
@@ -77,12 +79,14 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     playersById,
     conditions,
     opponentEleven,
+    opponentConditions,
     activeMatch,
     team,
     opponent,
     effectiveAttackBias,
     isKnockout,
     teamTactics,
+    opponentTactics,
   } = options;
   if (placedIds.size < 11 || teamIndex == null) return null;
 
@@ -117,11 +121,20 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     isHome: activeMatch.isHome,
     elevation: activeMatch.elevation,
     placed,
-    oppPlaced: opponentEleven.map((player) => toSimPlayer(player, player.position, 72)),
+    oppPlaced: opponentEleven.map((player) =>
+      toSimPlayer(
+        player,
+        player.position,
+        opponentConditions.get(player.player_id)?.score ?? 72,
+      ),
+    ),
     userAbility: buildTeamAbilityProfile(selectedPlayers, conditions),
-    oppAbility: buildTeamAbilityProfile(opponentEleven),
+    oppAbility: buildTeamAbilityProfile(opponentEleven, opponentConditions),
     actual: null,
     isKnockout,
     userTactics: simProfileFromTeamTactics(teamTactics),
+    oppTactics: opponentTactics
+      ? simProfileFromTeamTactics(opponentTactics)
+      : undefined,
   };
 }

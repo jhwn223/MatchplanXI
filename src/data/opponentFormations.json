@@ -1,0 +1,156 @@
+{
+  "metadata": {
+    "description": "2026 FIFA World Cup에서 실제로 관찰된 48개 참가국의 포메이션",
+    "updatedAt": "2026-07-24",
+    "methodology": "각 국가의 조별리그 첫 경기 FIFA Training Centre Post Match Summary에 기록된 FORMATION 값을 사용",
+    "sourceHub": "https://www.fifatrainingcentre.com/en/fifa-world-cup-2026/match-report-hub.php"
+  },
+  "reports": {
+    "M01": {
+      "match": "Mexico vs South Africa",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M01%20MEX%20V%20RSA.pdf"
+    },
+    "M02": {
+      "match": "Korea Republic vs Czechia",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M02%20KOR%20V%20CZE%20.pdf"
+    },
+    "M03": {
+      "match": "Canada vs Bosnia and Herzegovina",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M03-CAN-V-BIH-V2.pdf"
+    },
+    "M04": {
+      "match": "USA vs Paraguay",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M04-USA-V-PAR.pdf"
+    },
+    "M05": {
+      "match": "Haiti vs Scotland",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M05-HAI-V-SCO.pdf"
+    },
+    "M06": {
+      "match": "Australia vs Türkiye",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M06-AUS-V-TUR.pdf"
+    },
+    "M07": {
+      "match": "Brazil vs Morocco",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M07-BRA-V-MAR%20POST-V2.pdf"
+    },
+    "M08": {
+      "match": "Qatar vs Switzerland",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M08-QAT-V-SUI.pdf"
+    },
+    "M09": {
+      "match": "Côte d'Ivoire vs Ecuador",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M09-CIV-V-ECU.pdf"
+    },
+    "M10": {
+      "match": "Germany vs Curaçao",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M10-GER-V-CUW-V2.pdf"
+    },
+    "M11": {
+      "match": "Netherlands vs Japan",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M11-NED-V-JPN.pdf"
+    },
+    "M12": {
+      "match": "Sweden vs Tunisia",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M12-SWE-V-TUN.pdf"
+    },
+    "M13": {
+      "match": "Saudi Arabia vs Uruguay",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M13-KSA-V-URU.pdf"
+    },
+    "M14": {
+      "match": "Spain vs Cabo Verde",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M14-ESP-V-CPV.pdf"
+    },
+    "M15": {
+      "match": "IR Iran vs New Zealand",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M15-IRN-V-NZL.pdf"
+    },
+    "M16": {
+      "match": "Belgium vs Egypt",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M16-BEL-V-EGY.pdf"
+    },
+    "M17": {
+      "match": "France vs Senegal",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M17-FRA-V-SEN.pdf"
+    },
+    "M18": {
+      "match": "Iraq vs Norway",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M18-IRQ-V-NOR.pdf"
+    },
+    "M19": {
+      "match": "Argentina vs Algeria",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M19-ARG-V-ALG.pdf"
+    },
+    "M20": {
+      "match": "Austria vs Jordan",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M20-AUT-V-JOR-V3.pdf"
+    },
+    "M21": {
+      "match": "Ghana vs Panama",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M21-GHA-V-PAN.pdf"
+    },
+    "M22": {
+      "match": "England vs Croatia",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M22-ENG-V-CRO.pdf"
+    },
+    "M23": {
+      "match": "Portugal vs Congo DR",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M23-POR-V-COD.pdf"
+    },
+    "M24": {
+      "match": "Uzbekistan vs Colombia",
+      "sourceUrl": "https://www.fifatrainingcentre.com/media/native/tournaments/fifa-world-cup/2026/PMSR-M24-UZB-V-COL-V2.pdf"
+    }
+  },
+  "teams": {
+    "MEX": { "formation": "4-1-2-3", "reportId": "M01" },
+    "RSA": { "formation": "5-3-2", "reportId": "M01" },
+    "KOR": { "formation": "3-4-3", "reportId": "M02" },
+    "CZE": { "formation": "5-2-3", "reportId": "M02" },
+    "CAN": { "formation": "4-4-2", "reportId": "M03" },
+    "BIH": { "formation": "4-4-2", "reportId": "M03" },
+    "USA": { "formation": "4-2-3-1", "reportId": "M04" },
+    "PAR": { "formation": "4-4-2", "reportId": "M04" },
+    "HAI": { "formation": "4-4-2", "reportId": "M05" },
+    "SCO": { "formation": "4-4-2", "reportId": "M05" },
+    "AUS": { "formation": "5-4-1", "reportId": "M06" },
+    "TUR": { "formation": "4-2-3-1", "reportId": "M06" },
+    "BRA": { "formation": "4-4-2", "reportId": "M07" },
+    "MAR": { "formation": "4-2-3-1", "reportId": "M07" },
+    "QAT": { "formation": "4-2-3-1", "reportId": "M08" },
+    "SUI": { "formation": "4-3-3", "reportId": "M08" },
+    "CIV": { "formation": "4-4-2", "reportId": "M09" },
+    "ECU": { "formation": "4-4-2", "reportId": "M09" },
+    "GER": { "formation": "3-4-3", "reportId": "M10" },
+    "CUW": { "formation": "4-1-2-3", "reportId": "M10" },
+    "NED": { "formation": "4-1-2-3", "reportId": "M11" },
+    "JPN": { "formation": "3-4-3", "reportId": "M11" },
+    "SWE": { "formation": "3-4-1-2", "reportId": "M12" },
+    "TUN": { "formation": "5-3-2", "reportId": "M12" },
+    "KSA": { "formation": "4-4-2", "reportId": "M13" },
+    "URU": { "formation": "4-4-2", "reportId": "M13" },
+    "ESP": { "formation": "4-1-2-3", "reportId": "M14" },
+    "CPV": { "formation": "4-1-2-3", "reportId": "M14" },
+    "IRN": { "formation": "4-3-3", "reportId": "M15" },
+    "NZL": { "formation": "4-4-2", "reportId": "M15" },
+    "BEL": { "formation": "4-2-3-1", "reportId": "M16" },
+    "EGY": { "formation": "4-2-3-1", "reportId": "M16" },
+    "FRA": { "formation": "4-2-3-1", "reportId": "M17" },
+    "SEN": { "formation": "4-3-3", "reportId": "M17" },
+    "IRQ": { "formation": "4-4-2", "reportId": "M18" },
+    "NOR": { "formation": "4-1-2-3", "reportId": "M18" },
+    "ARG": { "formation": "4-3-3", "reportId": "M19" },
+    "ALG": { "formation": "4-3-3", "reportId": "M19" },
+    "AUT": { "formation": "4-2-3-1", "reportId": "M20" },
+    "JOR": { "formation": "3-4-3", "reportId": "M20" },
+    "GHA": { "formation": "4-1-2-3", "reportId": "M21" },
+    "PAN": { "formation": "3-4-3", "reportId": "M21" },
+    "ENG": { "formation": "4-2-3-1", "reportId": "M22" },
+    "CRO": { "formation": "3-4-3", "reportId": "M22" },
+    "POR": { "formation": "4-2-3-1", "reportId": "M23" },
+    "COD": { "formation": "5-3-2", "reportId": "M23" },
+    "UZB": { "formation": "3-4-3", "reportId": "M24" },
+    "COL": { "formation": "4-1-2-3", "reportId": "M24" }
+  }
+}

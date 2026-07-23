@@ -385,9 +385,12 @@ export const FORMATION_RECOMMENDED_STYLES: Record<FormationKey, TacticStyleKey[]
   "4-5-1": ["possession", "counter"],
   "4-4-2": ["wing", "longball"],
   "4-2-3-1": ["halfspace", "possession"],
+  "4-1-2-3": ["possession", "wing"],
   "3-5-2": ["wing", "possession"],
+  "3-4-1-2": ["halfspace", "counter"],
   "4-3-3": ["wing", "gegenpress"],
   "3-4-3": ["gegenpress", "halfspace"],
+  "5-2-3": ["counter", "wing"],
 };
 
 export function recommendedStylesFor(formation: FormationKey): TacticStyleKey[] {

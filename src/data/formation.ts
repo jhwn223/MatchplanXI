@@ -22,9 +22,12 @@ export type FormationKey =
   | "4-5-1"
   | "4-4-2"
   | "4-2-3-1"
+  | "4-1-2-3"
   | "3-5-2"
+  | "3-4-1-2"
   | "4-3-3"
-  | "3-4-3";
+  | "3-4-3"
+  | "5-2-3";
 
 export interface FormationMeta {
   slots: FormationSlot[];
@@ -125,6 +128,24 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
       { id: "st", label: "ST", position: "FWD", x: 50, y: 14 },
     ],
   },
+  "4-1-2-3": {
+    attackBias: 0.45,
+    pros: ["수비형 미드필더를 통한 안정적인 빌드업", "양쪽 윙어를 활용한 넓은 공격 전개"],
+    cons: ["수비형 미드필더 주변에 부담이 집중됨", "윙어의 수비 가담이 부족하면 측면 노출"],
+    slots: [
+      { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
+      { id: "lb", label: "LB", position: "DEF", x: 15, y: 72 },
+      { id: "cb1", label: "CB", position: "DEF", x: 37, y: 78 },
+      { id: "cb2", label: "CB", position: "DEF", x: 63, y: 78 },
+      { id: "rb", label: "RB", position: "DEF", x: 85, y: 72 },
+      { id: "dm", label: "DM", position: "MID", x: 50, y: 60 },
+      { id: "lcm", label: "LCM", position: "MID", x: 34, y: 44 },
+      { id: "rcm", label: "RCM", position: "MID", x: 66, y: 44 },
+      { id: "lw", label: "LW", position: "FWD", x: 18, y: 22 },
+      { id: "st", label: "ST", position: "FWD", x: 50, y: 14 },
+      { id: "rw", label: "RW", position: "FWD", x: 82, y: 22 },
+    ],
+  },
   "3-5-2": {
     attackBias: 0.2,
     pros: ["중원 5명으로 점유율 우위", "윙백 오버래핑으로 폭 넓은 공격"],
@@ -141,6 +162,24 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
       { id: "rwb", label: "RWB", position: "MID", x: 89, y: 54 },
       { id: "st1", label: "ST", position: "FWD", x: 40, y: 18 },
       { id: "st2", label: "ST", position: "FWD", x: 60, y: 18 },
+    ],
+  },
+  "3-4-1-2": {
+    attackBias: 0.3,
+    pros: ["투톱과 공격형 미드필더의 중앙 연계", "윙백을 통한 폭과 중원 숫자 확보"],
+    cons: ["윙백 뒤 공간이 역습에 노출될 수 있음", "공격형 미드필더가 고립되면 전개가 단조로움"],
+    slots: [
+      { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
+      { id: "cb1", label: "CB", position: "DEF", x: 30, y: 78 },
+      { id: "cb2", label: "CB", position: "DEF", x: 50, y: 80 },
+      { id: "cb3", label: "CB", position: "DEF", x: 70, y: 78 },
+      { id: "lwb", label: "LWB", position: "MID", x: 12, y: 54 },
+      { id: "cm1", label: "CM", position: "MID", x: 38, y: 56 },
+      { id: "cm2", label: "CM", position: "MID", x: 62, y: 56 },
+      { id: "rwb", label: "RWB", position: "MID", x: 88, y: 54 },
+      { id: "cam", label: "CAM", position: "MID", x: 50, y: 36 },
+      { id: "st1", label: "ST", position: "FWD", x: 39, y: 17 },
+      { id: "st2", label: "ST", position: "FWD", x: 61, y: 17 },
     ],
   },
   "4-3-3": {
@@ -177,6 +216,24 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
       { id: "lw", label: "LW", position: "FWD", x: 20, y: 20 },
       { id: "st", label: "ST", position: "FWD", x: 50, y: 14 },
       { id: "rw", label: "RW", position: "FWD", x: 80, y: 20 },
+    ],
+  },
+  "5-2-3": {
+    attackBias: -0.1,
+    pros: ["수비 시 5백의 안정성과 전방 3명의 역습", "윙백과 윙어를 활용한 측면 전개"],
+    cons: ["중앙 미드필더가 두 명뿐이라 수적 열세 가능", "윙백의 체력 부담과 전환 속도 의존"],
+    slots: [
+      { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
+      { id: "lwb", label: "LWB", position: "DEF", x: 9, y: 67 },
+      { id: "cb1", label: "CB", position: "DEF", x: 29, y: 78 },
+      { id: "cb2", label: "CB", position: "DEF", x: 50, y: 81 },
+      { id: "cb3", label: "CB", position: "DEF", x: 71, y: 78 },
+      { id: "rwb", label: "RWB", position: "DEF", x: 91, y: 67 },
+      { id: "cm1", label: "CM", position: "MID", x: 39, y: 51 },
+      { id: "cm2", label: "CM", position: "MID", x: 61, y: 51 },
+      { id: "lw", label: "LW", position: "FWD", x: 19, y: 22 },
+      { id: "st", label: "ST", position: "FWD", x: 50, y: 15 },
+      { id: "rw", label: "RW", position: "FWD", x: 81, y: 22 },
     ],
   },
 };

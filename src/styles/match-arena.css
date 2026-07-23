@@ -849,3 +849,58 @@
   border-radius: 999px;
 }
 
+.arena-opponent-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #eef3ea;
+}
+
+.arena-opponent-current span {
+  color: #687267;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.arena-opponent-current strong {
+  color: #27462e;
+  font-size: 9px;
+  text-align: right;
+}
+
+.arena-opponent-change {
+  margin: 0 0 12px;
+  padding: 11px 12px;
+  border: 1px solid #efc46f;
+  border-radius: 11px;
+  background: #fff8e8;
+}
+
+.arena-opponent-change span,
+.arena-opponent-change strong,
+.arena-opponent-change p {
+  display: block;
+}
+
+.arena-opponent-change span {
+  color: #9b6412;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.arena-opponent-change strong {
+  margin-top: 3px;
+  color: #5a390b;
+  font-size: 11px;
+}
+
+.arena-opponent-change p {
+  margin: 5px 0 0;
+  color: #745f3c;
+  font-size: 9px;
+  line-height: 1.4;
+}

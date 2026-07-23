@@ -20,6 +20,7 @@ import {
   type SimResult,
 } from "../data/matchSim";
 import { selectBestEleven } from "../data/playerAbility";
+import { getTeamMatches } from "../data/tournament";
 import { usePlayerConditions } from "../hooks/usePlayerConditions";
 import { useDropSound } from "../hooks/useDropSound";
 import type { Player } from "../data/types";
@@ -32,6 +33,11 @@ import {
 } from "./match-board/arenaSegments";
 import { MatchArenaOverlays } from "./match-board/MatchArenaOverlays";
 import { MatchBoardScreen } from "./match-board/MatchBoardScreen";
+import {
+  applyAltitudeAdaptation,
+  buildOpponentPlan,
+  tacticalMatchups,
+} from "./match-board/opponentPlan";
 import { buildMatchSimInput } from "./match-board/simInput";
 import { useLineupDrag } from "./match-board/useLineupDrag";
 import {
@@ -64,6 +70,9 @@ export function MatchBoard({
   const [activeSimInput, setActiveSimInput] = useState<SimInput | null>(null);
   const preMatchTactics = lineup.teamTactics ?? DEFAULT_TEAM_TACTICS;
   const [liveTactics, setLiveTactics] = useState<TeamTactics>(preMatchTactics);
+  const [liveOpponentTactics, setLiveOpponentTactics] = useState<TeamTactics>(
+    DEFAULT_TEAM_TACTICS
+  );
   const [startingXI, setStartingXI] = useState<Set<number> | null>(null);
   const [benchedOut, setBenchedOut] = useState<Set<number>>(new Set());
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
@@ -71,10 +80,55 @@ export function MatchBoard({
   const playDrop = useDropSound(soundOn);
 
   const formation = slotsOf(lineup.formation);
+  const opponent = data.teams.find((candidate) => candidate.team_name === activeMatch.opponentName);
+  const opponentMatches = useMemo(
+    () => opponent ? getTeamMatches(data, opponent.team_name) : [],
+    [data, opponent]
+  );
+  const opponentActiveMatch = useMemo(
+    () =>
+      opponentMatches.find((candidate) => candidate.match.match_id === activeMatch.match.match_id) ??
+      (opponent
+        ? {
+            ...activeMatch,
+            isHome: !activeMatch.isHome,
+            opponentName: team.team_name,
+            opponentCode: team.fifa_code,
+          }
+        : null),
+    [activeMatch, opponent, opponentMatches, team.fifa_code, team.team_name]
+  );
   const conditions = usePlayerConditions(data, team.team_id, teamMatches, activeMatch);
+  const rawOpponentConditions = usePlayerConditions(
+    data,
+    opponent?.team_id ?? null,
+    opponentMatches,
+    opponentActiveMatch
+  );
   const squad = useMemo(
     () => data.players.filter((player) => player.team_id === team.team_id),
     [data.players, team.team_id]
+  );
+  const opponentSquad = useMemo(
+    () => data.players.filter((player) => player.team_id === opponent?.team_id),
+    [data.players, opponent?.team_id]
+  );
+  const opponentPlan = useMemo(
+    () =>
+      opponent
+        ? buildOpponentPlan({
+            team: opponent,
+            squad: opponentSquad,
+            elevation: activeMatch.elevation,
+            isHome: !activeMatch.isHome,
+            seed: activeMatch.match.match_id,
+          })
+        : null,
+    [activeMatch.elevation, activeMatch.isHome, activeMatch.match.match_id, opponent, opponentSquad]
+  );
+  const opponentConditions = useMemo(
+    () => applyAltitudeAdaptation(rawOpponentConditions, opponentPlan?.altitudeAdaptation ?? 0),
+    [opponentPlan?.altitudeAdaptation, rawOpponentConditions]
   );
   const playersById = useMemo(
     () => new Map(squad.map((player) => [player.player_id, player])),
@@ -112,10 +166,23 @@ export function MatchBoard({
   }, [formation, lineup.formation, lineup.positions, lineup.slots]);
 
   const match = activeMatch.match;
-  const opponent = data.teams.find((candidate) => candidate.team_name === activeMatch.opponentName);
   const opponentEleven = useMemo(
-    () => selectBestEleven(data.players.filter((player) => player.team_id === opponent?.team_id)),
-    [data.players, opponent?.team_id]
+    () => {
+      if (!opponentPlan) return selectBestEleven(opponentSquad);
+      const selectedSlots = autoFillBestXI(opponentPlan.formation, opponentSquad, opponentConditions);
+      const byId = new Map(opponentSquad.map((player) => [player.player_id, player]));
+      return slotsOf(opponentPlan.formation)
+        .map((slot) => {
+          const playerId = selectedSlots[slot.id];
+          return playerId != null ? byId.get(playerId) : undefined;
+        })
+        .filter((player): player is Player => player != null);
+    },
+    [opponentConditions, opponentPlan, opponentSquad]
+  );
+  const matchups = useMemo(
+    () => opponentPlan ? tacticalMatchups(opponentPlan, preMatchTactics, activeMatch.elevation) : [],
+    [activeMatch.elevation, opponentPlan, preMatchTactics]
   );
   const isKnockout = match.stage_name !== "Group Stage";
   const tiedAfterRegulation = regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
@@ -197,6 +264,8 @@ export function MatchBoard({
       playersById,
       conditions,
       opponentEleven,
+      opponentConditions,
+      opponentTactics: opponentPlan?.tactics,
       activeMatch,
       team,
       opponent,
@@ -216,6 +285,7 @@ export function MatchBoard({
     setStartingXI(new Set(placedIds));
     setBenchedOut(new Set());
     setLiveTactics(preMatchTactics);
+    setLiveOpponentTactics(opponentPlan?.tactics ?? DEFAULT_TEAM_TACTICS);
     setPhase("half1");
   }
 
@@ -327,6 +397,11 @@ export function MatchBoard({
         effectiveAttackBias={effectiveAttackBias}
         teamTactics={preMatchTactics}
         onTacticsChange={changePreMatchTactics}
+        opponent={opponent}
+        opponentPlayers={opponentEleven}
+        opponentConditions={opponentConditions}
+        opponentPlan={opponentPlan}
+        matchups={matchups}
         teamIndex={teamIndex}
         conditions={conditions}
         playersById={playersById}
@@ -380,7 +455,10 @@ export function MatchBoard({
         opponentPlayers={opponentEleven}
         leaderboard={leaderboard}
         liveTactics={liveTactics}
+        opponentTactics={liveOpponentTactics}
+        opponentFormation={opponentPlan?.formation}
         onTacticChange={changeLiveTactics}
+        onOpponentTacticChange={setLiveOpponentTactics}
         onFormationChange={selectFormation}
         onFirstHalfComplete={completeFirstHalf}
         onSecondHalfComplete={completeSecondHalf}

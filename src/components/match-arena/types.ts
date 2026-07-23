@@ -53,7 +53,10 @@ export interface MatchArenaProps {
   interimCta?: string;
   onInterimContinue?: () => void;
   initialTactics?: TeamTactics;
+  initialOpponentTactics?: TeamTactics;
+  opponentFormation?: FormationKey;
   onTacticChange?: (tactics: TeamTactics) => void;
+  onOpponentTacticChange?: (tactics: TeamTactics) => void;
   onFormationChange?: (formation: FormationKey) => void;
   onPeriodComplete: (period: HalfResult) => ArenaSim;
   onComplete: () => void;

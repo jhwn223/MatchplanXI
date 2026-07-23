@@ -12,7 +12,56 @@ import type {
   PassType,
   PlacedPlayerLite,
   SimInput,
+  SimTacticProfile,
 } from "./types";
+
+function averagePace(players: PlacedPlayerLite[], position: PlacedPlayerLite["position"]) {
+  const selected = players.filter((player) => player.position === position);
+  const source = selected.length ? selected : players;
+  return source.length
+    ? source.reduce((sum, player) => sum + player.pace, 0) / source.length
+    : 65;
+}
+
+/**
+ * Rewards a plan that specifically attacks the opponent's current structure.
+ * This is recalculated for every simulated minute, so an in-match tactical
+ * change affects the very next possession instead of a precomputed result.
+ */
+function tacticalMatchupEdge(
+  attacking: SimTacticProfile,
+  defending: SimTacticProfile,
+  attackers: PlacedPlayerLite[],
+  defenders: PlacedPlayerLite[],
+) {
+  const escapeHighPress =
+    Math.max(0, defending.pressBias - 0.2) *
+    Math.max(0, attacking.directnessBias - 0.1) *
+    0.075;
+  const stretchLowBlock =
+    Math.max(0, -defending.defensiveLineBias - 0.15) *
+    Math.max(0, attacking.widthBias - 0.05) *
+    (0.045 + Math.max(0, attacking.overlapBias) * 0.035);
+  const paceMismatch = clamp(
+    (averagePace(attackers, "FWD") - averagePace(defenders, "DEF")) / 24,
+    -1,
+    1,
+  );
+  const attackSlowCenterBacks =
+    Math.max(0, paceMismatch) *
+    Math.max(0, attacking.counterBias + attacking.tempoBias * 0.35) *
+    0.05;
+  const shortBuildUpRisk =
+    Math.max(0, defending.pressBias - 0.25) *
+    Math.max(0, -attacking.directnessBias - 0.1) *
+    0.045;
+
+  return clamp(
+    escapeHighPress + stretchLowBlock + attackSlowCenterBacks - shortBuildUpRisk,
+    -0.08,
+    0.16,
+  );
+}
 
 function actionDetail(type: MatchEventType, actor: string, target?: string): string {
   if (type === "pass") return `${actor} → ${target ?? "전방"} 패스`;
@@ -233,6 +282,12 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     const counterEdge = clamp(sideTactics.counterBias - defendingTactics.counterBias, -1.5, 1.5);
     const sideWorkRate = tacticalWorkRate(sideTactics, minute);
     const defendingWorkRate = tacticalWorkRate(defendingTactics, minute);
+    const matchupEdge = tacticalMatchupEdge(
+      sideTactics,
+      defendingTactics,
+      possessionPlayers,
+      sidePlayers(input, defendingSide),
+    );
     const routinePassCount = possessionPlayers.length > 1
       ? Math.round(clamp(6 - directness * 1.6 - sideTactics.tempoBias * 1.1 + (rng() - 0.5) * 4, 2, 11))
       : 0;
@@ -273,7 +328,10 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         defendingTactics.tacklingBias * 0.02
       );
       const routinePassChance = clamp(
-        0.9 + (passQuality - pressureQuality) / 500 - directness * 0.018,
+        0.9 +
+          (passQuality - pressureQuality) / 500 -
+          directness * 0.018 +
+          matchupEdge * 0.35,
         0.82,
         0.97
       );
@@ -400,7 +458,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
             (passQuality - interceptionQuality) / 220 -
             progress * 0.012 -
             directness * 0.025 -
-            sideTactics.creativityBias * 0.018,
+            sideTactics.creativityBias * 0.018 +
+            matchupEdge * 0.5,
           0.5,
           0.92
         );
@@ -430,7 +489,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         sideTactics.overlapBias * 0.012 +
         counterEdge * 0.022 +
         sideTactics.tempoBias * 0.016 +
-        sideTactics.shootingBias * 0.055;
+        sideTactics.shootingBias * 0.055 +
+        matchupEdge * 0.24;
       const roleShotChance = carrier.position === "FWD" ? 0.3 : carrier.position === "MID" ? 0.16 : 0.06;
       const shootNow =
         rng() < roleShotChance + progress * 0.045 + tacticShotBias ||
@@ -452,7 +512,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         sideTactics.shootingBias * 0.012 +
         counterEdge * 0.009 +
         Math.max(0, defendingTactics.pressBias) * 0.004 +
-        Math.max(0, defendingTactics.defensiveLineBias) * 0.007;
+        Math.max(0, defendingTactics.defensiveLineBias) * 0.007 +
+        matchupEdge * 0.11;
       const baseXg = carrier.position === "FWD" ? 0.06 : carrier.position === "MID" ? 0.038 : 0.022;
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.045, 0.012, 0.48);
       running[side].shots++;
