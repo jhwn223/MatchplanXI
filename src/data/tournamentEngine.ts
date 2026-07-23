@@ -11,6 +11,57 @@ function eloOf(data: TournamentData): Map<string, { elo: number; code: string }>
   return m;
 }
 
+interface PlayedGoals {
+  home: string;
+  away: string;
+  hs: number;
+  as: number;
+}
+
+/** Re-orders any block of teams still tied on points/GD/GF (the usual sort
+ *  keys) using their head-to-head record among just that tied group — points,
+ *  then goal difference, then goals scored in the matches they played against
+ *  each other — matching FIFA's group-stage tiebreak order. Teams that aren't
+ *  tied with anyone are left exactly where the primary sort put them. */
+function applyHeadToHeadTiebreak(rows: StandingRow[], matches: PlayedGoals[]): StandingRow[] {
+  const result = [...rows];
+  let i = 0;
+  while (i < result.length) {
+    let j = i + 1;
+    while (
+      j < result.length &&
+      result[j].points === result[i].points &&
+      result[j].gd === result[i].gd &&
+      result[j].gf === result[i].gf
+    ) {
+      j++;
+    }
+    if (j - i > 1) {
+      const tiedNames = new Set(result.slice(i, j).map((r) => r.teamName));
+      const h2h = new Map<string, { points: number; gf: number; ga: number }>();
+      for (const name of tiedNames) h2h.set(name, { points: 0, gf: 0, ga: 0 });
+      for (const m of matches) {
+        if (!tiedNames.has(m.home) || !tiedNames.has(m.away)) continue;
+        const h = h2h.get(m.home)!;
+        const a = h2h.get(m.away)!;
+        h.gf += m.hs; h.ga += m.as;
+        a.gf += m.as; a.ga += m.hs;
+        if (m.hs > m.as) h.points += 3;
+        else if (m.hs < m.as) a.points += 3;
+        else { h.points++; a.points++; }
+      }
+      const tied = result.slice(i, j).sort((x, y) => {
+        const hx = h2h.get(x.teamName)!;
+        const hy = h2h.get(y.teamName)!;
+        return hy.points - hx.points || (hy.gf - hy.ga) - (hx.gf - hx.ga) || hy.gf - hx.gf;
+      });
+      result.splice(i, j - i, ...tied);
+    }
+    i = j;
+  }
+  return result;
+}
+
 export function groupStandingsSim(
   data: TournamentData,
   groupLetter: string,
@@ -26,6 +77,7 @@ export function groupStandingsSim(
       played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0,
     });
   }
+  const playedMatches: PlayedGoals[] = [];
   for (const m of data.matches) {
     if (m.stage_name !== "Group Stage") continue;
     if (!names.has(m.home_team_name) || !names.has(m.away_team_name)) continue;
@@ -33,6 +85,7 @@ export function groupStandingsSim(
     if (!result) continue;
     const hs = result.homeGoals;
     const as = result.awayGoals;
+    playedMatches.push({ home: m.home_team_name, away: m.away_team_name, hs, as });
     const h = table.get(m.home_team_name)!;
     const a = table.get(m.away_team_name)!;
     h.played++; a.played++;
@@ -44,7 +97,7 @@ export function groupStandingsSim(
   const rows = [...table.values()];
   for (const r of rows) r.gd = r.gf - r.ga;
   rows.sort((x, y) => y.points - x.points || y.gd - x.gd || y.gf - x.gf);
-  return rows;
+  return applyHeadToHeadTiebreak(rows, playedMatches);
 }
 
 /** Like groupStandingsSim, but matches between two OTHER teams in the group
@@ -82,6 +135,7 @@ export function groupStandingsHub(
     .sort();
   const referenceDate = userPlayedDates.length > 0 ? userPlayedDates[userPlayedDates.length - 1] : null;
 
+  const playedMatches: PlayedGoals[] = [];
   for (const m of groupMatchRows) {
     const result = played[m.match_id];
     let hs: number;
@@ -101,6 +155,7 @@ export function groupStandingsHub(
       hs = r.home;
       as = r.away;
     }
+    playedMatches.push({ home: m.home_team_name, away: m.away_team_name, hs, as });
     const h = table.get(m.home_team_name)!;
     const a = table.get(m.away_team_name)!;
     h.played++; a.played++;
@@ -112,7 +167,7 @@ export function groupStandingsHub(
   const rows = [...table.values()];
   for (const r of rows) r.gd = r.gf - r.ga;
   rows.sort((x, y) => y.points - x.points || y.gd - x.gd || y.gf - x.gf);
-  return rows;
+  return applyHeadToHeadTiebreak(rows, playedMatches);
 }
 
 /** Monte Carlo estimate of `teamName` finishing top-2 in its group, simulating
@@ -151,6 +206,7 @@ export function qualificationProbability(
         played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0,
       });
     }
+    const playedMatches: PlayedGoals[] = [];
     for (const m of groupMatchRows) {
       const result = played[m.match_id];
       let hs: number;
@@ -166,6 +222,7 @@ export function qualificationProbability(
         hs = r.home;
         as = r.away;
       }
+      playedMatches.push({ home: m.home_team_name, away: m.away_team_name, hs, as });
       const h = table.get(m.home_team_name)!;
       const a = table.get(m.away_team_name)!;
       h.played++; a.played++;
@@ -174,9 +231,10 @@ export function qualificationProbability(
       else if (hs < as) { a.won++; a.points += 3; h.lost++; }
       else { h.drawn++; a.drawn++; h.points++; a.points++; }
     }
-    const rows = [...table.values()];
+    let rows = [...table.values()];
     for (const r of rows) r.gd = r.gf - r.ga;
     rows.sort((x, y) => y.points - x.points || y.gd - x.gd || y.gf - x.gf);
+    rows = applyHeadToHeadTiebreak(rows, playedMatches);
     const pos = rows.findIndex((r) => r.teamName === teamName) + 1;
     if (pos >= 1 && pos <= 2) top2Count++;
   }
@@ -209,6 +267,7 @@ export function groupStandingsFull(
       played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0,
     });
   }
+  const playedMatches: PlayedGoals[] = [];
   for (const m of data.matches) {
     if (m.stage_name !== "Group Stage") continue;
     if (!table.has(m.home_team_name) || !table.has(m.away_team_name)) continue;
@@ -226,6 +285,7 @@ export function groupStandingsFull(
       hs = r.home;
       as = r.away;
     }
+    playedMatches.push({ home: m.home_team_name, away: m.away_team_name, hs, as });
     const h = table.get(m.home_team_name)!;
     const a = table.get(m.away_team_name)!;
     h.played++; a.played++;
@@ -237,7 +297,7 @@ export function groupStandingsFull(
   const rows = [...table.values()];
   for (const r of rows) r.gd = r.gf - r.ga;
   rows.sort((x, y) => y.points - x.points || y.gd - x.gd || y.gf - x.gf);
-  return rows;
+  return applyHeadToHeadTiebreak(rows, playedMatches);
 }
 
 /** allGroupStandings, but every group is fully resolved (see groupStandingsFull).
