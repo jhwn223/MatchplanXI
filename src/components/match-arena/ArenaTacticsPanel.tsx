@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { FormationKey } from "../../data/formation";
+import { useEffect, useRef, useState } from "react";
+import { FORMATION_KEYS, type FormationKey } from "../../data/formation";
 import {
   applyQuickTactic,
   DEFAULT_TEAM_TACTICS,
@@ -17,10 +17,16 @@ interface Props {
   formationLabel?: string;
   tactics: TeamTactics;
   onApply: (tactics: TeamTactics) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
+  onFormationChange?: (formation: FormationKey) => void;
+  variant?: "match" | "prematch";
+  autoApply?: boolean;
 }
 
 const OPTIONS = {
+  defenseStyle: [["dropBack", "후퇴"], ["balanced", "밸런스"], ["errorPress", "터치 실수 시 압박"], ["lossPress", "뺏긴 직후 압박"], ["constantPress", "지속 압박"]],
+  buildUpPlay: [["shortPass", "짧은 패스"], ["balanced", "밸런스"], ["longPass", "긴 패스"], ["fastBuildUp", "빠른 빌드업"]],
+  chanceCreation: [["possession", "점유율"], ["balanced", "밸런스"], ["directPassing", "침투 패스"], ["forwardRuns", "전방 침투"]],
   mentality: [["defensive", "수비적"], ["cautious", "신중함"], ["balanced", "균형"], ["positive", "적극적"], ["attacking", "공격적"]],
   tempo: [["slow", "느림"], ["balanced", "보통"], ["fast", "빠름"]],
   fluidity: [["rigid", "조직적"], ["balanced", "보통"], ["fluid", "유동적"]],
@@ -48,32 +54,56 @@ export function ArenaTacticsPanel({
   tactics,
   onApply,
   onCancel,
+  onFormationChange,
+  variant = "match",
+  autoApply = false,
 }: Props) {
   const [draft, setDraft] = useState<TeamTactics>(tactics);
   const [tab, setTab] = useState<TacticsTab>("quick");
+  const [selectedQuick, setSelectedQuick] = useState<QuickTacticKey | null>(null);
+
+  useEffect(() => {
+    setDraft(tactics);
+  }, [tactics]);
+
+  function commit(next: TeamTactics, quick: QuickTacticKey | null = null) {
+    setDraft(next);
+    setSelectedQuick(quick);
+    if (autoApply) onApply(next);
+  }
 
   const patch = <K extends keyof TeamTactics>(key: K, value: TeamTactics[K]) =>
-    setDraft((current) => ({ ...current, [key]: value }));
+    commit({ ...draft, [key]: value });
 
   return (
-    <section className="match-tactics-editor">
-      <div className="match-tactics-editor__summary">
+    <section className={`match-tactics-editor match-tactics-editor--${variant}`}>
+      {variant === "match" && <div className="match-tactics-editor__summary">
         <div>
           <span>{userCode}</span>
           <strong>{userTeamName}</strong>
-          <small>{formationLabel ?? formation}</small>
+          {onFormationChange ? (
+            <select
+              className="match-formation-select"
+              value={formation}
+              onChange={(event) => onFormationChange(event.target.value as FormationKey)}
+              aria-label="경기 중 포메이션 변경"
+            >
+              {FORMATION_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+            </select>
+          ) : <small>{formationLabel ?? formation}</small>}
         </div>
         <TacticShape tactics={draft} />
-      </div>
+        <p className="match-formation-help">포메이션 변경은 다음 플레이부터 2D 움직임과 시뮬레이션에 반영됩니다.</p>
+      </div>}
 
       <div className="match-tactics-editor__body">
         <nav className="match-tactics-tabs" aria-label="전술 설정 분류">
           {([
             ["quick", "빠른 지시"],
-            ["roles", "팀 역할"],
             ["general", "일반"],
             ["attack", "공격"],
             ["defense", "수비"],
+            ["roles", "역할"],
           ] as const).map(([key, label]) => (
             <button key={key} type="button" data-active={tab === key || undefined} onClick={() => setTab(key)}>
               {label}
@@ -89,14 +119,18 @@ export function ArenaTacticsPanel({
                   <button
                     type="button"
                     key={preset.key}
-                    onClick={() => setDraft((current) => applyQuickTactic(current, preset.key as QuickTacticKey))}
+                    data-active={selectedQuick === preset.key || undefined}
+                    onClick={() => commit(applyQuickTactic(draft, preset.key), preset.key)}
                   >
                     <strong>{preset.label}</strong>
                     <span>{preset.description}</span>
                   </button>
                 ))}
               </div>
-              <p>빠른 지시는 여러 세부 설정을 한 번에 변경합니다. 아래 적용 버튼을 누른 다음 생성되는 플레이부터 반영됩니다.</p>
+              <p>
+                빠른 지시는 여러 세부 설정을 한 번에 변경합니다.
+                {autoApply ? " 경기 시작 전 계획에 즉시 저장됩니다." : " 적용 버튼을 누른 다음 생성되는 플레이부터 반영됩니다."}
+              </p>
             </div>
           )}
           {tab === "roles" && (
@@ -122,16 +156,21 @@ export function ArenaTacticsPanel({
           )}
           {tab === "attack" && (
             <div className="tactic-field-grid">
+              <TacticSelect label="빌드업 플레이" value={draft.buildUpPlay} options={OPTIONS.buildUpPlay} onChange={(value) => patch("buildUpPlay", value as TeamTactics["buildUpPlay"])} />
+              <TacticSelect label="기회 만들기" value={draft.chanceCreation} options={OPTIONS.chanceCreation} onChange={(value) => patch("chanceCreation", value as TeamTactics["chanceCreation"])} />
               <TacticSelect label="패싱 스타일" value={draft.passingStyle} options={OPTIONS.passingStyle} onChange={(value) => patch("passingStyle", value as TeamTactics["passingStyle"])} />
               <TacticSelect label="공격 방향" value={draft.attackFocus} options={OPTIONS.attackFocus} onChange={(value) => patch("attackFocus", value as TeamTactics["attackFocus"])} />
               <TacticSelect label="슈팅 지시" value={draft.shooting} options={OPTIONS.shooting} onChange={(value) => patch("shooting", value as TeamTactics["shooting"])} />
               <TacticSelect label="와이드 플레이" value={draft.widePlay} options={OPTIONS.widePlay} onChange={(value) => patch("widePlay", value as TeamTactics["widePlay"])} />
               <TacticMeter label="박스 침투 인원" value={draft.boxPlayers} onChange={(value) => patch("boxPlayers", value)} />
+              <TacticMeter label="코너킥 공격 인원" value={draft.corners} onChange={(value) => patch("corners", value)} />
+              <TacticMeter label="프리킥 공격 인원" value={draft.freeKicks} onChange={(value) => patch("freeKicks", value)} />
               <TacticToggle label="역습 허용" checked={draft.counterAttack} onChange={(value) => patch("counterAttack", value)} />
             </div>
           )}
           {tab === "defense" && (
             <div className="tactic-field-grid">
+              <TacticSelect label="수비 스타일" value={draft.defenseStyle} options={OPTIONS.defenseStyle} onChange={(value) => patch("defenseStyle", value as TeamTactics["defenseStyle"])} />
               <TacticSelect label="수비 라인" value={draft.defensiveLine} options={OPTIONS.defensiveLine} onChange={(value) => patch("defensiveLine", value as TeamTactics["defensiveLine"])} />
               <TacticSelect label="압박 강도" value={draft.pressing} options={OPTIONS.pressing} onChange={(value) => patch("pressing", value as TeamTactics["pressing"])} />
               <TacticSelect label="마킹 방식" value={draft.marking} options={OPTIONS.marking} onChange={(value) => patch("marking", value as TeamTactics["marking"])} />
@@ -142,16 +181,18 @@ export function ArenaTacticsPanel({
         </div>
       </div>
 
-      <footer className="match-tactics-actions">
-        <button type="button" className="sim-btn sim-btn--ghost" onClick={onCancel}>취소</button>
-        <button type="button" className="sim-btn sim-btn--ghost" onClick={() => setDraft(DEFAULT_TEAM_TACTICS)}>초기화</button>
-        <button type="button" className="sim-btn sim-btn--accent" onClick={() => onApply(draft)}>전술 적용</button>
-      </footer>
+      {!autoApply && (
+        <footer className="match-tactics-actions">
+          {onCancel && <button type="button" className="sim-btn sim-btn--ghost" onClick={onCancel}>취소</button>}
+          <button type="button" className="sim-btn sim-btn--ghost" onClick={() => commit(DEFAULT_TEAM_TACTICS)}>초기화</button>
+          <button type="button" className="sim-btn sim-btn--accent" onClick={() => onApply(draft)}>전술 적용</button>
+        </footer>
+      )}
     </section>
   );
 }
 
-function TacticSelect({
+export function TacticItemBoxSelect({
   label,
   value,
   options,
@@ -162,15 +203,68 @@ function TacticSelect({
   options: readonly (readonly [string, string])[];
   onChange: (value: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const currentLabel = options.find(([optionValue]) => optionValue === value)?.[1] ?? value;
+
+  useEffect(() => {
+    if (!open) return;
+    const closeFromOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeFromKeyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeFromOutside);
+    document.addEventListener("keydown", closeFromKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside);
+      document.removeEventListener("keydown", closeFromKeyboard);
+    };
+  }, [open]);
+
   return (
-    <label className="match-tactic-field">
-      <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
-      </select>
-    </label>
+    <div
+      ref={rootRef}
+      className="match-tactic-field match-tactic-field--choices"
+      data-open={open || undefined}
+    >
+      <button
+        type="button"
+        className="match-tactic-itembox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{label}</span>
+        <strong>{currentLabel}</strong>
+        <i aria-hidden="true">⌄</i>
+      </button>
+      {open && (
+        <div className="match-tactic-menu" role="listbox" aria-label={label}>
+        {options.map(([optionValue, optionLabel]) => (
+          <button
+            type="button"
+            key={optionValue}
+            role="option"
+            data-active={value === optionValue || undefined}
+            aria-selected={value === optionValue}
+            onClick={() => {
+              onChange(optionValue);
+              setOpen(false);
+            }}
+          >
+            <span>{optionLabel}</span>
+            {value === optionValue && <strong aria-hidden="true">✓</strong>}
+          </button>
+        ))}
+        </div>
+      )}
+    </div>
   );
 }
+
+const TacticSelect = TacticItemBoxSelect;
 
 function TacticMeter({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return (

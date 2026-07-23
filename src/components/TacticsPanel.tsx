@@ -8,7 +8,8 @@ interface Props {
   onSelectFormation: (key: FormationKey) => void;
   onAutoFill: () => void;
   tacticStyleKey: TacticStyleKey | null;
-  onSelectTacticStyle: (key: TacticStyleKey) => void;
+  onSelectTacticStyle?: (key: TacticStyleKey) => void;
+  showStyles?: boolean;
   /** true once kickoff has happened: auto-fill could add unlimited new
    *  faces, bypassing the substitution cap, so it's disabled after that —
    *  only the (capped) manual bench drag and formation reshuffling remain. */
@@ -31,6 +32,7 @@ export function TacticsPanel({
   onAutoFill,
   tacticStyleKey,
   onSelectTacticStyle,
+  showStyles = true,
   subsLocked = false,
 }: Props) {
   const lockedTitle = "킥오프 이후에는 자동 배치를 쓸 수 없습니다 — 벤치에서 직접 교체하세요";
@@ -90,7 +92,7 @@ export function TacticsPanel({
         </div>
       </div>
 
-      <div className="tactics-panel__section">
+      {showStyles && <div className="tactics-panel__section">
         <span className="tactics-panel__label">
           전술 스타일 {recommended.length > 0 && "· ⭐ 추천 표시 참고"}
         </span>
@@ -102,7 +104,7 @@ export function TacticsPanel({
               className="style-btn"
               data-active={s.key === tacticStyleKey || undefined}
               data-recommended={recommended.includes(s.key) || undefined}
-              onClick={() => onSelectTacticStyle(s.key)}
+              onClick={() => onSelectTacticStyle?.(s.key)}
               title={s.description}
             >
               {recommended.includes(s.key) && <span className="style-btn__badge">⭐ 추천</span>}
@@ -111,7 +113,7 @@ export function TacticsPanel({
             </button>
           ))}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

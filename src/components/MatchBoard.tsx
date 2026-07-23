@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import {
   FORMATIONS,
@@ -6,18 +6,11 @@ import {
   slotsOf,
   type FormationKey,
 } from "../data/formation";
-import {
-  altitudePenalty,
-  computeTeamIndex,
-  jetLagPenalty,
-  restPenalty,
-  travelPenalty,
-} from "../data/conditionEngine";
+import { computeTeamIndex } from "../data/conditionEngine";
 import {
   autoFillBestXI,
   emptySlots,
   remapFormation,
-  type TacticStyleKey,
 } from "../data/tactics";
 import {
   combineExtraTime,
@@ -30,7 +23,6 @@ import { selectBestEleven } from "../data/playerAbility";
 import { usePlayerConditions } from "../hooks/usePlayerConditions";
 import { useDropSound } from "../hooks/useDropSound";
 import type { Player } from "../data/types";
-import type { ConditionSubIndices } from "./ConditionGauge";
 import { PlayerCardVisual } from "./PlayerCardVisual";
 import { PlayerStatsModal } from "./PlayerStatsModal";
 import {
@@ -70,7 +62,8 @@ export function MatchBoard({
   const [regSim, setRegSim] = useState<SimResult | null>(null);
   const [finalSim, setFinalSim] = useState<SimResult | null>(null);
   const [activeSimInput, setActiveSimInput] = useState<SimInput | null>(null);
-  const [liveTactics, setLiveTactics] = useState<TeamTactics>(DEFAULT_TEAM_TACTICS);
+  const preMatchTactics = lineup.teamTactics ?? DEFAULT_TEAM_TACTICS;
+  const [liveTactics, setLiveTactics] = useState<TeamTactics>(preMatchTactics);
   const [startingXI, setStartingXI] = useState<Set<number> | null>(null);
   const [benchedOut, setBenchedOut] = useState<Set<number>>(new Set());
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
@@ -142,12 +135,6 @@ export function MatchBoard({
       )
     )
   );
-  const conditionSubIndices: ConditionSubIndices = {
-    altitude: 100 - altitudePenalty(activeMatch.elevation),
-    rest: 100 - restPenalty(activeMatch.restDays),
-    travel: 100 - travelPenalty(activeMatch.travelKm),
-    jetlag: 100 - jetLagPenalty(activeMatch.tzShiftHours),
-  };
   const { sensors, handleDragStart, handleDragEnd } = useLineupDrag({
     formation,
     lineup,
@@ -164,8 +151,10 @@ export function MatchBoard({
   function selectFormation(key: FormationKey) {
     if (key === lineup.formation) return;
     onChangeLineup({
+      ...lineup,
       formation: key,
       slots: remapFormation(lineup.formation, lineup.slots, key),
+      positions: {},
       presetKey: null,
     });
   }
@@ -178,13 +167,24 @@ export function MatchBoard({
     });
   }
 
-  function selectTacticStyle(key: TacticStyleKey) {
-    onChangeLineup({ ...lineup, tacticStyleKey: key });
+  function changePreMatchTactics(next: TeamTactics) {
+    onChangeLineup({
+      ...lineup,
+      tacticStyleKey: null,
+      teamTactics: next,
+    });
   }
 
   function resetLineup() {
     if (!startingXI) {
-      onChangeLineup({ formation: lineup.formation, slots: emptySlots(lineup.formation), presetKey: null });
+      onChangeLineup({
+        ...lineup,
+        slots: emptySlots(lineup.formation),
+        positions: {},
+        presetKey: null,
+        tacticStyleKey: null,
+        teamTactics: DEFAULT_TEAM_TACTICS,
+      });
     }
   }
 
@@ -202,6 +202,7 @@ export function MatchBoard({
       opponent,
       effectiveAttackBias,
       isKnockout,
+      teamTactics: preMatchTactics,
     });
   }
 
@@ -214,9 +215,32 @@ export function MatchBoard({
     setFinalSim(null);
     setStartingXI(new Set(placedIds));
     setBenchedOut(new Set());
-    setLiveTactics(DEFAULT_TEAM_TACTICS);
+    setLiveTactics(preMatchTactics);
     setPhase("half1");
   }
+
+  function changeLiveTactics(next: TeamTactics) {
+    setLiveTactics(next);
+    onChangeLineup({ ...lineup, tacticStyleKey: null, teamTactics: next });
+  }
+
+  useEffect(() => {
+    if (!activeSimInput || phase === "idle") return;
+    const refreshed = buildSimInput();
+    if (!refreshed) return;
+    setActiveSimInput((current) =>
+      current
+        ? {
+            ...current,
+            attackBias: refreshed.attackBias,
+            placed: refreshed.placed,
+            userAbility: refreshed.userAbility,
+          }
+        : current
+    );
+    // 경기 도중 포메이션·선수 배치가 바뀌면 다음 플레이부터 시뮬레이션 입력도 갱신한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineup.formation, lineup.positions, lineup.slots]);
 
   function startSecondHalf() {
     const input = buildSimInput();
@@ -301,10 +325,9 @@ export function MatchBoard({
         formation={formation}
         detectedFormation={detectedFormation}
         effectiveAttackBias={effectiveAttackBias}
-        tacticStyleKey={lineup.tacticStyleKey ?? null}
-        onSelectTacticStyle={selectTacticStyle}
+        teamTactics={preMatchTactics}
+        onTacticsChange={changePreMatchTactics}
         teamIndex={teamIndex}
-        conditionSubIndices={conditionSubIndices}
         conditions={conditions}
         playersById={playersById}
         benchPlayers={benchPlayers}
@@ -357,7 +380,8 @@ export function MatchBoard({
         opponentPlayers={opponentEleven}
         leaderboard={leaderboard}
         liveTactics={liveTactics}
-        onTacticChange={setLiveTactics}
+        onTacticChange={changeLiveTactics}
+        onFormationChange={selectFormation}
         onFirstHalfComplete={completeFirstHalf}
         onSecondHalfComplete={completeSecondHalf}
         onExtraTimeComplete={completeExtraTime}

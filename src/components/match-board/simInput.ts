@@ -4,6 +4,10 @@ import type { PlacedPlayerLite, SimInput } from "../../data/matchSim";
 import { buildTeamAbilityProfile } from "../../data/playerAbility";
 import type { TeamMatch } from "../../data/tournament";
 import type { Player, Team } from "../../data/types";
+import {
+  simProfileFromTeamTactics,
+  type TeamTactics,
+} from "../match-arena/tactics";
 import type { Lineup } from "./types";
 
 export function toSimPlayer(player: Player, assignedPosition: Player["position"], condition: number): PlacedPlayerLite {
@@ -61,6 +65,7 @@ interface BuildSimInputOptions {
   opponent?: Team;
   effectiveAttackBias: number;
   isKnockout: boolean;
+  teamTactics: TeamTactics;
 }
 
 export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | null {
@@ -77,6 +82,7 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     opponent,
     effectiveAttackBias,
     isKnockout,
+    teamTactics,
   } = options;
   if (placedIds.size < 11 || teamIndex == null) return null;
 
@@ -116,5 +122,6 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     oppAbility: buildTeamAbilityProfile(opponentEleven),
     actual: null,
     isKnockout,
+    userTactics: simProfileFromTeamTactics(teamTactics),
   };
 }

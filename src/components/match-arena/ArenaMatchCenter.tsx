@@ -22,6 +22,7 @@ interface Props {
   formationLabel?: string;
   tactics: TeamTactics;
   onApplyTactics: (tactics: TeamTactics) => void;
+  onFormationChange?: (formation: FormationKey) => void;
   onClose: () => void;
 }
 
@@ -38,6 +39,7 @@ export function ArenaMatchCenter({
   formationLabel,
   tactics,
   onApplyTactics,
+  onFormationChange,
   onClose,
 }: Props) {
   const events = sim.events ?? [];
@@ -100,6 +102,7 @@ export function ArenaMatchCenter({
           formationLabel={formationLabel}
           tactics={tactics}
           onApply={onApplyTactics}
+          onFormationChange={onFormationChange}
           onCancel={onClose}
         />
       )}
