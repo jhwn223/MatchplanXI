@@ -47,6 +47,74 @@ export function groupStandingsSim(
   return rows;
 }
 
+/** Like groupStandingsSim, but matches between two OTHER teams in the group
+ *  (neither side is `userTeamName`) are resolved by elo via quickSimScore —
+ *  though only once the user has reached that matchday themselves, so every
+ *  team stays in lockstep on the shared calendar instead of the other three
+ *  looking like they've already finished the group stage on day one. The
+ *  user's own fixtures still only count once actually played: no preview of
+ *  a match they haven't kicked off yet. */
+export function groupStandingsHub(
+  data: TournamentData,
+  groupLetter: string,
+  played: PlayedMap,
+  userTeamName: string
+): StandingRow[] {
+  const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
+  const elo = eloOf(data);
+  const table = new Map<string, StandingRow>();
+  for (const t of groupTeams) {
+    table.set(t.team_name, {
+      teamName: t.team_name,
+      fifaCode: t.fifa_code,
+      played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0,
+    });
+  }
+  const groupMatchRows = data.matches.filter(
+    (m) => m.stage_name === "Group Stage" && table.has(m.home_team_name) && table.has(m.away_team_name)
+  );
+
+  // the latest matchday date the user has actually played, on the group's
+  // shared calendar — other teams' results only reveal up through this date
+  const userPlayedDates = groupMatchRows
+    .filter((m) => (m.home_team_name === userTeamName || m.away_team_name === userTeamName) && played[m.match_id])
+    .map((m) => m.date)
+    .sort();
+  const referenceDate = userPlayedDates.length > 0 ? userPlayedDates[userPlayedDates.length - 1] : null;
+
+  for (const m of groupMatchRows) {
+    const result = played[m.match_id];
+    let hs: number;
+    let as: number;
+    if (result) {
+      hs = result.homeGoals;
+      as = result.awayGoals;
+    } else if (m.home_team_name === userTeamName || m.away_team_name === userTeamName) {
+      continue; // the user hasn't played this fixture yet — no preview
+    } else if (!referenceDate || m.date > referenceDate) {
+      continue; // this matchday hasn't happened for the user yet either
+    } else {
+      const seed = (m.match_id * 100003) >>> 0;
+      const homeElo = elo.get(m.home_team_name)?.elo ?? 1600;
+      const awayElo = elo.get(m.away_team_name)?.elo ?? 1600;
+      const r = quickSimScore(seed, homeElo, awayElo);
+      hs = r.home;
+      as = r.away;
+    }
+    const h = table.get(m.home_team_name)!;
+    const a = table.get(m.away_team_name)!;
+    h.played++; a.played++;
+    h.gf += hs; h.ga += as; a.gf += as; a.ga += hs;
+    if (hs > as) { h.won++; h.points += 3; a.lost++; }
+    else if (hs < as) { a.won++; a.points += 3; h.lost++; }
+    else { h.drawn++; a.drawn++; h.points++; a.points++; }
+  }
+  const rows = [...table.values()];
+  for (const r of rows) r.gd = r.gf - r.ga;
+  rows.sort((x, y) => y.points - x.points || y.gd - x.gd || y.gf - x.gf);
+  return rows;
+}
+
 /** Monte Carlo estimate of `teamName` finishing top-2 in its group, simulating
  *  any unplayed group matches by elo via quickSimScore. Already-played results
  *  are held fixed each trial, so this updates as soon as a new match completes. */
@@ -223,6 +291,38 @@ export function getQualifiers(
   ];
 }
 
+/** Pair the 32 qualifiers into 16 Round-of-32 ties: same strong-vs-weak
+ *  seeding as a plain index/mirrored-index pairing, but swapped to avoid
+ *  ever pairing two teams that came out of the same group, matching how
+ *  real World Cup draws are seeded. Falls back to the plain pairing for a
+ *  spot if no clash-free swap is available. */
+function seedRound32Pairs(qualifiers: KOTeam[]): [KOTeam | null, KOTeam | null][] {
+  const n = qualifiers.length;
+  const half = Math.ceil(n / 2);
+  const pairs: [KOTeam | null, KOTeam | null][] = [];
+  for (let m = 0; m < half; m++) {
+    pairs.push([qualifiers[m] ?? null, qualifiers[n - 1 - m] ?? null]);
+  }
+
+  const sameGroup = (a: KOTeam | null, b: KOTeam | null) => !!a && !!b && a.group === b.group;
+
+  for (let i = 0; i < pairs.length; i++) {
+    if (!sameGroup(pairs[i][0], pairs[i][1])) continue;
+    for (let d = 1; d < pairs.length; d++) {
+      const j = d % 2 === 1 ? i + Math.ceil(d / 2) : i - d / 2;
+      if (j < 0 || j >= pairs.length || j === i) continue;
+      const candidate = pairs[j][1];
+      if (sameGroup(pairs[i][0], candidate)) continue; // would still clash
+      if (sameGroup(pairs[j][0], pairs[i][1])) continue; // would clash the other pair instead
+      const tmp = pairs[i][1];
+      pairs[i][1] = candidate;
+      pairs[j][1] = tmp;
+      break;
+    }
+  }
+  return pairs;
+}
+
 export interface KOMatch {
   id: string;
   round: number; // 0=R32 … 4=Final
@@ -279,6 +379,7 @@ export function buildBracket(
   const venues = data.venues;
   const rounds: KOMatch[][] = [];
   let prevWinners: (KOTeam | null)[] = [];
+  const round32Pairs = seedRound32Pairs(qualifiers);
 
   for (let r = 0; r < 5; r++) {
     const matches: KOMatch[] = [];
@@ -287,8 +388,7 @@ export function buildBracket(
       let a: KOTeam | null = null;
       let b: KOTeam | null = null;
       if (r === 0) {
-        a = qualifiers[m] ?? null;
-        b = qualifiers[31 - m] ?? null;
+        [a, b] = round32Pairs[m] ?? [null, null];
       } else {
         a = prevWinners[2 * m] ?? null;
         b = prevWinners[2 * m + 1] ?? null;
