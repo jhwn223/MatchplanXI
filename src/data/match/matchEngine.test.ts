@@ -220,7 +220,7 @@ describe("match engine invariants", () => {
     }
   });
 
-  test("dead-ball restarts are generated from rule-valid preceding events", () => {
+  test("dead-ball restarts exclude throw-ins from the continuous match flow", () => {
     const results = Array.from({ length: 45 }, (_, seed) =>
       simulatePeriod(input(seed + 1200), 1, 90, 0),
     );
@@ -229,20 +229,11 @@ describe("match engine invariants", () => {
     expect(types.has("corner")).toBe(true);
     expect(types.has("freeKick")).toBe(true);
     expect(types.has("offside")).toBe(true);
-    expect(types.has("throwIn")).toBe(true);
-
-    for (const result of results) {
-      result.events.forEach((event, index) => {
-        if (event.type !== "throwIn") return;
-        const precedingPass = result.events[index - 1];
-        expect(precedingPass?.type).toBe("pass");
-        expect(precedingPass?.success).toBe(false);
-        expect(
-          (precedingPass?.endY ?? 50) <= -2 ||
-          (precedingPass?.endY ?? 50) >= 102,
-        ).toBe(true);
-        expect(event.y === 3 || event.y === 97).toBe(true);
-      });
+    expect(types.has("throwIn")).toBe(false);
+    for (const event of events) {
+      if (event.type !== "pass") continue;
+      expect(event.endY ?? 50).toBeGreaterThanOrEqual(3);
+      expect(event.endY ?? 50).toBeLessThanOrEqual(97);
     }
   });
 

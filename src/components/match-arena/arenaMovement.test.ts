@@ -1,8 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  claimLooseBallIfReached,
-  updateArenaMovement,
-} from "./arenaMovement";
+import { updateArenaMovement } from "./arenaMovement";
 import type { ArenaDot, ArenaState } from "./runtimeTypes";
 import type { LiveIntensity } from "./tactics";
 
@@ -109,7 +106,7 @@ describe("continuous arena movement", () => {
     expect(state.dots[1].x - before).toBeLessThan(1);
   });
 
-  test("both teams contest a genuinely loose ball", () => {
+  test("an unowned stationary ball does not create a loose-ball chase", () => {
     const state = arena();
     state.ball.owner = -1;
     state.ball.flightTarget = null;
@@ -117,86 +114,9 @@ describe("continuous arena movement", () => {
     state.ball.x = 52;
     state.ball.y = 52;
     updateArenaMovement(state, [balanced, balanced], 0.1);
-    expect(state.dots.some((player) => player.team === 0 && player.action === "press")).toBe(true);
-    expect(state.dots.some((player) => player.team === 1 && player.action === "press")).toBe(true);
-  });
-
-  test("only the actually nearest players chase and collect a loose ball", () => {
-    const state = arena();
-    state.ball.owner = -1;
-    state.ball.flightTarget = null;
-    state.ball.flightTo = -1;
-    state.ball.x = 8.5;
-    state.ball.y = 50;
-    updateArenaMovement(state, [balanced, balanced], 0.1);
-
-    expect(state.dots[0].role).toBe("GK");
-    expect(state.dots[0].action).toBe("press");
     expect(
-      state.dots
-        .slice(1)
-        .every((player) => player.action !== "press"),
+      state.dots.every((player) => player.action !== "press"),
     ).toBe(true);
-
-    state.dots[0].x = 8.4;
-    expect(claimLooseBallIfReached(state)).toBe(0);
-    expect(state.ball.owner).toBe(0);
-    expect(state.dots[0].action).toBe("receive");
-  });
-
-  test("throw-in taker and nearby teammates move toward the correct touchline", () => {
-    const state = arena();
-    for (let offset = 0; offset < 7; offset++) {
-      state.dots.push(
-        dot(
-          20 + offset,
-          0,
-          offset < 3 ? "DEF" : offset < 6 ? "MID" : "FWD",
-          20 + offset * 8,
-          14 + (offset % 4) * 18,
-        ),
-        dot(
-          40 + offset,
-          1,
-          offset < 3 ? "DEF" : offset < 6 ? "MID" : "FWD",
-          80 - offset * 8,
-          14 + (offset % 4) * 18,
-        ),
-      );
-    }
-    state.ball.owner = -1;
-    state.ball.y = 102;
-    state.situation = {
-      type: "throwIn",
-      side: 0,
-      actor: 2,
-      x: 66,
-      y: 97,
-      remaining: 1.5,
-    };
-    const takerBefore = state.dots[2].y;
-    const supportBefore = state.dots[1].y;
-    updateArenaMovement(state, [balanced, balanced], 0.1);
-    expect(state.dots[2].y).toBeGreaterThan(takerBefore);
-    expect(state.dots[1].y).toBeGreaterThan(supportBefore);
-    expect(
-      state.dots.filter(
-        (player) => player.team === 0 && player.action === "receive",
-      ),
-    ).toHaveLength(4);
-    expect(
-      state.dots.filter(
-        (player) => player.team === 1 && player.action === "press",
-      ),
-    ).toHaveLength(3);
-    expect(
-      state.dots.filter(
-        (player) =>
-          player.role !== "GK" &&
-          player.action !== "receive" &&
-          player.action !== "press",
-      ).length,
-    ).toBeGreaterThan(6);
   });
 
   test("a designated pass receiver does not trigger a whole-team loose-ball swarm", () => {
