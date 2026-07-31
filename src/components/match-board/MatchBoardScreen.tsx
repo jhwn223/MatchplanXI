@@ -368,7 +368,7 @@ export function MatchBoardScreen({
         </div>
         <div className="board__action-metric">
           <span>평균 컨디션</span>
-          <strong>{teamIndex ?? "—"}<small>/100</small></strong>
+          <strong>{teamIndex != null ? Math.round(teamIndex) : "—"}<small>/100</small></strong>
         </div>
         <div className="board__action-metric board__action-metric--estimate">
           <span>예상 승률</span>
