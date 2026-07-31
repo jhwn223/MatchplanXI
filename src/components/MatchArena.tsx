@@ -106,6 +106,8 @@ export function MatchArena({
     away: startScore[1],
     banner: null as string | null,
     periodBanner: null as string | null,
+    eventCount: 0,
+    situation: null as string | null,
   });
   const [ended, setEnded] = useState(false);
   const [sim, setSim] = useState<ArenaSim>(simRef.current);
@@ -365,6 +367,7 @@ export function MatchArena({
       time: 0,
       periodBanner: null,
       periodBannerT: 0,
+      situation: null,
       announcedET1: false,
       announcedET2: false,
       penT: 0,
@@ -411,11 +414,40 @@ export function MatchArena({
     // Replay the finished timeline without simulating or recording the match again.
     completedRef.current = true;
     setEnded(false);
-    setHud({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null, periodBanner: null });
+    setHud({
+      minute: startMinute,
+      home: startScore[0],
+      away: startScore[1],
+      banner: null,
+      periodBanner: null,
+      eventCount: 0,
+      situation: null,
+    });
     setPaused(false);
     pausedRef.current = false;
   }
 
+  const playedEvents = (sim.events ?? []).slice(0, hud.eventCount);
+  const observedUserGoals =
+    startScore[0] +
+    playedEvents.filter((event) => event.type === "goal" && event.side === "user").length;
+  const observedOppGoals =
+    startScore[1] +
+    playedEvents.filter((event) => event.type === "goal" && event.side === "opp").length;
+  const observedUserXg = playedEvents
+    .filter((event) => event.type === "shot" && event.side === "user")
+    .reduce((sum, event) => sum + (event.xg ?? 0), 0);
+  const observedOppXg = playedEvents
+    .filter((event) => event.type === "shot" && event.side === "opp")
+    .reduce((sum, event) => sum + (event.xg ?? 0), 0);
+  const observedSim: ArenaSim = {
+    ...sim,
+    events: playedEvents,
+    userGoals: observedUserGoals,
+    oppGoals: observedOppGoals,
+    userXg: observedUserXg,
+    oppXg: observedOppXg,
+  };
   const liveSnapshot = snapshotAtMinute(sim.liveSnapshots ?? [], hud.minute);
   // 연장전(90~120분)은 한 화면 안에서 105분을 기준으로 연장 전반/후반 두 구간으로 나눠서 게이지를 채운다.
   const isExtraTime = endMinute > 90;
@@ -456,7 +488,7 @@ export function MatchArena({
           <ArenaMatchCenter
             activeTab={activePanel}
             onTabChange={setActivePanel}
-            sim={sim}
+            sim={observedSim}
             live={liveSnapshot}
             minute={hud.minute}
             userTeamName={userTeamName}
@@ -491,6 +523,12 @@ export function MatchArena({
                 </motion.div>
               )}
             </AnimatePresence>
+            {hud.situation && (
+              <div className="arena-situation" role="status">
+                <span>경기 상황</span>
+                <strong>{hud.situation}</strong>
+              </div>
+            )}
             <AnimatePresence>
               {hud.banner && (
                 <motion.div
@@ -509,7 +547,7 @@ export function MatchArena({
           </div>
           <div className="arena-insights">
             <ArenaEventFeed
-              events={sim.events ?? []}
+              events={playedEvents}
               minute={hud.minute}
               live={liveSnapshot}
               opponentTacticChanges={opponentTacticChanges}

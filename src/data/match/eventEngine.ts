@@ -86,6 +86,8 @@ function actionDetail(type: MatchEventType, actor: string, target?: string): str
   if (type === "offside") return `${actor} 오프사이드`;
   if (type === "corner") return `${actor} 코너킥`;
   if (type === "freeKick") return `${actor} 프리킥`;
+  if (type === "throwIn") return `${actor} 스로인`;
+  if (type === "penaltyKick") return `${actor} 페널티킥`;
   if (type === "injury") return `${actor} 부상`;
   return `${actor} 득점`;
 }
@@ -166,17 +168,40 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       type === "yellowCard" ||
       type === "redCard" ||
       type === "offside" ||
+      type === "corner" ||
+      type === "freeKick" ||
+      type === "throwIn" ||
+      type === "penaltyKick" ||
       type === "injury";
     const shotBase = role === "DEF" ? 67 : role === "MID" ? 73 : 80;
     const shotX = side === "user"
       ? shotBase + unit(0) * 13
       : 100 - shotBase - unit(0) * 13;
-    const generatedX = isShot
-      ? shotX
-      : clamp(actorHome.x + (unit(0) - 0.5) * (role === "GK" ? 2 : 8), 1, 99);
-    const generatedY = clamp(actorHome.y + (unit(8) - 0.5) * (role === "GK" ? 3 : 9), 3, 97);
-    const x = possessionBallPoint?.x ?? generatedX;
-    const y = possessionBallPoint?.y ?? generatedY;
+    const generatedX =
+      type === "corner"
+        ? side === "user" ? 98 : 2
+        : type === "penaltyKick"
+          ? side === "user" ? 87 : 13
+          : isShot
+            ? shotX
+            : clamp(actorHome.x + (unit(0) - 0.5) * (role === "GK" ? 2 : 8), 1, 99);
+    const generatedY =
+      type === "corner"
+        ? unit(8) < 0.5 ? 3 : 97
+        : type === "throwIn"
+          ? unit(8) < 0.5 ? 3 : 97
+          : type === "penaltyKick"
+            ? 50
+            : clamp(actorHome.y + (unit(8) - 0.5) * (role === "GK" ? 3 : 9), 3, 97);
+    const forceRestartPoint =
+      type === "corner" || type === "penaltyKick";
+    const x = forceRestartPoint
+      ? generatedX
+      : possessionBallPoint?.x ?? generatedX;
+    const y =
+      type === "corner" || type === "throwIn" || type === "penaltyKick"
+        ? generatedY
+        : possessionBallPoint?.y ?? generatedY;
     const targetX = clamp(targetHome.x + (unit(16) - 0.5) * 7, 1, 99);
     const targetY = clamp(targetHome.y + (unit(24) - 0.5) * 7, 3, 97);
     const rawPassDistance = Math.hypot(targetX - x, targetY - y);
@@ -292,39 +317,46 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   const resolveSetPiece = (
     minute: number,
     side: MatchSide,
-    kind: "corner" | "freeKick",
+    kind: "corner" | "freeKick" | "penaltyKick",
     taker: PlacedPlayerLite,
     keeperPlayer: PlacedPlayerLite,
   ) => {
+    activePossessionId = `${minute}:restart:${events.length}`;
     const sideTactics = side === "user" ? userTactics : oppTactics;
     const defendingSide = otherSide(side);
     const candidates = outfield(sidePlayers(input, side));
     if (kind === "corner") running[side].corners++;
     addEvent(minute, side, kind, taker, keeperPlayer, true);
 
-    const deliveryChance = clamp(
-      0.16 +
-        sideTactics.setPieceBias * 0.055 +
-        (taker.passing + taker.longPassing - 130) / 900,
-      0.08,
-      0.3,
-    );
+    const deliveryChance = kind === "penaltyKick"
+      ? 1
+      : clamp(
+          0.16 +
+            sideTactics.setPieceBias * 0.055 +
+            (taker.passing + taker.longPassing - 130) / 900,
+          0.08,
+          0.3,
+        );
     if (rng() >= deliveryChance || !candidates.length) return;
 
-    const shooter = weightedPick(
-      candidates,
-      (player) =>
-        (player.position === "FWD" ? 2.8 : player.position === "DEF" ? 1.5 : 1.1) *
-        (0.45 + (player.positioning + player.strength + player.finishing) / 300),
-      rng,
-    );
-    const shotXg = clamp(
-      (kind === "corner" ? 0.055 : 0.07) +
-        sideTactics.setPieceBias * 0.012 +
-        (shooter.positioning + shooter.finishing - 130) / 2200,
-      0.025,
-      0.16,
-    );
+    const shooter = kind === "penaltyKick"
+      ? taker
+      : weightedPick(
+          candidates,
+          (player) =>
+            (player.position === "FWD" ? 2.8 : player.position === "DEF" ? 1.5 : 1.1) *
+            (0.45 + (player.positioning + player.strength + player.finishing) / 300),
+          rng,
+        );
+    const shotXg = kind === "penaltyKick"
+      ? 0.76
+      : clamp(
+          (kind === "corner" ? 0.055 : 0.07) +
+            sideTactics.setPieceBias * 0.012 +
+            (shooter.positioning + shooter.finishing - 130) / 2200,
+          0.025,
+          0.16,
+        );
     running[side].shots++;
     running[side].xg += shotXg;
     const shooterStats = playerStat(playerStats, side, shooter);
@@ -332,11 +364,13 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     addEvent(minute, side, "shot", shooter, keeperPlayer, true, shotXg);
 
     const keeperSkill = (keeperPlayer.gkReflexes + keeperPlayer.gkPositioning + keeperPlayer.gkHandling) / 3;
-    const goalChance = clamp(
-      shotXg * (0.92 + (shooter.finishing - keeperSkill) / 180),
-      0.01,
-      0.22,
-    );
+    const goalChance = kind === "penaltyKick"
+      ? clamp(0.72 + (shooter.finishing + shooter.composure - keeperSkill * 2) / 500, 0.56, 0.86)
+      : clamp(
+          shotXg * (0.92 + (shooter.finishing - keeperSkill) / 180),
+          0.01,
+          0.22,
+        );
     if (rng() < goalChance) {
       running[side].shotsOnTarget++;
       if (shooterStats) {
@@ -353,10 +387,18 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         side,
         scorerId: shooter.playerId,
         scorer: shooter.name,
-        assistId: taker.playerId,
-        assist: taker.name,
+        assistId: kind === "penaltyKick" ? undefined : taker.playerId,
+        assist: kind === "penaltyKick" ? undefined : taker.name,
       });
-      addEvent(minute, side, "goal", shooter, taker, true, shotXg);
+      addEvent(
+        minute,
+        side,
+        "goal",
+        shooter,
+        kind === "penaltyKick" ? undefined : taker,
+        true,
+        shotXg,
+      );
       return;
     }
     if (rng() < 0.55) {
@@ -521,6 +563,15 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         break;
       } else {
         addEvent(minute, side, "pass", passer, receiver, false);
+        activePossessionId = `${minute}:restart:${events.length}`;
+        addEvent(
+          minute,
+          defendingSide,
+          "throwIn",
+          pressingDefender,
+          undefined,
+          true,
+        );
         possessionLost = true;
         break;
       }
@@ -620,7 +671,17 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
               if (carrierStats) carrierStats.injuries++;
               addEvent(minute, side, "injury", carrier, defender, false);
             }
-            resolveSetPiece(minute, side, "freeKick", lastPasser ?? carrier, keeperPlayer);
+            const foulPoint = possessionBallPoint as { x: number; y: number } | null;
+            const foulX = side === "user"
+              ? foulPoint?.x ?? tacticalHome(carrier, side, sideTactics).x
+              : 100 - (foulPoint?.x ?? tacticalHome(carrier, side, sideTactics).x);
+            resolveSetPiece(
+              minute,
+              side,
+              foulX >= 82 ? "penaltyKick" : "freeKick",
+              carrier,
+              keeperPlayer,
+            );
             break;
           }
           running[defendingSide].tacklesWon++;
@@ -741,8 +802,13 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         sideTactics.shootingBias * 0.055 +
         matchupEdge * 0.24;
       const roleShotChance = carrier.position === "FWD" ? 0.3 : carrier.position === "MID" ? 0.16 : 0.06;
+      const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
+      const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
+      const minimumShotX =
+        carrier.longShots >= 82 && sideTactics.shootingBias >= 0.25 ? 65 : 68;
       const shootNow =
         carrier.position !== "GK" &&
+        canonicalShotX >= minimumShotX &&
         (
           rng() < roleShotChance + progress * 0.045 + tacticShotBias ||
           (action === maxActions - 1 && rng() < 0.36)

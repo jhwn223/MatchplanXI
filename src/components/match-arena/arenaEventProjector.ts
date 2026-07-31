@@ -54,7 +54,7 @@ function startBallFlight(
     owner,
     chaser,
     elapsed: 0,
-    duration: clamp(distance / speed, 0.28, 0.9),
+    duration: clamp(distance / speed, 0.14, 0.46),
   };
   state.ball.scripted = true;
 }
@@ -73,7 +73,7 @@ function claimLooseBall(state: ArenaState, owner: number) {
     owner,
     chaser: owner,
     elapsed: 0,
-    duration: clamp(distance / 11, 0.22, 2.2),
+    duration: clamp(distance / 24, 0.12, 0.5),
   };
   state.ball.scripted = true;
 }
@@ -117,9 +117,7 @@ export function prepareEventActor(state: ArenaState, event: MatchEvent) {
   if (
     event.type !== "pass" &&
     event.type !== "dribble" &&
-    event.type !== "shot" &&
-    event.type !== "corner" &&
-    event.type !== "freeKick"
+    event.type !== "shot"
   ) {
     return true;
   }
@@ -129,6 +127,41 @@ export function prepareEventActor(state: ArenaState, event: MatchEvent) {
   setAction(state, actor, "receive", 0.7);
   claimLooseBall(state, actor);
   return false;
+}
+
+function startSituation(
+  state: ArenaState,
+  type: NonNullable<ArenaState["situation"]>["type"],
+  side: 0 | 1,
+  actor: number,
+  point: { x: number; y: number },
+) {
+  const duration =
+    type === "penaltyKick"
+      ? 1.25
+      : type === "corner" || type === "freeKick"
+        ? 0.9
+        : type === "throwIn"
+          ? 0.7
+          : 0.5;
+  state.situation = {
+    type,
+    side,
+    actor,
+    x: point.x,
+    y: point.y,
+    remaining: duration,
+  };
+  state.ball.owner = actor;
+  state.ball.flightTo = -1;
+  state.ball.flightTarget = null;
+  state.ball.scripted = false;
+  if (actor >= 0) {
+    state.ball.lastTeam = state.dots[actor].team;
+  } else {
+    state.ball.x = point.x;
+    state.ball.y = point.y;
+  }
 }
 
 export function projectMatchEvent(
@@ -258,9 +291,15 @@ export function projectMatchEvent(
     return;
   }
 
-  if (event.type === "corner" || event.type === "freeKick" || event.type === "foul") {
+  if (
+    event.type === "corner" ||
+    event.type === "freeKick" ||
+    event.type === "throwIn" ||
+    event.type === "penaltyKick" ||
+    event.type === "foul"
+  ) {
     setAction(state, actor, event.type === "foul" ? "tackle" : "pass", 0.5);
-    giveBallTo(state, actor);
+    startSituation(state, event.type, side, actor, eventPoint(event));
     return;
   }
 
@@ -269,5 +308,6 @@ export function projectMatchEvent(
       (dot) => dot.team === defendingSide && dot.role === "GK",
     );
     if (keeper >= 0) claimLooseBall(state, keeper);
+    startSituation(state, "offside", defendingSide, keeper, eventPoint(event));
   }
 }

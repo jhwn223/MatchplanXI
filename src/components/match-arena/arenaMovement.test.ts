@@ -106,6 +106,18 @@ describe("continuous arena movement", () => {
     expect(state.dots[1].x - before).toBeLessThan(1);
   });
 
+  test("both teams contest a genuinely loose ball", () => {
+    const state = arena();
+    state.ball.owner = -1;
+    state.ball.flightTarget = null;
+    state.ball.flightTo = -1;
+    state.ball.x = 52;
+    state.ball.y = 52;
+    updateArenaMovement(state, [balanced, balanced], 0.1);
+    expect(state.dots.some((player) => player.team === 0 && player.action === "press")).toBe(true);
+    expect(state.dots.some((player) => player.team === 1 && player.action === "press")).toBe(true);
+  });
+
   test("high pressure visibly sends a second defender to the ball", () => {
     const lowState = arena();
     const highState = arena();

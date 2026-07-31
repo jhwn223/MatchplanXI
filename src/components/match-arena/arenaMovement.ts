@@ -124,6 +124,100 @@ function separatePlayers(state: ArenaState) {
   }
 }
 
+function setPieceTarget(
+  state: ArenaState,
+  dot: ArenaDot,
+  index: number,
+): Target | null {
+  const situation = state.situation;
+  if (!situation) return null;
+  const attacking = dot.team === situation.side;
+  const dir = direction(situation.side);
+  const goalX = opponentGoalX(situation.side);
+  const defendingGoalX = ownGoalX(dot.team);
+  const lane = (index % 5) - 2;
+
+  if (index === situation.actor) {
+    return {
+      x: situation.x,
+      y: situation.y,
+      speed: 11,
+      action: "receive",
+    };
+  }
+
+  if (situation.type === "penaltyKick") {
+    if (!attacking && dot.role === "GK") {
+      return { x: goalX, y: 50, speed: 10, action: "save" };
+    }
+    return {
+      x: goalX - dir * (attacking ? 26 : 23),
+      y: clamp(50 + lane * 5, 30, 70),
+      speed: 9,
+      action: "move",
+    };
+  }
+
+  if (situation.type === "corner") {
+    if (!attacking && dot.role === "GK") {
+      return { x: defendingGoalX, y: 50, speed: 9, action: "move" };
+    }
+    if (dot.role === "GK") {
+      return { x: ownGoalX(dot.team), y: 50, speed: 5, action: "move" };
+    }
+    return {
+      x: clamp(goalX - dir * (attacking ? 9 + (index % 3) * 3 : 6 + (index % 4) * 2), 3, 97),
+      y: clamp(50 + lane * (attacking ? 8 : 6), 18, 82),
+      speed: 9,
+      action: attacking ? "receive" : "press",
+    };
+  }
+
+  if (situation.type === "throwIn") {
+    if (dot.role === "GK") {
+      return { x: ownGoalX(dot.team), y: 50, speed: 4, action: "move" };
+    }
+    const supportX = situation.x + (attacking ? dir : -dir) * (5 + (index % 3) * 3);
+    return {
+      x: clamp(supportX, 3, 97),
+      y: clamp(situation.y + (lane * 5), 5, 95),
+      speed: 8,
+      action: attacking ? "receive" : "press",
+    };
+  }
+
+  if (situation.type === "freeKick" || situation.type === "offside") {
+    if (!attacking && dot.role === "GK") {
+      return { x: defendingGoalX, y: 50, speed: 8, action: "save" };
+    }
+    if (dot.role === "GK") {
+      return { x: ownGoalX(dot.team), y: 50, speed: 4, action: "move" };
+    }
+    const nearGoal = Math.abs(goalX - situation.x) < 30;
+    if (!attacking && nearGoal && index % 3 !== 0) {
+      return {
+        x: clamp(situation.x + dir * 7, 3, 97),
+        y: clamp(50 + lane * 3.2, 28, 72),
+        speed: 9,
+        action: "press",
+      };
+    }
+    return {
+      x: clamp(situation.x + dir * (attacking ? 8 + (index % 4) * 4 : 12), 3, 97),
+      y: clamp(50 + lane * 8, 12, 88),
+      speed: 8,
+      action: attacking ? "receive" : "move",
+    };
+  }
+
+  return {
+    x: dot.hx + (situation.x - dot.hx) * 0.18,
+    y: dot.hy + (situation.y - dot.hy) * 0.18,
+    speed: 5,
+    action: dot.team === situation.side ? "move" : "press",
+  };
+}
+
 export function updateArenaMovement(
   state: ArenaState,
   intensities: readonly [LiveIntensity, LiveIntensity],
@@ -136,6 +230,21 @@ export function updateArenaMovement(
   const defendingTeam: Team = ballTeam === 0 ? 1 : 0;
   const defendingIntensity = intensities[defendingTeam];
   const pressers = new Set<number>();
+  const looseBall =
+    state.ball.owner < 0 &&
+    state.ball.flightTarget == null &&
+    state.ball.flightTo < 0 &&
+    !state.scoring &&
+    !state.situation;
+  const looseChasers = new Set<number>();
+  if (looseBall) {
+    ([0, 1] as const).forEach((team) => {
+      const first = nearestIndex(state, team, state.ball.x, state.ball.y);
+      if (first >= 0) looseChasers.add(first);
+      const second = nearestIndex(state, team, state.ball.x, state.ball.y, looseChasers);
+      if (second >= 0) looseChasers.add(second);
+    });
+  }
   const firstPresser = nearestIndex(
     state,
     defendingTeam,
@@ -169,7 +278,17 @@ export function updateArenaMovement(
     const directRun = (ownIntensity.directness - 50) / 6.5;
     let target: Target;
 
-    if (state.scoring && index === state.scoring.shooter) {
+    const deadBallTarget = setPieceTarget(state, dot, index);
+    if (deadBallTarget) {
+      target = deadBallTarget;
+    } else if (looseChasers.has(index)) {
+      target = {
+        x: state.ball.x,
+        y: state.ball.y,
+        speed: 11 * tempoScale,
+        action: "press",
+      };
+    } else if (state.scoring && index === state.scoring.shooter) {
       target = {
         x: clamp(dot.x + dir * 5, 3, 97),
         y: dot.y,

@@ -140,4 +140,21 @@ describe("arena event projection", () => {
     );
     expect(arena.ball.flightTarget?.owner).toBe(1);
   });
+
+  test("a corner creates a visible restart state before normal play resumes", () => {
+    const arena = state();
+    projectMatchEvent(
+      arena,
+      event({ type: "corner", x: 98, y: 3, endX: 98, endY: 3 }),
+      vi.fn(),
+    );
+    expect(arena.situation).toMatchObject({
+      type: "corner",
+      side: 0,
+      actor: 0,
+      x: 98,
+      y: 3,
+    });
+    expect(arena.ball.owner).toBe(0);
+  });
 });

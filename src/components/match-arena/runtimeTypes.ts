@@ -81,6 +81,14 @@ export interface ArenaState {
   } | null;
   periodBanner: string | null;
   periodBannerT: number;
+  situation?: {
+    type: "foul" | "corner" | "throwIn" | "freeKick" | "penaltyKick" | "offside";
+    side: 0 | 1;
+    actor: number;
+    x: number;
+    y: number;
+    remaining: number;
+  } | null;
   announcedET1: boolean;
   announcedET2: boolean;
   penT: number;
@@ -101,4 +109,6 @@ export interface ArenaHud {
   away: number;
   banner: string | null;
   periodBanner: string | null;
+  eventCount: number;
+  situation: string | null;
 }

@@ -19,6 +19,8 @@ const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = 
   offside: { icon: "⚑", label: "오프사이드" },
   corner: { icon: "⌜", label: "코너킥" },
   freeKick: { icon: "◉", label: "프리킥" },
+  throwIn: { icon: "↥", label: "스로인" },
+  penaltyKick: { icon: "◎", label: "페널티킥" },
   injury: { icon: "+", label: "부상" },
 };
 

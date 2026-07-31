@@ -73,6 +73,8 @@ export type MatchEventType =
   | "offside"
   | "corner"
   | "freeKick"
+  | "throwIn"
+  | "penaltyKick"
   | "injury";
 
 export type PassType = "cross" | "short" | "through" | "longBall" | "normal";

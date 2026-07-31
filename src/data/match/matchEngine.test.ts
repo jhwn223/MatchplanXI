@@ -201,6 +201,25 @@ describe("match engine invariants", () => {
     expect(checkedLinks).toBeGreaterThan(80);
   });
 
+  test("open-play shots only come from the attacking third and never from goalkeepers", () => {
+    const results = Array.from({ length: 25 }, (_, seed) =>
+      simulatePeriod(input(seed + 900), 1, 90, 0),
+    );
+    const shots = results.flatMap((result) =>
+      result.events.filter(
+        (event) =>
+          event.type === "shot" && !event.possessionId?.includes(":restart:"),
+      ),
+    );
+    expect(shots.length).toBeGreaterThan(20);
+    for (const shot of shots) {
+      const canonicalX = shot.side === "user" ? shot.x ?? 0 : 100 - (shot.x ?? 100);
+      expect(canonicalX).toBeGreaterThanOrEqual(65);
+      const squad = shot.side === "user" ? input(0).placed : input(0).oppPlaced;
+      expect(squad.find((player) => player.playerId === shot.actorId)?.position).not.toBe("GK");
+    }
+  });
+
   test("high pressing changes recoveries and carries a fatigue/foul trade-off", () => {
     const high = Array.from({ length: 50 }, (_, seed) =>
       simulatePeriod(

@@ -19,9 +19,9 @@ const PK_STRIKE_T = 0.55;
 const PK_REVEAL_T = 1.1;
 const FIXED_SIMULATION_STEP = 1 / 60;
 
-// 1x plays a 90-minute match in roughly 4m 40s. The old value (3.4)
-// compressed a match into about 26 seconds and made tactical observation moot.
-const MIN_PER_SEC = 0.32;
+// About 3m 20s for a regulation match before short stoppages. Event playback
+// can briefly hold the clock so the picture, feed and timeline stay together.
+const MIN_PER_SEC = 0.45;
 interface Options {
   simRef: RefObject<ArenaSim>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -142,6 +142,7 @@ export function useArenaLoop({
       s.banner = null;
       s.goalSide = null;
       s.scoring = null;
+      s.situation = null;
       s.phase = "play";
       s.actionT = 0.6;
     }
@@ -255,6 +256,10 @@ export function useArenaLoop({
         s.periodBannerT -= dt;
         if (s.periodBannerT <= 0) s.periodBanner = null;
       }
+      if (s.situation) {
+        s.situation.remaining -= dt;
+        if (s.situation.remaining <= 0) s.situation = null;
+      }
 
       if (s.phase === "penalties") {
         const kick = s.pkSequence[s.pkIndex];
@@ -322,26 +327,43 @@ export function useArenaLoop({
         }
       }
 
-      s.clock += dt * MIN_PER_SEC;
-      const reachedPeriodEnd = s.clock >= endMinute;
-      if (reachedPeriodEnd) s.clock = endMinute;
+      const proposedClock = Math.min(endMinute, s.clock + dt * MIN_PER_SEC);
 
       // Generate the upcoming match minute at the beginning of its visual
       // interval. This keeps the future unknown while leaving enough real time
       // to animate every action that the engine resolved for that minute.
       const upcomingMinute = Math.min(
         endMinute,
-        Math.max(startMinute + 1, Math.floor(s.clock) + 1),
+        Math.max(startMinute + 1, Math.floor(proposedClock) + 1),
       );
       onMinuteEnter(upcomingMinute);
-      if (reachedPeriodEnd) onPeriodEnd();
 
       // Consume only the action log that produced the score and statistics.
       // Multiple events in one minute are deliberately spread across that
       // minute instead of firing in consecutive animation frames.
       const currentSim = simRef.current;
       const ballBusy =
-        s.ball.flightTo >= 0 || s.ball.flightTarget != null || s.scoring != null;
+        s.ball.flightTo >= 0 ||
+        s.ball.flightTarget != null ||
+        s.scoring != null ||
+        s.situation != null;
+      const nextPlayback = eventPlaybackClock(
+        currentSim.events ?? [],
+        s.nextEvent,
+      );
+      s.clock = Number.isFinite(nextPlayback)
+        ? Math.min(proposedClock, Math.max(s.clock, nextPlayback + 0.65))
+        : proposedClock;
+      const hasPendingEvents = s.nextEvent < (currentSim.events?.length ?? 0);
+      if (proposedClock >= endMinute && (hasPendingEvents || ballBusy)) {
+        s.clock = Math.min(s.clock, endMinute - 0.01);
+      }
+      const reachedPeriodEnd =
+        proposedClock >= endMinute && !hasPendingEvents && !ballBusy;
+      if (reachedPeriodEnd) {
+        s.clock = endMinute;
+        onPeriodEnd();
+      }
       if (
         !ballBusy &&
         currentSim.events?.length &&
@@ -481,12 +503,33 @@ export function useArenaLoop({
         hudAcc = 0;
         const s = stateRef.current!;
         const periodBanner = s.periodBannerT > 0 ? s.periodBanner : null;
+        const situationLabels = {
+          foul: "파울 · 경기 중단",
+          corner: "코너킥 준비",
+          throwIn: "스로인 준비",
+          freeKick: "프리킥 준비",
+          penaltyKick: "페널티킥 준비",
+          offside: "오프사이드 · 경기 중단",
+        } as const;
+        const looseBall =
+          s.ball.owner < 0 &&
+          s.ball.flightTarget == null &&
+          s.ball.flightTo < 0 &&
+          !s.scoring &&
+          !s.situation &&
+          s.phase === "play";
         setHud({
           minute: Math.floor(s.clock),
           home: s.score[0],
           away: s.score[1],
           banner: s.phase === "celebrate" || s.phase === "penalties" ? s.banner : null,
           periodBanner,
+          eventCount: Math.max(0, s.nextEvent - (s.scoring ? 1 : 0)),
+          situation: s.situation
+            ? situationLabels[s.situation.type]
+            : looseBall
+              ? "루즈볼 경합"
+              : null,
         });
       }
       raf = requestAnimationFrame(step);
