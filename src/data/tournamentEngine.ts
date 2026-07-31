@@ -1,7 +1,11 @@
-import { mulberry32, quickSimScore } from "./matchSim";
+import { mulberry32, quickSimScore, BALANCED_SIM_TACTICS } from "./matchSim";
+import { buildVenueByStadium, getTeamMatches } from "./tournament";
 import type { PlayedMap, StandingRow } from "./tournament";
 import type { Leaderboard } from "./leaderboard";
 import type { Player, Position, TournamentData, Venue } from "./types";
+import { buildTeamAbilityProfile, selectBestEleven } from "./playerAbility";
+import type { TeamAbilityProfile } from "./playerAbility";
+import { jetLagPenalty, restPenalty, travelPenalty } from "./conditionEngine";
 
 // ---------- group stage ----------
 
@@ -9,6 +13,90 @@ function eloOf(data: TournamentData): Map<string, { elo: number; code: string }>
   const m = new Map<string, { elo: number; code: string }>();
   for (const t of data.teams) m.set(t.team_name, { elo: t.elo_rating, code: t.fifa_code });
   return m;
+}
+
+const abilityCache = new WeakMap<TournamentData, Map<string, TeamAbilityProfile>>();
+
+/** Real squad quality (from each team's best XI), used to drive the quick
+ *  (non-live) simulator instead of a flat elo number. Memoized per `data`
+ *  reference — every group/knockout tie is simulated from the same source,
+ *  so this would otherwise get recomputed for all 48 teams on every call. */
+function abilityByTeam(data: TournamentData): Map<string, TeamAbilityProfile> {
+  const cached = abilityCache.get(data);
+  if (cached) return cached;
+  const squadByTeamId = new Map<number, Player[]>();
+  for (const p of data.players) {
+    const list = squadByTeamId.get(p.team_id);
+    if (list) list.push(p);
+    else squadByTeamId.set(p.team_id, [p]);
+  }
+  const out = new Map<string, TeamAbilityProfile>();
+  for (const t of data.teams) {
+    out.set(t.team_name, buildTeamAbilityProfile(selectBestEleven(squadByTeamId.get(t.team_id) ?? [])));
+  }
+  abilityCache.set(data, out);
+  return out;
+}
+
+interface MatchSimContext {
+  elevation: number;
+  homeConditionIndex: number;
+  awayConditionIndex: number;
+}
+
+const simContextCache = new WeakMap<TournamentData, Map<number, MatchSimContext>>();
+
+/** Venue elevation plus a schedule-derived condition index (rest days, travel
+ *  distance, jet lag since each team's previous fixture) for every match —
+ *  the same real fixture context `getTeamMatches` already computes for the
+ *  user's own matches, applied here to every team so the background/AI
+ *  matches the quick simulator fills in feel the same pressures. Altitude is
+ *  intentionally left out of the condition index itself: `quickSimScore`
+ *  already applies elevation as its own fatigue term, so folding it in here
+ *  too would double-count it. */
+function simContextByMatch(data: TournamentData): Map<number, MatchSimContext> {
+  const cached = simContextCache.get(data);
+  if (cached) return cached;
+  const venueByStadium = buildVenueByStadium(data);
+  const conditionByTeamAndMatch = new Map<string, number>();
+  for (const t of data.teams) {
+    for (const tm of getTeamMatches(data, t.team_name)) {
+      const penalty = restPenalty(tm.restDays) + travelPenalty(tm.travelKm) + jetLagPenalty(tm.tzShiftHours);
+      conditionByTeamAndMatch.set(`${t.team_name}:${tm.match.match_id}`, Math.min(100, Math.max(0, 100 - penalty)));
+    }
+  }
+  const out = new Map<number, MatchSimContext>();
+  for (const m of data.matches) {
+    out.set(m.match_id, {
+      elevation: venueByStadium.get(m.stadium_name)?.elevation_meters ?? 0,
+      homeConditionIndex: conditionByTeamAndMatch.get(`${m.home_team_name}:${m.match_id}`) ?? 72,
+      awayConditionIndex: conditionByTeamAndMatch.get(`${m.away_team_name}:${m.match_id}`) ?? 72,
+    });
+  }
+  simContextCache.set(data, out);
+  return out;
+}
+
+/** Builds the richer `quickSimScore` options object (real ability, schedule-
+ *  derived condition, venue elevation, home advantage) for a given fixture,
+ *  in place of the flat elo-only call. AI-vs-AI tactics default to balanced
+ *  since no real tactical choice exists for a team the user isn't managing. */
+function quickSimOptions(
+  homeTeam: string,
+  awayTeam: string,
+  ability: Map<string, TeamAbilityProfile>,
+  context?: MatchSimContext,
+) {
+  return {
+    homeAbility: ability.get(homeTeam),
+    awayAbility: ability.get(awayTeam),
+    homeConditionIndex: context?.homeConditionIndex,
+    awayConditionIndex: context?.awayConditionIndex,
+    homeTactics: BALANCED_SIM_TACTICS,
+    awayTactics: BALANCED_SIM_TACTICS,
+    elevation: context?.elevation,
+    homeAdvantage: true,
+  };
 }
 
 export function groupStandingsSim(
@@ -62,6 +150,8 @@ export function groupStandingsHub(
 ): StandingRow[] {
   const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
   const elo = eloOf(data);
+  const ability = abilityByTeam(data);
+  const simContext = simContextByMatch(data);
   const table = new Map<string, StandingRow>();
   for (const t of groupTeams) {
     table.set(t.team_name, {
@@ -97,7 +187,12 @@ export function groupStandingsHub(
       const seed = (m.match_id * 100003) >>> 0;
       const homeElo = elo.get(m.home_team_name)?.elo ?? 1600;
       const awayElo = elo.get(m.away_team_name)?.elo ?? 1600;
-      const r = quickSimScore(seed, homeElo, awayElo);
+      const r = quickSimScore(
+        seed,
+        homeElo,
+        awayElo,
+        quickSimOptions(m.home_team_name, m.away_team_name, ability, simContext.get(m.match_id)),
+      );
       hs = r.home;
       as = r.away;
     }
@@ -130,6 +225,8 @@ export function qualificationProbability(
   trials = 400
 ): number {
   const elo = eloOf(data);
+  const ability = abilityByTeam(data);
+  const simContext = simContextByMatch(data);
   const groupMatches = data.matches.filter((m) => m.stage_name === "Group Stage");
   const hasRemaining = groupMatches.some((m) => !played[m.match_id]);
   const completedStandings = () =>
@@ -150,6 +247,7 @@ export function qualificationProbability(
         seed,
         elo.get(match.home_team_name)?.elo ?? 1600,
         elo.get(match.away_team_name)?.elo ?? 1600,
+        quickSimOptions(match.home_team_name, match.away_team_name, ability, simContext.get(match.match_id)),
       );
       trialPlayed[match.match_id] = {
         homeGoals: result.home,
@@ -184,6 +282,8 @@ export function groupStandingsFull(
 ): StandingRow[] {
   const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
   const elo = eloOf(data);
+  const ability = abilityByTeam(data);
+  const simContext = simContextByMatch(data);
   const table = new Map<string, StandingRow>();
   for (const t of groupTeams) {
     table.set(t.team_name, {
@@ -205,7 +305,12 @@ export function groupStandingsFull(
       const seed = (m.match_id * 100003) >>> 0;
       const homeElo = elo.get(m.home_team_name)?.elo ?? 1600;
       const awayElo = elo.get(m.away_team_name)?.elo ?? 1600;
-      const r = quickSimScore(seed, homeElo, awayElo);
+      const r = quickSimScore(
+        seed,
+        homeElo,
+        awayElo,
+        quickSimOptions(m.home_team_name, m.away_team_name, ability, simContext.get(m.match_id)),
+      );
       hs = r.home;
       as = r.away;
     }
@@ -380,8 +485,14 @@ export type KOResults = Record<
   }
 >;
 
-function koSimWinner(seed: number, a: KOTeam, b: KOTeam) {
-  const r = quickSimScore(seed, a.elo, b.elo);
+function koSimWinner(
+  seed: number,
+  a: KOTeam,
+  b: KOTeam,
+  ability: Map<string, TeamAbilityProfile>,
+  elevation: number,
+) {
+  const r = quickSimScore(seed, a.elo, b.elo, quickSimOptions(a.name, b.name, ability, { elevation, homeConditionIndex: 72, awayConditionIndex: 72 }));
   if (r.home > r.away) return { winner: a, a: r.home, b: r.away, pens: false };
   if (r.away > r.home) return { winner: b, a: r.home, b: r.away, pens: false };
   const w = mulberry32(seed * 7 + 3)() < 0.5 ? a : b;
@@ -395,6 +506,7 @@ export function buildBracket(
   userTeamName: string
 ): KOMatch[][] {
   const venues = data.venues;
+  const ability = abilityByTeam(data);
   const rounds: KOMatch[][] = [];
   let prevWinners: (KOTeam | null)[] = [];
   const round32Pairs = officialRound32Pairs(qualifiers);
@@ -441,7 +553,7 @@ export function buildBracket(
             }
           }
         } else {
-          const w = koSimWinner(hashNum(id) + a.elo + b.elo, a, b);
+          const w = koSimWinner(hashNum(id) + a.elo + b.elo, a, b, ability, venue.elevation_meters);
           winner = w.winner; aGoals = w.a; bGoals = w.b; pens = w.pens; played = true;
         }
       }
@@ -502,7 +614,7 @@ export function buildBracket(
           }
         }
       } else {
-        const result = koSimWinner(hashNum(id) + thirdA.elo + thirdB.elo, thirdA, thirdB);
+        const result = koSimWinner(hashNum(id) + thirdA.elo + thirdB.elo, thirdA, thirdB, ability, venue.elevation_meters);
         winner = result.winner;
         aGoals = result.a;
         bGoals = result.b;
@@ -739,6 +851,8 @@ export function buildTournamentLeaderboard(
   const map = new Map<number, TournamentLeader>();
   const teamByName = new Map(data.teams.map((t) => [t.team_name, t]));
   const elo = eloOf(data);
+  const ability = abilityByTeam(data);
+  const simContext = simContextByMatch(data);
   const playersByTeamId = new Map<number, Player[]>();
   const playersOf = (teamName: string): Player[] => {
     const team = teamByName.get(teamName);
@@ -762,7 +876,12 @@ export function buildTournamentLeaderboard(
       as = result.awayGoals;
     } else {
       const seed = (m.match_id * 100003) >>> 0;
-      const r = quickSimScore(seed, elo.get(home.team_name)?.elo ?? 1600, elo.get(away.team_name)?.elo ?? 1600);
+      const r = quickSimScore(
+        seed,
+        elo.get(home.team_name)?.elo ?? 1600,
+        elo.get(away.team_name)?.elo ?? 1600,
+        quickSimOptions(home.team_name, away.team_name, ability, simContext.get(m.match_id)),
+      );
       hs = r.home;
       as = r.away;
     }
