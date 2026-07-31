@@ -75,7 +75,12 @@ export function ArenaMatchCenter({
             </section>
             <section className="match-mini-map">
               <div><h3>선수 포지셔닝</h3><span>{minute}분까지</span></div>
-              <ArenaEventMap events={events} minute={minute} mode="positions" />
+              <ArenaEventMap
+                events={events}
+                positionSamples={sim.positionSamples}
+                minute={minute}
+                mode="positions"
+              />
             </section>
             <section className="manager-advice">
               <div className="manager-advice__avatar">AI</div>
@@ -93,7 +98,14 @@ export function ArenaMatchCenter({
       )}
 
       {activeTab === "ratings" && <PlayerRatings players={live?.players ?? []} />}
-      {activeTab === "analysis" && <MatchAnalysis events={events} players={live?.players ?? []} minute={minute} />}
+      {activeTab === "analysis" && (
+        <MatchAnalysis
+          events={events}
+          players={live?.players ?? []}
+          positionSamples={sim.positionSamples}
+          minute={minute}
+        />
+      )}
       {activeTab === "tactics" && (
         <ArenaTacticsPanel
           userTeamName={userTeamName}
@@ -120,6 +132,10 @@ function LiveStatRows({ live, userXg, oppXg }: { live: LiveMatchSnapshot | null;
     ["기대 득점", userXg, oppXg, ""],
     ["패스 성공", user?.passSuccessRate ?? 0, opp?.passSuccessRate ?? 0, "%"],
     ["볼 회수", (user?.tacklesWon ?? 0) + (user?.interceptions ?? 0), (opp?.tacklesWon ?? 0) + (opp?.interceptions ?? 0), ""],
+    ["파울", user?.fouls ?? 0, opp?.fouls ?? 0, ""],
+    ["경고", user?.yellowCards ?? 0, opp?.yellowCards ?? 0, ""],
+    ["코너킥", user?.corners ?? 0, opp?.corners ?? 0, ""],
+    ["오프사이드", user?.offsides ?? 0, opp?.offsides ?? 0, ""],
   ];
   return (
     <div className="match-stat-rows">
@@ -154,7 +170,17 @@ function PlayerRatings({ players }: { players: PlayerMatchStats[] }) {
   );
 }
 
-function MatchAnalysis({ events, players, minute }: { events: NonNullable<ArenaSim["events"]>; players: PlayerMatchStats[]; minute: number }) {
+function MatchAnalysis({
+  events,
+  players,
+  positionSamples = [],
+  minute,
+}: {
+  events: NonNullable<ArenaSim["events"]>;
+  players: PlayerMatchStats[];
+  positionSamples?: NonNullable<ArenaSim["positionSamples"]>;
+  minute: number;
+}) {
   const [mode, setMode] = useState<EventMapMode>("positions");
   const [player, setPlayer] = useState("");
   const [passTypes, setPassTypes] = useState<PassType[]>(ALL_PASS_TYPES);
@@ -171,7 +197,12 @@ function MatchAnalysis({ events, players, minute }: { events: NonNullable<ArenaS
     ]),
   ) as Record<PassType, number>;
   const counts: Record<EventMapMode, number> = {
-    positions: elapsed.filter((event) => event.side === "user").length,
+    positions: positionSamples.filter(
+      (sample) =>
+        sample.minute <= minute &&
+        sample.side === "user" &&
+        (!player || sample.playerName === player),
+    ).length,
     shots: elapsed.filter((event) => event.side === "user" && event.type === "shot").length,
     passes: elapsed.filter((event) => event.side === "user" && event.type === "pass").length,
     turnovers: elapsed.filter((event) => event.side === "opp" && (event.type === "tackle" || event.type === "interception")).length,
@@ -227,6 +258,7 @@ function MatchAnalysis({ events, players, minute }: { events: NonNullable<ArenaS
         )}
         <ArenaEventMap
           events={events}
+          positionSamples={positionSamples}
           minute={minute}
           mode={mode}
           player={player || undefined}

@@ -1,4 +1,4 @@
-import type { MatchEvent, PassType } from "../../data/matchSim";
+import type { MatchEvent, PassType, PositionSample } from "../../data/matchSim";
 import { ALL_PASS_TYPES, PASS_TYPE_META } from "./passMap";
 
 export type EventMapMode = "positions" | "shots" | "passes" | "turnovers";
@@ -9,6 +9,7 @@ interface Props {
   mode: EventMapMode;
   player?: string;
   passTypes?: PassType[];
+  positionSamples?: PositionSample[];
 }
 
 interface HeatPoint {
@@ -17,11 +18,11 @@ interface HeatPoint {
   intensity: number;
 }
 
-function buildHeatPoints(events: MatchEvent[]): HeatPoint[] {
+function buildHeatPoints(samples: PositionSample[]): HeatPoint[] {
   const cells = new Map<string, { x: number; y: number; count: number }>();
-  for (const event of events.slice(-700)) {
-    const x = event.x ?? 50;
-    const y = ((event.y ?? 50) / 100) * 62 + 1;
+  for (const sample of samples.slice(-2_500)) {
+    const x = sample.x;
+    const y = (sample.y / 100) * 62 + 1;
     const key = `${Math.round(x / 4)}:${Math.round(y / 4)}`;
     const cell = cells.get(key) ?? { x: 0, y: 0, count: 0 };
     cell.x += x;
@@ -37,7 +38,14 @@ function buildHeatPoints(events: MatchEvent[]): HeatPoint[] {
   }));
 }
 
-export function ArenaEventMap({ events, minute, mode, player, passTypes = ALL_PASS_TYPES }: Props) {
+export function ArenaEventMap({
+  events,
+  minute,
+  mode,
+  player,
+  passTypes = ALL_PASS_TYPES,
+  positionSamples = [],
+}: Props) {
   const elapsed = events
     .filter((event) => event.minute <= minute)
     .filter((event) => mode === "turnovers" ? event.side === "opp" : event.side === "user")
@@ -48,7 +56,10 @@ export function ArenaEventMap({ events, minute, mode, player, passTypes = ALL_PA
     if (mode === "turnovers") return event.type === "tackle" || event.type === "interception";
     return true;
   });
-  const heatPoints = mode === "positions" ? buildHeatPoints(visible) : [];
+  const heatSamples = positionSamples
+    .filter((sample) => sample.minute <= minute && sample.side === "user")
+    .filter((sample) => !player || sample.playerName === player);
+  const heatPoints = mode === "positions" ? buildHeatPoints(heatSamples) : [];
 
   return (
     <div className={`arena-event-map-frame arena-event-map-frame--${mode}`}>
@@ -72,7 +83,9 @@ export function ArenaEventMap({ events, minute, mode, player, passTypes = ALL_PA
           data-alt={index % 2 || undefined}
         />
       ))}
-      {visible.length === 0 && <text x="50" y="34" textAnchor="middle">아직 기록이 없습니다</text>}
+      {(mode === "positions" ? heatSamples.length === 0 : visible.length === 0) && (
+        <text x="50" y="34" textAnchor="middle">아직 기록이 없습니다</text>
+      )}
       {mode === "positions" && (
         <g className="arena-event-map__heat" filter="url(#heat-blur)" clipPath="url(#pitch-clip)">
           {heatPoints.map((point, index) => {

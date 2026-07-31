@@ -12,6 +12,13 @@ const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = 
   block: { icon: "■", label: "블록" },
   miss: { icon: "○", label: "빗나감" },
   goal: { icon: "⚽", label: "득점" },
+  foul: { icon: "!", label: "파울" },
+  yellowCard: { icon: "▰", label: "경고" },
+  redCard: { icon: "■", label: "퇴장" },
+  offside: { icon: "⚑", label: "오프사이드" },
+  corner: { icon: "⌜", label: "코너킥" },
+  freeKick: { icon: "◉", label: "프리킥" },
+  injury: { icon: "+", label: "부상" },
 };
 
 interface Props {

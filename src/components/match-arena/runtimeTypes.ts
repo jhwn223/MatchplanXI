@@ -1,6 +1,7 @@
 import type { Position } from "../../data/types";
 
 export interface ArenaDot {
+  playerId: number;
   x: number;
   y: number;
   hx: number;
@@ -31,12 +32,34 @@ export interface ArenaState {
   nextGoal: number;
   nextEvent: number;
   dots: ArenaDot[];
-  ball: { x: number; y: number; owner: number; flightTo: number; lastTeam: 0 | 1; scripted: boolean };
+  ball: {
+    x: number;
+    y: number;
+    owner: number;
+    flightTo: number;
+    flightTarget?: {
+      fromX: number;
+      fromY: number;
+      x: number;
+      y: number;
+      owner: number | null;
+      elapsed: number;
+      duration: number;
+    } | null;
+    lastTeam: 0 | 1;
+    scripted: boolean;
+  };
   banner: string | null;
   goalSide: 0 | 1 | null;
   time: number;
   pendingKick?: number | null;
-  scoring?: { side: 0 | 1; scorer?: string; assist?: string; t: number } | null;
+  scoring?: {
+    side: 0 | 1;
+    scorer?: string;
+    assist?: string;
+    shooter: number;
+    t: number;
+  } | null;
   periodBanner: string | null;
   periodBannerT: number;
   announcedET1: boolean;

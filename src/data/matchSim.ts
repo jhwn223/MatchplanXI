@@ -19,6 +19,7 @@ export type {
   PassType,
   MatchSide,
   PenaltyResult,
+  PositionSample,
   PlacedPlayerLite,
   PlayerMatchStats,
   SimActual,

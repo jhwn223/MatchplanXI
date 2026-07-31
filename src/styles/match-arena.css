@@ -124,6 +124,39 @@
   font-size: 8px;
   line-height: 1.45;
 }
+.tactic-impact__segments {
+  display: grid;
+  gap: 4px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #dbe7d9;
+}
+.tactic-impact__segments > strong {
+  color: #405044;
+  font-size: 9px;
+}
+.tactic-impact__segments > div {
+  display: grid;
+  grid-template-columns: 42px repeat(3, 1fr);
+  gap: 4px;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: #fff;
+  color: #667168;
+  font-size: 8px;
+}
+.tactic-impact__segments > div[data-active] {
+  background: #dcf5df;
+  color: #075d27;
+}
+.tactic-impact__segments span {
+  font-weight: 900;
+}
+.tactic-impact__segments b {
+  font-weight: 700;
+  text-align: right;
+}
 .arena-banner {
   position: absolute;
   top: 14px;

@@ -40,16 +40,21 @@ export function Bracket({ data, team, played, koResults, leaderboard = {}, onBac
   const rounds = buildBracket(data, qualifiers, koResults, team.team_name);
   const nextMatch = nextUserKOMatch(rounds, team.team_name);
   const champ = champion(rounds);
-  const finalMatch = rounds[4]?.[0] ?? null;
+  const finalMatch = rounds[4]?.find((match) => match.placement === "final") ?? null;
+  const thirdPlaceMatch = rounds[4]?.find((match) => match.placement === "third") ?? null;
+  const thirdPlace = thirdPlaceMatch?.winner ?? null;
+  const tournamentComplete = Boolean(champ && finalMatch?.played && thirdPlaceMatch?.played);
   const runnerUp =
     champ && finalMatch ? (finalMatch.a?.name === champ.name ? finalMatch.b : finalMatch.a) : null;
-  const awards = champ
+  const awards = tournamentComplete
     ? buildTournamentLeaderboard(data, played, rounds, team.team_name, leaderboard)
     : null;
   const topScorers = awards?.topScorers.slice(0, 3) ?? [];
   const topAssists = awards?.topAssists.slice(0, 3) ?? [];
+  const topGoalkeepers = awards?.topGoalkeepers.slice(0, 3) ?? [];
   const champRecord = champ ? teamTournamentRecord(standings, rounds, champ.name) : null;
   const runnerUpRecord = runnerUp ? teamTournamentRecord(standings, rounds, runnerUp.name) : null;
+  const thirdPlaceRecord = thirdPlace ? teamTournamentRecord(standings, rounds, thirdPlace.name) : null;
 
   const userAlive =
     userQualified &&
@@ -59,7 +64,16 @@ export function Bracket({ data, team, played, koResults, leaderboard = {}, onBac
     rounds.some((r) => r.some((m) => m.isUser && m.played && m.winner && m.winner.name !== team.team_name));
 
   let banner: { text: string; tone: string };
-  if (champ) {
+  if (nextMatch) {
+    const opp = nextMatch.a?.name === team.team_name ? nextMatch.b : nextMatch.a;
+    const roundLabel = nextMatch.placement === "third"
+      ? "3위 결정전"
+      : KO_ROUND_KO[nextMatch.round];
+    banner = {
+      text: `▶ 다음 경기: ${roundLabel} vs ${opp?.name} (⛰ ${nextMatch.venue.elevation_meters}m)`,
+      tone: "good",
+    };
+  } else if (tournamentComplete && champ) {
     banner = {
       text: champ.name === team.team_name ? `🏆 우승! ${team.team_name}가 월드컵을 들어올렸습니다!` : `🏆 우승: ${champ.name}`,
       tone: champ.name === team.team_name ? "good" : "neutral",
@@ -68,24 +82,24 @@ export function Bracket({ data, team, played, koResults, leaderboard = {}, onBac
     banner = { text: "조별리그 탈락 — 대회는 다른 팀들로 계속 진행됩니다.", tone: "bad" };
   } else if (userOut && !userAlive) {
     banner = { text: `${team.team_name} 토너먼트 탈락. 남은 대회는 시뮬레이션으로 진행됩니다.`, tone: "bad" };
-  } else if (nextMatch) {
-    const opp = nextMatch.a?.name === team.team_name ? nextMatch.b : nextMatch.a;
-    banner = { text: `▶ 다음 경기: ${KO_ROUND_KO[nextMatch.round]} vs ${opp?.name} (⛰ ${nextMatch.venue.elevation_meters}m)`, tone: "good" };
   } else {
     banner = { text: "토너먼트 진행 중…", tone: "neutral" };
   }
 
-  if (champ && !showBracket) {
+  if (tournamentComplete && champ && !showBracket) {
     return (
       <FinalResults
         teamCode={team.fifa_code}
         champ={champ}
         runnerUp={runnerUp}
+        thirdPlace={thirdPlace}
         champRecord={champRecord}
         runnerUpRecord={runnerUpRecord}
+        thirdPlaceRecord={thirdPlaceRecord}
         finalMatch={finalMatch}
         topScorers={topScorers}
         topAssists={topAssists}
+        topGoalkeepers={topGoalkeepers}
         onShowBracket={() => setShowBracket(true)}
         onBack={onBack}
         onRestart={onRestart}
@@ -148,11 +162,14 @@ function FinalResults({
   teamCode,
   champ,
   runnerUp,
+  thirdPlace,
   champRecord,
   runnerUpRecord,
+  thirdPlaceRecord,
   finalMatch,
   topScorers,
   topAssists,
+  topGoalkeepers,
   onShowBracket,
   onBack,
   onRestart,
@@ -160,11 +177,14 @@ function FinalResults({
   teamCode: string;
   champ: KOTeam;
   runnerUp: KOTeam | null;
+  thirdPlace: KOTeam | null;
   champRecord: TeamTournamentRecord | null;
   runnerUpRecord: TeamTournamentRecord | null;
+  thirdPlaceRecord: TeamTournamentRecord | null;
   finalMatch: KOMatch | null;
   topScorers: TournamentLeader[];
   topAssists: TournamentLeader[];
+  topGoalkeepers: TournamentLeader[];
   onShowBracket: () => void;
   onBack: () => void;
   onRestart?: () => void;
@@ -190,9 +210,10 @@ function FinalResults({
       <div className="podium">
         <PodiumCard place={2} label="RUNNER-UP" code={runnerUp?.code ?? "-"} name={runnerUp?.name ?? "-"} record={recordLine(runnerUpRecord)} />
         <PodiumCard place={1} label="CHAMPION" code={champ.code} name={champ.name} highlight subtitle={finalScoreLine} record={recordLine(champRecord)} />
+        <PodiumCard place={3} label="THIRD PLACE" code={thirdPlace?.code ?? "-"} name={thirdPlace?.name ?? "-"} record={recordLine(thirdPlaceRecord)} />
       </div>
 
-      {(topScorers.length > 0 || topAssists.length > 0) && (
+      {(topScorers.length > 0 || topAssists.length > 0 || topGoalkeepers.length > 0) && (
         <section className="awards">
           <h2 className="hub__section-title">🏅 대회 개인상</h2>
           <div className="awards__grid">
@@ -214,6 +235,16 @@ function FinalResults({
                 players={topAssists}
                 unit="ASSISTS"
                 value={(p) => p.assists}
+              />
+            )}
+            {topGoalkeepers.length > 0 && (
+              <AwardCard
+                label="GOLDEN GLOVE"
+                title="최소 실점 골키퍼 Top 3"
+                icon="🧤"
+                players={topGoalkeepers}
+                unit="GOALS ALLOWED"
+                value={(player) => player.goalsConceded}
               />
             )}
           </div>
@@ -245,7 +276,7 @@ function PodiumCard({
   subtitle,
   record,
 }: {
-  place: 1 | 2;
+  place: 1 | 2 | 3;
   label: string;
   code: string;
   name: string;
@@ -342,6 +373,7 @@ function MatchCell({ m, teamName }: { m: KOMatch; teamName: string }) {
   const bMe = m.b?.name === teamName;
   return (
     <div className="ko-cell" data-user={m.isUser || undefined} data-pending={m.a && m.b && !m.played ? true : undefined}>
+      {m.placement === "third" && <span className="ko-placement">3위 결정전</span>}
       <div className="ko-row" data-win={aWin || undefined} data-me={aMe || undefined}>
         <span className="ko-team">{teamLabel(m.a)}</span>
         <span className="ko-score">{m.aGoals ?? ""}</span>
@@ -366,7 +398,9 @@ function NextMatchCard({ m, teamName, onPlay }: { m: KOMatch; teamName: string; 
       whileHover={{ scale: 1.01, y: -2 }}
       whileTap={{ scale: 0.99 }}
     >
-      <div className="next-match__stage">{KO_ROUND_KO[m.round]}</div>
+      <div className="next-match__stage">
+        {m.placement === "third" ? "3위 결정전" : KO_ROUND_KO[m.round]}
+      </div>
       <div className="next-match__teams">
         {teamName} <span className="board__vs">vs</span> {opp?.name}
       </div>

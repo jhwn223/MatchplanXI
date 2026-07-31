@@ -2,9 +2,16 @@ import type { TeamAbilityProfile } from "../playerAbility";
 import type { Position } from "../types";
 
 export interface PlacedPlayerLite {
+  playerId: number;
+  teamId: number;
   name: string;
+  slotId: string;
+  slotLabel: string;
   naturalPosition: Position;
   position: Position;
+  /** Canonical coordinates: x moves from own goal (0) to opponent goal (100), y is left-to-right. */
+  baseX: number;
+  baseY: number;
   overall: number;
   pace: number;
   acceleration: number;
@@ -43,7 +50,9 @@ export type MatchSide = "user" | "opp";
 export interface GoalEvent {
   minute: number;
   side: MatchSide;
+  scorerId?: number;
   scorer?: string;
+  assistId?: number;
   assist?: string;
 }
 
@@ -56,7 +65,14 @@ export type MatchEventType =
   | "save"
   | "block"
   | "miss"
-  | "goal";
+  | "goal"
+  | "foul"
+  | "yellowCard"
+  | "redCard"
+  | "offside"
+  | "corner"
+  | "freeKick"
+  | "injury";
 
 export type PassType = "cross" | "short" | "through" | "longBall" | "normal";
 
@@ -64,7 +80,9 @@ export interface MatchEvent {
   minute: number;
   side: MatchSide;
   type: MatchEventType;
+  actorId: number;
   actor: string;
+  targetId?: number;
   target?: string;
   detail: string;
   success: boolean;
@@ -74,6 +92,15 @@ export interface MatchEvent {
   y?: number;
   endX?: number;
   endY?: number;
+}
+
+export interface PositionSample {
+  minute: number;
+  side: MatchSide;
+  playerId: number;
+  playerName: string;
+  x: number;
+  y: number;
 }
 
 export interface TeamStats {
@@ -90,10 +117,18 @@ export interface TeamStats {
   shotsOnTarget: number;
   tacklesWon: number;
   interceptions: number;
+  fouls: number;
+  yellowCards: number;
+  redCards: number;
+  corners: number;
+  offsides: number;
+  injuries: number;
 }
 
 export interface PlayerMatchStats {
   side: MatchSide;
+  playerId: number;
+  teamId: number;
   name: string;
   position: Position;
   condition: number;
@@ -115,6 +150,11 @@ export interface PlayerMatchStats {
   bigChancesMissed: number;
   goalsConceded: number;
   saves: number;
+  foulsCommitted: number;
+  yellowCards: number;
+  redCards: number;
+  offsides: number;
+  injuries: number;
   distanceKm: number;
 }
 
@@ -147,6 +187,7 @@ export interface SimTacticProfile {
   tacklingBias: number;
   widthBias: number;
   focusBias: number;
+  setPieceBias: number;
 }
 
 export interface SimInput {
@@ -189,6 +230,7 @@ export interface SimComparison {
 export interface HalfResult {
   goals: GoalEvent[];
   events: MatchEvent[];
+  positionSamples: PositionSample[];
   userGoals: number;
   oppGoals: number;
   userXg: number;
@@ -207,6 +249,7 @@ export interface SimResult {
   oppXg: number;
   goals: GoalEvent[];
   events: MatchEvent[];
+  positionSamples: PositionSample[];
   comparison: SimComparison;
   teamStats: { user: TeamStats; opp: TeamStats };
   playerStats: PlayerMatchStats[];

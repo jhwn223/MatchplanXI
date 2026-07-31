@@ -242,6 +242,7 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
     tacklingBias: clamp(tackling * 0.8 + (tactics.marking === "man" ? 0.2 : -0.05), -1, 1),
     widthBias: clamp(teamWidth * 0.6 + focusWidth * 0.25 + widePlay * 0.25, -1, 1),
     focusBias: focus,
+    setPieceBias: clamp(setPieceCommitment, -1, 1),
   };
 }
 

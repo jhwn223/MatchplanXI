@@ -7,6 +7,7 @@ import {
   snapshotAtMinute,
   type HalfResult,
   type LiveMatchSnapshot,
+  type PlacedPlayerLite,
 } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
 import { ArenaEventFeed } from "./match-arena/ArenaEventFeed";
@@ -24,7 +25,10 @@ import { clamp as clampf, homeFor } from "./match-arena/runtimeMath";
 import type { ArenaDot as Dot, ArenaState } from "./match-arena/runtimeTypes";
 import type { ArenaSim, MatchArenaProps } from "./match-arena/types";
 import { useArenaLoop } from "./match-arena/useArenaLoop";
-import { TacticImpactPanel } from "./match-arena/TacticImpactPanel";
+import {
+  TacticImpactPanel,
+  type TacticImpactSegment,
+} from "./match-arena/TacticImpactPanel";
 import {
   decideOpponentTacticChange,
   type OpponentTacticChange,
@@ -72,6 +76,9 @@ export function MatchArena({
   const speedRef = useRef(1);
   const pausedBeforePanelRef = useRef(false);
   const liveIntensityRef = useRef<LiveIntensity>(intensityFromTeamTactics(initialTactics));
+  const opponentIntensityRef = useRef<LiveIntensity>(
+    intensityFromTeamTactics(initialOpponentTactics),
+  );
   const completedRef = useRef(false);
   const tacticsRef = useRef<TeamTactics>(initialTactics);
   const opponentTacticsRef = useRef<TeamTactics>(initialOpponentTactics);
@@ -81,6 +88,7 @@ export function MatchArena({
   const simRef = useRef<ArenaSim>({
     goals: [],
     events: [],
+    positionSamples: [],
     userGoals: startScore[0],
     oppGoals: startScore[1],
     userXg: 0,
@@ -105,6 +113,13 @@ export function MatchArena({
   const [impactBaseline, setImpactBaseline] = useState<LiveMatchSnapshot | null>(null);
   const [tacticChangedAt, setTacticChangedAt] = useState(startMinute);
   const [hasTacticChange, setHasTacticChange] = useState(false);
+  const [tacticSegments, setTacticSegments] = useState<TacticImpactSegment[]>([
+    {
+      from: startMinute,
+      tactics: initialTactics,
+      baseline: null,
+    },
+  ]);
   const [opponentTacticChanges, setOpponentTacticChanges] = useState<OpponentTacticChange[]>([]);
 
   useEffect(() => {
@@ -113,6 +128,21 @@ export function MatchArena({
 
   function updateTeamTactics(next: TeamTactics) {
     const currentLive = snapshotAtMinute(simRef.current.liveSnapshots ?? [], hud.minute);
+    setTacticSegments((current) => {
+      const closed = current.map((segment, index) =>
+        index === current.length - 1
+          ? { ...segment, to: hud.minute, end: currentLive }
+          : segment,
+      );
+      return [
+        ...closed,
+        {
+          from: hud.minute,
+          tactics: next,
+          baseline: currentLive,
+        },
+      ];
+    });
     setImpactBaseline(currentLive);
     setTacticChangedAt(hud.minute);
     setHasTacticChange(true);
@@ -126,6 +156,7 @@ export function MatchArena({
     return {
       goals: period.goals,
       events: period.events,
+      positionSamples: period.positionSamples,
       userGoals: startScore[0] + period.userGoals,
       oppGoals: startScore[1] + period.oppGoals,
       userXg: period.userXg,
@@ -158,12 +189,37 @@ export function MatchArena({
         JSON.stringify(opponentDecision.tactics) !== JSON.stringify(opponentTacticsRef.current)
       ) {
         opponentTacticsRef.current = opponentDecision.tactics;
+        opponentIntensityRef.current = intensityFromTeamTactics(opponentDecision.tactics);
         setOpponentTactics(opponentDecision.tactics);
         onOpponentTacticChange?.(opponentDecision.tactics);
         setOpponentTacticChanges((current) => [...current, opponentDecision]);
       }
+      const priorPlayerStats = accumulated?.playerStats ?? [];
+      const availablePlayers = (
+        players: PlacedPlayerLite[],
+        side: "user" | "opp",
+      ) => {
+        const dismissed = new Set(
+          priorPlayerStats
+            .filter((stat) => stat.side === side && stat.redCards > 0)
+            .map((stat) => stat.playerId),
+        );
+        const injured = new Set(
+          priorPlayerStats
+            .filter((stat) => stat.side === side && stat.injuries > 0)
+            .map((stat) => stat.playerId),
+        );
+        const remaining = players.filter((player) => !dismissed.has(player.playerId));
+        return remaining.map((player) =>
+          injured.has(player.playerId)
+            ? { ...player, condition: Math.max(20, player.condition - 30) }
+            : player,
+        );
+      };
       const minuteInput = {
         ...simInputRef.current,
+        placed: availablePlayers(simInputRef.current.placed, "user"),
+        oppPlaced: availablePlayers(simInputRef.current.oppPlaced, "opp"),
         userTactics: simProfileFromTeamTactics(tacticsRef.current),
         oppTactics: simProfileFromTeamTactics(opponentTacticsRef.current),
       };
@@ -208,7 +264,11 @@ export function MatchArena({
     closeMatchCenter();
   }
 
-  function ratingsFor(player: Player | null | undefined, fallback = 65) {
+  function ratingsFor(
+    player: Player | null | undefined,
+    simPlayer?: PlacedPlayerLite,
+    fallback = 65,
+  ) {
     const ability = player?.ability;
     return {
       react: clampf((ability?.reactions ?? fallback) / 70, 0.72, 1.32),
@@ -221,8 +281,14 @@ export function MatchArena({
         ? ((ability?.gkDiving ?? fallback) + (ability?.gkReflexes ?? fallback) + (ability?.gkPositioning ?? fallback)) / 3
         : 10,
       stamina: ability?.stamina ?? fallback,
-      condition: 72,
+      condition: simPlayer?.condition ?? 100,
     };
+  }
+
+  function simPlayerFor(player: Player | null | undefined, side: "user" | "opp") {
+    if (!player) return undefined;
+    const squad = side === "user" ? simInputRef.current.placed : simInputRef.current.oppPlaced;
+    return squad.find((entry) => entry.playerId === player.player_id);
   }
 
   function applyUserFormationToState(s: ArenaState, snapToShape: boolean) {
@@ -236,10 +302,11 @@ export function MatchArena({
       const h = homeFor(coordinate.x, coordinate.y, 0);
       dot.hx = h.x;
       dot.hy = h.y;
+      dot.playerId = player?.player_id ?? -(i + 1);
       dot.role = slot.position;
       dot.num = player ? (player.player_id % 30) + 1 : i + 1;
       dot.name = player?.player_name ?? slot.label;
-      Object.assign(dot, ratingsFor(player));
+      Object.assign(dot, ratingsFor(player, simPlayerFor(player, "user")));
       if (snapToShape) {
         dot.x = h.x;
         dot.y = h.y;
@@ -257,7 +324,7 @@ export function MatchArena({
       const num = player ? (player.player_id % 30) + 1 : i + 1;
       const coordinate = positions?.[s.id] ?? s;
       const h = homeFor(coordinate.x, coordinate.y, 0);
-      dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, ...ratingsFor(player), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28 });
+      dots.push({ playerId: player?.player_id ?? -(i + 1), x: h.x, y: h.y, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, ...ratingsFor(player, simPlayerFor(player, "user")), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28 });
     });
     const opponentQueues: Record<Position, Player[]> = {
       GK: opponentPlayers.filter((player) => player.position === "GK"),
@@ -268,7 +335,7 @@ export function MatchArena({
     slotsOf(opponentFormation).forEach((s, i) => {
       const h = homeFor(s.x, s.y, 1);
       const player = opponentQueues[s.position].shift() ?? opponentPlayers[i] ?? null;
-      dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28 });
+      dots.push({ playerId: player?.player_id ?? -(100 + i + 1), x: h.x, y: h.y, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player, simPlayerFor(player, "opp")), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28 });
     });
     return {
       clock: startMinute,
@@ -279,7 +346,15 @@ export function MatchArena({
       nextGoal: 0,
       nextEvent: 0,
       dots,
-      ball: { x: 50, y: 50, owner: 8, flightTo: -1, lastTeam: 0, scripted: false },
+      ball: {
+        x: 50,
+        y: 50,
+        owner: dots.findIndex((dot) => dot.team === 0 && dot.role === "FWD"),
+        flightTo: -1,
+        flightTarget: null,
+        lastTeam: 0,
+        scripted: false,
+      },
       banner: null,
       goalSide: null,
       time: 0,
@@ -310,6 +385,7 @@ export function MatchArena({
     pausedRef,
     speedRef,
     liveIntensityRef,
+    opponentIntensityRef,
     buildState,
     userTeamName,
     oppTeamName,
@@ -442,6 +518,7 @@ export function MatchArena({
               live={liveSnapshot}
               currentMinute={hud.minute}
               simulatedThrough={simulatedThrough}
+              segments={tacticSegments}
             />
           </div>
         </div>
