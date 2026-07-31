@@ -6,7 +6,11 @@ import type { PenaltyKick } from "./runtimeTypes";
  * on the already-decided final penalty score. Purely for animation — the outcome
  * itself comes from data/match/penalties.ts.
  */
-export function buildPenaltySequence(result: PenaltyResult, rng: () => number): PenaltyKick[] {
+export function buildPenaltySequence(
+  result: PenaltyResult,
+  rng: () => number,
+  userOrder?: number[],
+): PenaltyKick[] {
   const rounds = Math.max(5, result.userGoals, result.oppGoals);
   const sequence: PenaltyKick[] = [];
   let userScored = 0;
@@ -15,7 +19,11 @@ export function buildPenaltySequence(result: PenaltyResult, rng: () => number): 
     const remaining = rounds - round;
     const userNeeds = result.userGoals - userScored;
     const userScores = userNeeds > 0 && (userNeeds >= remaining || rng() < userNeeds / remaining);
-    sequence.push({ team: 0, scored: userScores });
+    sequence.push({
+      team: 0,
+      scored: userScores,
+      playerId: userOrder?.length ? userOrder[round % userOrder.length] : undefined,
+    });
     if (userScores) userScored++;
 
     const oppNeeds = result.oppGoals - oppScored;
