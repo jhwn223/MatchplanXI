@@ -337,11 +337,15 @@ export function tacticStatBreakdown(key: TacticStyleKey | null | undefined): {
 export function generateTacticAnalysis(key: TacticStyleKey | null | undefined, stats: TeamStats): string[] {
   const style = tacticStyleByKey(key);
   const shotAccuracy = stats.shots > 0 ? Math.round((stats.shotsOnTarget / stats.shots) * 100) : 0;
+  const hadMorePossession = stats.possession >= 50;
+  const passedWell = stats.passSuccessRate >= 75;
 
   switch (style.key) {
     case "possession":
       return [
-        `점유율 ${stats.possession}%로 볼을 오래 소유했습니다.`,
+        hadMorePossession
+          ? `점유율 ${stats.possession}%로 볼을 오래 소유했습니다.`
+          : `점유율에서는 ${stats.possession}%로 밀렸지만 짧은 패스로 안정적인 전개를 시도했습니다.`,
         `짧은 패스 전개 덕분에 패스 성공률 ${stats.passSuccessRate}%를 기록했습니다.`,
         `슈팅 ${stats.shots}회 중 유효 슈팅은 ${stats.shotsOnTarget}회(${shotAccuracy}%)였습니다.`,
       ];
@@ -355,25 +359,35 @@ export function generateTacticAnalysis(key: TacticStyleKey | null | undefined, s
       return [
         `측면 위주 전개로 점유율 ${stats.possession}%를 기록했습니다.`,
         `슈팅 ${stats.shots}회 중 ${stats.shotsOnTarget}회(${shotAccuracy}%)가 유효 슈팅이었습니다.`,
-        `패스 성공률 ${stats.passSuccessRate}%로 측면 연계가 원활했습니다.`,
+        passedWell
+          ? `패스 성공률 ${stats.passSuccessRate}%로 측면 연계가 원활했습니다.`
+          : `패스 성공률은 ${stats.passSuccessRate}%로 측면 연계가 매끄럽지 않았습니다.`,
       ];
     case "halfspace":
       return [
         `하프스페이스 침투로 패스 성공률 ${stats.passSuccessRate}%를 기록했습니다.`,
         `중앙 집중 전개로 슈팅 ${stats.shots}회, 유효 슈팅 ${stats.shotsOnTarget}회를 만들었습니다.`,
-        `점유율 ${stats.possession}%로 안정적인 경기 운영을 보였습니다.`,
+        hadMorePossession
+          ? `점유율 ${stats.possession}%로 안정적인 경기 운영을 보였습니다.`
+          : `점유율은 ${stats.possession}%에 그쳤지만 중앙 침투로 기회를 노렸습니다.`,
       ];
     case "longball":
       return [
-        `롱볼 위주 전술로 패스 성공률은 ${stats.passSuccessRate}%에 머물렀습니다.`,
+        stats.passSuccessRate >= 60
+          ? `롱볼 위주 전술에도 패스 성공률 ${stats.passSuccessRate}%를 유지했습니다.`
+          : `롱볼 위주 전술로 패스 성공률은 ${stats.passSuccessRate}%에 머물렀습니다.`,
         `최전방을 직접 공략해 슈팅 ${stats.shots}회를 시도했습니다.`,
-        `점유율은 ${stats.possession}%로 낮았지만 직선적인 공격을 노렸습니다.`,
+        hadMorePossession
+          ? `점유율 ${stats.possession}%를 기록하면서도 직선적인 공격을 병행했습니다.`
+          : `점유율은 ${stats.possession}%로 낮았지만 직선적인 공격을 노렸습니다.`,
       ];
     case "gegenpress":
       return [
         `높은 압박으로 인터셉트 ${stats.interceptions}회, 태클 성공 ${stats.tacklesWon}회를 기록했습니다.`,
         `탈취 직후 빠른 전환으로 슈팅 ${stats.shots}회를 만들어냈습니다.`,
-        `점유율 ${stats.possession}%로 경기를 주도했습니다.`,
+        hadMorePossession
+          ? `점유율 ${stats.possession}%로 경기를 주도했습니다.`
+          : `점유율은 ${stats.possession}%였지만 압박으로 상대를 흔들었습니다.`,
       ];
   }
 }
