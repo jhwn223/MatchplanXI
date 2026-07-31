@@ -4,6 +4,9 @@ export interface ArenaDot {
   playerId: number;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
+  facing: number;
   hx: number;
   hy: number;
   team: 0 | 1;
@@ -21,6 +24,18 @@ export interface ArenaDot {
   condition: number;
   nz: number;
   ph: number;
+  action:
+    | "idle"
+    | "move"
+    | "press"
+    | "receive"
+    | "pass"
+    | "dribble"
+    | "tackle"
+    | "shoot"
+    | "save"
+    | "celebrate";
+  actionT: number;
 }
 
 export interface ArenaState {
@@ -35,6 +50,8 @@ export interface ArenaState {
   ball: {
     x: number;
     y: number;
+    previousX: number;
+    previousY: number;
     owner: number;
     flightTo: number;
     flightTarget?: {
@@ -43,11 +60,13 @@ export interface ArenaState {
       x: number;
       y: number;
       owner: number | null;
+      chaser: number | null;
       elapsed: number;
       duration: number;
     } | null;
     lastTeam: 0 | 1;
     scripted: boolean;
+    trail: { x: number; y: number; age: number }[];
   };
   banner: string | null;
   goalSide: 0 | 1 | null;

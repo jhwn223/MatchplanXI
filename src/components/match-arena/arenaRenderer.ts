@@ -34,11 +34,87 @@ export function drawArenaFrame(
   context.stroke();
   context.strokeRect(x(2), y(30), x(12) - x(2), y(70) - y(30));
   context.strokeRect(x(88), y(30), x(98) - x(88), y(70) - y(30));
+  context.strokeRect(x(2), y(40), x(6) - x(2), y(60) - y(40));
+  context.strokeRect(x(94), y(40), x(98) - x(94), y(60) - y(40));
+  context.beginPath();
+  context.arc(x(10.5), y(50), Math.max(2, width * 0.003), 0, Math.PI * 2);
+  context.arc(x(89.5), y(50), Math.max(2, width * 0.003), 0, Math.PI * 2);
+  context.fillStyle = "rgba(255,255,255,0.45)";
+  context.fill();
+
+  // Position-derived defensive lines make tactical height and compactness
+  // readable without drawing arbitrary overlays unrelated to the players.
+  ([0, 1] as const).forEach((team) => {
+    const defenders = state.dots.filter(
+      (dot) => dot.team === team && dot.role === "DEF",
+    );
+    if (!defenders.length) return;
+    const lineX =
+      defenders.reduce((sum, dot) => sum + dot.x, 0) / defenders.length;
+    context.save();
+    context.setLineDash([5, 7]);
+    context.strokeStyle =
+      team === 0 ? "rgba(110,231,183,0.24)" : "rgba(248,113,113,0.2)";
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(x(lineX), y(8));
+    context.lineTo(x(lineX), y(92));
+    context.stroke();
+    context.restore();
+  });
+
+  state.ball.trail.forEach((point) => {
+    const alpha = clamp(1 - point.age / 0.55, 0, 1) * 0.35;
+    context.beginPath();
+    context.arc(
+      x(point.x),
+      y(point.y),
+      Math.max(2, width * 0.0045) * alpha,
+      0,
+      Math.PI * 2,
+    );
+    context.fillStyle = `rgba(255,255,255,${alpha})`;
+    context.fill();
+  });
 
   state.dots.forEach((dot, index) => {
     const radius = Math.max(7, width * 0.016);
     const px = x(dot.x);
     const py = y(dot.y);
+    const actionColor =
+      dot.action === "press" || dot.action === "tackle"
+        ? "#fb923c"
+        : dot.action === "pass" || dot.action === "receive"
+          ? "#38bdf8"
+          : dot.action === "shoot"
+            ? "#fde047"
+            : dot.action === "save"
+              ? "#c084fc"
+              : dot.action === "celebrate"
+                ? "#4ade80"
+                : null;
+
+    context.beginPath();
+    context.ellipse(
+      px + 2,
+      py + radius * 0.55,
+      radius * 0.9,
+      radius * 0.48,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    context.fillStyle = "rgba(0,0,0,0.24)";
+    context.fill();
+
+    if (actionColor && dot.actionT > 0) {
+      context.beginPath();
+      context.arc(px, py, radius + 4, 0, Math.PI * 2);
+      context.strokeStyle = actionColor;
+      context.lineWidth = 2;
+      context.stroke();
+    }
+
     context.beginPath();
     context.arc(px, py, radius, 0, Math.PI * 2);
     context.fillStyle = dot.team === 0 ? userColor : "#e5484d";
@@ -46,15 +122,30 @@ export function drawArenaFrame(
     context.lineWidth = 2;
     context.strokeStyle = index === state.ball.owner ? "#fde047" : "rgba(0,0,0,0.35)";
     context.stroke();
+
+    // Facing marker: the short line turns with the player's velocity, so a
+    // press, recovery run and receiving body shape no longer look identical.
+    context.beginPath();
+    context.moveTo(px, py);
+    context.lineTo(
+      px + Math.cos(dot.facing) * radius * 0.82,
+      py + Math.sin(dot.facing) * radius * 0.82,
+    );
+    context.strokeStyle = "rgba(255,255,255,0.82)";
+    context.lineWidth = 2;
+    context.stroke();
     context.fillStyle = dot.team === 0 ? "#06231f" : "#fff";
     context.font = `bold ${Math.max(8, width * 0.014)}px ${KOREAN_CANVAS_FONT}`;
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.fillText(String(dot.num), px, py);
 
-    if (dot.team === 0) {
+    {
       const label = `${dot.num} ${displayArenaName(dot.name)}`;
-      const labelFont = Math.max(12, Math.min(15, width * 0.015));
+      const labelFont =
+        dot.team === 0
+          ? Math.max(12, Math.min(15, width * 0.015))
+          : Math.max(10, Math.min(12, width * 0.012));
       const labelY = clamp(py - radius - 9, labelFont + 3, height - 6);
       context.font = `800 ${labelFont}px ${KOREAN_CANVAS_FONT}`;
       context.lineWidth = 4;
@@ -66,7 +157,19 @@ export function drawArenaFrame(
   });
 
   context.beginPath();
-  context.arc(x(state.ball.x), y(state.ball.y), Math.max(4, width * 0.008), 0, Math.PI * 2);
+  context.ellipse(
+    x(state.ball.x) + 2,
+    y(state.ball.y) + 3,
+    Math.max(4, width * 0.007),
+    Math.max(2, width * 0.004),
+    0,
+    0,
+    Math.PI * 2,
+  );
+  context.fillStyle = "rgba(0,0,0,0.35)";
+  context.fill();
+  context.beginPath();
+  context.arc(x(state.ball.x), y(state.ball.y), Math.max(4, width * 0.007), 0, Math.PI * 2);
   context.fillStyle = "#fff";
   context.fill();
   context.strokeStyle = "#111";

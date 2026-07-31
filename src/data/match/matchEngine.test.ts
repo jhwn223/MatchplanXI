@@ -150,6 +150,57 @@ describe("match engine invariants", () => {
     }
   });
 
+  test("successful passes preserve the carrier inside each possession", () => {
+    const result = simulatePeriod(input(77), 1, 90, 0);
+    const possessions = new Map<string, typeof result.events>();
+    for (const event of result.events) {
+      if (!event.possessionId) continue;
+      const group = possessions.get(event.possessionId) ?? [];
+      group.push(event);
+      possessions.set(event.possessionId, group);
+    }
+    let checkedLinks = 0;
+    for (const events of possessions.values()) {
+      let expectedCarrier: number | undefined;
+      let expectedSide: (typeof events)[number]["side"] | undefined;
+      for (const event of events) {
+        if (event.type !== "pass") continue;
+        if (
+          expectedCarrier != null &&
+          expectedSide === event.side
+        ) {
+          expect(event.actorId).toBe(expectedCarrier);
+          checkedLinks++;
+        }
+        expectedCarrier = event.success ? event.targetId : undefined;
+        expectedSide = event.side;
+      }
+    }
+    expect(checkedLinks).toBeGreaterThan(30);
+  });
+
+  test("event coordinates form one continuous ball path per possession", () => {
+    const result = simulatePeriod(input(91), 1, 90, 0);
+    const previousByPossession = new Map<string, (typeof result.events)[number]>();
+    let checkedLinks = 0;
+    for (const event of result.events) {
+      if (!event.possessionId) continue;
+      const previous = previousByPossession.get(event.possessionId);
+      if (
+        previous?.endX != null &&
+        previous.endY != null &&
+        event.x != null &&
+        event.y != null
+      ) {
+        expect(event.x).toBeCloseTo(previous.endX, 5);
+        expect(event.y).toBeCloseTo(previous.endY, 5);
+        checkedLinks++;
+      }
+      previousByPossession.set(event.possessionId, event);
+    }
+    expect(checkedLinks).toBeGreaterThan(80);
+  });
+
   test("high pressing changes recoveries and carries a fatigue/foul trade-off", () => {
     const high = Array.from({ length: 50 }, (_, seed) =>
       simulatePeriod(

@@ -310,6 +310,8 @@ export function MatchArena({
       if (snapToShape) {
         dot.x = h.x;
         dot.y = h.y;
+        dot.vx = 0;
+        dot.vy = 0;
       }
     });
   }
@@ -324,7 +326,7 @@ export function MatchArena({
       const num = player ? (player.player_id % 30) + 1 : i + 1;
       const coordinate = positions?.[s.id] ?? s;
       const h = homeFor(coordinate.x, coordinate.y, 0);
-      dots.push({ playerId: player?.player_id ?? -(i + 1), x: h.x, y: h.y, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, ...ratingsFor(player, simPlayerFor(player, "user")), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28 });
+      dots.push({ playerId: player?.player_id ?? -(i + 1), x: h.x, y: h.y, vx: 0, vy: 0, facing: 0, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, ...ratingsFor(player, simPlayerFor(player, "user")), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28, action: "idle", actionT: 0 });
     });
     const opponentQueues: Record<Position, Player[]> = {
       GK: opponentPlayers.filter((player) => player.position === "GK"),
@@ -335,7 +337,7 @@ export function MatchArena({
     slotsOf(opponentFormation).forEach((s, i) => {
       const h = homeFor(s.x, s.y, 1);
       const player = opponentQueues[s.position].shift() ?? opponentPlayers[i] ?? null;
-      dots.push({ playerId: player?.player_id ?? -(100 + i + 1), x: h.x, y: h.y, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player, simPlayerFor(player, "opp")), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28 });
+      dots.push({ playerId: player?.player_id ?? -(100 + i + 1), x: h.x, y: h.y, vx: 0, vy: 0, facing: Math.PI, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player, simPlayerFor(player, "opp")), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28, action: "idle", actionT: 0 });
     });
     return {
       clock: startMinute,
@@ -349,11 +351,14 @@ export function MatchArena({
       ball: {
         x: 50,
         y: 50,
+        previousX: 50,
+        previousY: 50,
         owner: dots.findIndex((dot) => dot.team === 0 && dot.role === "FWD"),
         flightTo: -1,
         flightTarget: null,
         lastTeam: 0,
         scripted: false,
+        trail: [],
       },
       banner: null,
       goalSide: null,

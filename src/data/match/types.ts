@@ -58,6 +58,7 @@ export interface GoalEvent {
 
 export type MatchEventType =
   | "pass"
+  | "recovery"
   | "dribble"
   | "interception"
   | "tackle"
@@ -78,6 +79,8 @@ export type PassType = "cross" | "short" | "through" | "longBall" | "normal";
 
 export interface MatchEvent {
   minute: number;
+  timestamp?: number;
+  possessionId?: string;
   side: MatchSide;
   type: MatchEventType;
   actorId: number;

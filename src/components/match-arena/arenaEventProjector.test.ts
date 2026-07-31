@@ -12,6 +12,9 @@ function dot(playerId: number, team: 0 | 1, x: number): ArenaDot {
     team,
     x,
     y: 50,
+    vx: 0,
+    vy: 0,
+    facing: 0,
     hx: x,
     hy: 50,
     num: playerId,
@@ -28,6 +31,8 @@ function dot(playerId: number, team: 0 | 1, x: number): ArenaDot {
     condition: 100,
     nz: 1,
     ph: 0,
+    action: "idle",
+    actionT: 0,
   };
 }
 
@@ -44,11 +49,14 @@ function state(): ArenaState {
     ball: {
       x: 30,
       y: 50,
+      previousX: 30,
+      previousY: 50,
       owner: 0,
       flightTo: -1,
       flightTarget: null,
       lastTeam: 0,
       scripted: false,
+      trail: [],
     },
     banner: null,
     goalSide: null,

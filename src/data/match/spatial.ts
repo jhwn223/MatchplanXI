@@ -59,6 +59,42 @@ export function tacticalDistance(
   return Math.hypot(first.x - second.x, first.y - second.y);
 }
 
+export function passLanePressure(
+  passer: PlacedPlayerLite,
+  receiver: PlacedPlayerLite,
+  attackingSide: MatchSide,
+  attackingTactics: SimTacticProfile,
+  defenders: PlacedPlayerLite[],
+  defendingSide: MatchSide,
+  defendingTactics: SimTacticProfile,
+) {
+  const start = tacticalHome(passer, attackingSide, attackingTactics);
+  const end = tacticalHome(receiver, attackingSide, attackingTactics);
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = Math.max(1, dx * dx + dy * dy);
+
+  return defenders.reduce((pressure, defender) => {
+    const point = tacticalHome(defender, defendingSide, defendingTactics);
+    const projection = clamp(
+      ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared,
+      0,
+      1,
+    );
+    if (projection <= 0.08 || projection >= 0.96) return pressure;
+    const laneX = start.x + dx * projection;
+    const laneY = start.y + dy * projection;
+    const distance = Math.hypot(point.x - laneX, point.y - laneY);
+    const reach =
+      4.2 +
+      defender.interceptions / 42 +
+      defender.reactions / 55 +
+      Math.max(0, defendingTactics.pressBias) * 1.4;
+    if (distance >= reach) return pressure;
+    return pressure + (1 - distance / reach) * (0.55 + defender.interceptions / 150);
+  }, 0);
+}
+
 export function samplePlayerPositions(
   minute: number,
   side: MatchSide,

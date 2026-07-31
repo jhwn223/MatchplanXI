@@ -3,7 +3,12 @@ import { createLiveSnapshot, createPlayerStats, finalizePlayerStats, playerStat 
 import { clamp, mulberry32, weightedPick } from "./random";
 import { emptyRunningStats, finalizeTeamStatsPair, type RunningStats } from "./stats";
 import { tacticalWorkRate, tacticsForSide } from "./tactics";
-import { samplePlayerPositions, tacticalDistance, tacticalHome } from "./spatial";
+import {
+  passLanePressure,
+  samplePlayerPositions,
+  tacticalDistance,
+  tacticalHome,
+} from "./spatial";
 import type {
   GoalEvent,
   HalfResult,
@@ -67,6 +72,7 @@ function tacticalMatchupEdge(
 
 function actionDetail(type: MatchEventType, actor: string, target?: string): string {
   if (type === "pass") return `${actor} → ${target ?? "전방"} 패스`;
+  if (type === "recovery") return `${actor} 볼 회수`;
   if (type === "dribble") return `${actor} 드리블 돌파`;
   if (type === "interception") return `${actor} 패스 차단`;
   if (type === "tackle") return `${actor} 태클 성공`;
@@ -88,6 +94,9 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   const rng = mulberry32((input.seed + seedOffset) >>> 0);
   const goals: GoalEvent[] = [];
   const events: MatchEvent[] = [];
+  const eventOrderByMinute = new Map<number, number>();
+  let activePossessionId = "";
+  let possessionBallPoint: { x: number; y: number } | null = null;
   const positionSamples: PositionSample[] = [];
   const running: Record<MatchSide, RunningStats> = {
     user: emptyRunningStats(),
@@ -147,14 +156,27 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     const actorHome = tacticalHome(actor, side, sideTactics);
     const targetHome = target ? tacticalHome(target, side, sideTactics) : actorHome;
     const isShot = type === "shot" || type === "goal" || type === "miss";
+    const isStationary =
+      type === "interception" ||
+      type === "recovery" ||
+      type === "tackle" ||
+      type === "save" ||
+      type === "block" ||
+      type === "foul" ||
+      type === "yellowCard" ||
+      type === "redCard" ||
+      type === "offside" ||
+      type === "injury";
     const shotBase = role === "DEF" ? 67 : role === "MID" ? 73 : 80;
     const shotX = side === "user"
       ? shotBase + unit(0) * 13
       : 100 - shotBase - unit(0) * 13;
-    const x = isShot
+    const generatedX = isShot
       ? shotX
       : clamp(actorHome.x + (unit(0) - 0.5) * (role === "GK" ? 2 : 8), 1, 99);
-    const y = clamp(actorHome.y + (unit(8) - 0.5) * (role === "GK" ? 3 : 9), 3, 97);
+    const generatedY = clamp(actorHome.y + (unit(8) - 0.5) * (role === "GK" ? 3 : 9), 3, 97);
+    const x = possessionBallPoint?.x ?? generatedX;
+    const y = possessionBallPoint?.y ?? generatedY;
     const targetX = clamp(targetHome.x + (unit(16) - 0.5) * 7, 1, 99);
     const targetY = clamp(targetHome.y + (unit(24) - 0.5) * 7, 3, 97);
     const rawPassDistance = Math.hypot(targetX - x, targetY - y);
@@ -170,8 +192,20 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     return {
       x,
       y,
-      endX: type === "pass" ? passEndX : clamp(x + direction * travel, 1, 99),
-      endY: type === "pass" ? passEndY : isShot ? 50 + (unit(16) - 0.5) * 18 : clamp(y + (unit(16) - 0.5) * 24, 3, 97),
+      endX:
+        type === "pass"
+          ? passEndX
+          : isStationary
+            ? x
+            : clamp(x + direction * travel, 1, 99),
+      endY:
+        type === "pass"
+          ? passEndY
+          : isStationary
+            ? y
+            : isShot
+              ? 50 + (unit(16) - 0.5) * 18
+              : clamp(y + (unit(16) - 0.5) * 24, 3, 97),
     };
   };
 
@@ -231,8 +265,12 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     xg?: number
   ) => {
     const coordinate = eventCoordinate(minute, side, type, actor, target);
+    const order = eventOrderByMinute.get(minute) ?? 0;
+    eventOrderByMinute.set(minute, order + 1);
     events.push({
       minute,
+      timestamp: minute - 1 + Math.min(0.94, 0.08 + order * 0.055),
+      possessionId: activePossessionId,
       side,
       type,
       actorId: actor.playerId,
@@ -245,6 +283,10 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       detail: actionDetail(type, actor.name, target?.name),
       ...coordinate,
     });
+    possessionBallPoint = {
+      x: coordinate.endX,
+      y: coordinate.endY,
+    };
   };
 
   const resolveSetPiece = (
@@ -331,6 +373,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
 
   for (let possession = 0; possession < possessionCount; possession++) {
     const minute = Math.min(hi, lo + Math.floor(((possession + rng()) / possessionCount) * duration));
+    activePossessionId = `${minute}:${possession}`;
+    possessionBallPoint = null;
     const side: MatchSide = rng() < userPossessionChance ? "user" : "opp";
     const defendingSide = otherSide(side);
     const attackers = outfield(sidePlayers(input, side));
@@ -356,14 +400,28 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     const routinePassCount = possessionPlayers.length > 1
       ? Math.round(clamp(6 - directness * 1.6 - sideTactics.tempoBias * 1.1 + (rng() - 0.5) * 4, 2, 11))
       : 0;
+    // A possession has one authoritative carrier. Previously every routine
+    // pass picked a fresh random passer, so A→B could be followed by C→D
+    // without B ever touching the ball. Keeping the receiver as the next
+    // carrier makes the statistical event log a real, replayable sequence.
+    let possessionCarrier = weightedPick(
+      possessionPlayers,
+      (player) =>
+        (player.position === "GK" ? 0.8 : player.position === "DEF" ? 2.8 : player.position === "MID" ? 2.4 : 1.1) *
+        (0.55 + player.ballControl / 110),
+      rng,
+    );
+    addEvent(
+      minute,
+      side,
+      "recovery",
+      possessionCarrier,
+      undefined,
+      true,
+    );
+    let possessionLost = false;
     for (let pass = 0; pass < routinePassCount; pass++) {
-      const passer = weightedPick(
-        possessionPlayers,
-        (player) =>
-          (player.position === "GK" ? 1.15 : player.position === "DEF" ? 2.5 : player.position === "MID" ? 2.2 : 1.2) *
-          (0.6 + player.shortPassing / 100),
-        rng
-      );
+      const passer = possessionCarrier;
       const receiver = weightedPick(
         possessionPlayers.filter((player) => player.playerId !== passer.playerId),
         (player) => {
@@ -412,11 +470,21 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         defendingTactics.defensiveLineBias * 0.025 +
         defendingTactics.tacklingBias * 0.02
       );
+      const laneRisk = passLanePressure(
+        passer,
+        receiver,
+        side,
+        sideTactics,
+        defenders,
+        defendingSide,
+        defendingTactics,
+      );
       const routinePassChance = clamp(
         0.9 +
           (passQuality - pressureQuality) / 500 -
           directness * 0.018 +
-          matchupEdge * 0.35,
+          matchupEdge * 0.35 -
+          laneRisk * 0.045,
         0.82,
         0.97
       );
@@ -433,24 +501,33 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         const receiverStats = playerStat(playerStats, side, receiver);
         if (receiverStats) receiverStats.touches++;
         addEvent(minute, side, "pass", passer, receiver, true);
-      } else if (rng() < 0.35) {
+        possessionCarrier = receiver;
+      } else if (
+        rng() <
+        clamp(
+          0.35 +
+            defendingTactics.pressBias * 0.11 +
+            defendingTactics.defensiveLineBias * 0.045,
+          0.18,
+          0.58,
+        )
+      ) {
         running[defendingSide].interceptions++;
         const defenderStats = playerStat(playerStats, defendingSide, pressingDefender);
         if (defenderStats) defenderStats.interceptions++;
         addEvent(minute, side, "pass", passer, receiver, false);
         addEvent(minute, defendingSide, "interception", pressingDefender, passer, true);
+        possessionLost = true;
+        break;
       } else {
         addEvent(minute, side, "pass", passer, receiver, false);
+        possessionLost = true;
+        break;
       }
     }
 
-    let carrier = weightedPick(
-      attackers,
-      (player) =>
-        (player.position === "MID" ? 2.8 : player.position === "DEF" ? 2.1 : 1.1) *
-        (0.6 + player.ballControl / 100),
-      rng
-    );
+    if (possessionLost) continue;
+    let carrier = possessionCarrier;
     let lastPasser: PlacedPlayerLite | undefined;
     let progress = 0;
     const maxActions = Math.round(clamp(2 + Math.floor(rng() * 4) + sideTactics.tempoBias, 2, 6));
@@ -597,13 +674,23 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           defendingTactics.defensiveLineBias * 0.03 +
           defendingTactics.tacklingBias * 0.018
         );
+        const laneRisk = passLanePressure(
+          carrier,
+          receiver,
+          side,
+          sideTactics,
+          defenders,
+          defendingSide,
+          defendingTactics,
+        );
         const passChance = clamp(
           0.72 +
             (passQuality - interceptionQuality) / 220 -
             progress * 0.012 -
             directness * 0.025 -
             sideTactics.creativityBias * 0.018 +
-            matchupEdge * 0.5,
+            matchupEdge * 0.5 -
+            laneRisk * 0.07,
           0.5,
           0.92
         );
@@ -655,8 +742,11 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         matchupEdge * 0.24;
       const roleShotChance = carrier.position === "FWD" ? 0.3 : carrier.position === "MID" ? 0.16 : 0.06;
       const shootNow =
-        rng() < roleShotChance + progress * 0.045 + tacticShotBias ||
-        (action === maxActions - 1 && rng() < 0.36);
+        carrier.position !== "GK" &&
+        (
+          rng() < roleShotChance + progress * 0.045 + tacticShotBias ||
+          (action === maxActions - 1 && rng() < 0.36)
+        );
       if (!shootNow) continue;
 
       const marker = weightedPick(

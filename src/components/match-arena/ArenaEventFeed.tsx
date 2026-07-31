@@ -4,6 +4,7 @@ import { describeTeamTactics, type TeamTactics } from "./tactics";
 
 const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = {
   pass: { icon: "↗", label: "패스" },
+  recovery: { icon: "●", label: "볼 회수" },
   dribble: { icon: "◇", label: "돌파" },
   interception: { icon: "◆", label: "가로채기" },
   tackle: { icon: "✦", label: "태클" },
@@ -38,7 +39,12 @@ export function ArenaEventFeed({
 }: Props) {
   const elapsed = events.filter((event) => event.minute <= minute);
   const visible = elapsed
-    .filter((event) => event.type !== "pass" && event.type !== "shot")
+    .filter(
+      (event) =>
+        event.type !== "pass" &&
+        event.type !== "shot" &&
+        event.type !== "recovery",
+    )
     .slice(-7)
     .reverse();
   const latestOpponentChange = opponentTacticChanges

@@ -41,7 +41,9 @@
 .arena-canvas-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  /* Regulation pitch proportions (105m × 68m). A 16:9 canvas made lateral
+     movement look unnaturally flat and exaggerated every horizontal pass. */
+  aspect-ratio: 105 / 68;
   background: #0d2f18;
 }
 .arena-canvas { width: 100%; height: 100%; display: block; }

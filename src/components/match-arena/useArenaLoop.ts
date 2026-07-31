@@ -2,8 +2,10 @@ import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "r
 import {
   eventPlaybackClock,
   findEventDot,
+  prepareEventActor,
   projectMatchEvent,
 } from "./arenaEventProjector";
+import { updateArenaMovement } from "./arenaMovement";
 import { drawArenaFrame } from "./arenaRenderer";
 import { displayArenaName } from "./names";
 import { buildPenaltySequence } from "./penaltyKicks";
@@ -15,6 +17,7 @@ import type { ArenaSim } from "./types";
 const PK_AIM_T = 0.5;
 const PK_STRIKE_T = 0.55;
 const PK_REVEAL_T = 1.1;
+const FIXED_SIMULATION_STEP = 1 / 60;
 
 // 1x plays a 90-minute match in roughly 4m 40s. The old value (3.4)
 // compressed a match into about 26 seconds and made tactical observation moot.
@@ -86,15 +89,21 @@ export function useArenaLoop({
     let raf = 0;
     let last = performance.now();
     let hudAcc = 0;
+    let simulationAccumulator = 0;
     const rng = mulbFromSeed(startMinute * 977 + endMinute * 131 + 97);
 
     const goalMouth = (side: 0 | 1) => (side === 0 ? { x: 99, y: 50 } : { x: 1, y: 50 });
 
     function triggerGoal(s: ArenaState, side: 0 | 1, scorer?: string, assist?: string) {
+      const shooter = s.scoring?.shooter ?? -1;
       s.phase = "celebrate";
       s.celebrateT = 1.9;
       s.goalSide = side;
       s.scoring = null;
+      if (shooter >= 0) {
+        s.dots[shooter].action = "celebrate";
+        s.dots[shooter].actionT = 1.9;
+      }
       if (side === 0) s.score[0]++;
       else s.score[1]++;
       const gm = goalMouth(side);
@@ -104,6 +113,7 @@ export function useArenaLoop({
       s.ball.scripted = false;
       s.ball.x = gm.x;
       s.ball.y = gm.y;
+      s.ball.trail = [];
       s.banner =
         side === 0 ? `${scorer ?? userTeamName}${assist ? ` (도움: ${assist})` : ""}` : oppTeamName;
     }
@@ -112,6 +122,10 @@ export function useArenaLoop({
       s.dots.forEach((d) => {
         d.x = d.hx;
         d.y = d.hy;
+        d.vx = 0;
+        d.vy = 0;
+        d.action = "idle";
+        d.actionT = 0;
       });
       s.ball.x = 50;
       s.ball.y = 50;
@@ -123,6 +137,7 @@ export function useArenaLoop({
       s.ball.flightTo = -1;
       s.ball.flightTarget = null;
       s.ball.scripted = false;
+      s.ball.trail = [];
       s.ball.lastTeam = toTeam;
       s.banner = null;
       s.goalSide = null;
@@ -229,6 +244,12 @@ export function useArenaLoop({
       const s = stateRef.current!;
       if (s.phase === "ended" || s.phase === "interim") return;
       s.time += dt;
+      s.ball.previousX = s.ball.x;
+      s.ball.previousY = s.ball.y;
+      s.ball.trail.forEach((point) => {
+        point.age += dt;
+      });
+      s.ball.trail = s.ball.trail.filter((point) => point.age < 0.55);
 
       if (s.periodBannerT > 0) {
         s.periodBannerT -= dt;
@@ -327,8 +348,11 @@ export function useArenaLoop({
         s.nextEvent < currentSim.events.length &&
         s.clock >= eventPlaybackClock(currentSim.events, s.nextEvent)
       ) {
-        projectMatchEvent(s, currentSim.events[s.nextEvent], startScoring);
-        s.nextEvent++;
+        const event = currentSim.events[s.nextEvent];
+        if (prepareEventActor(s, event)) {
+          projectMatchEvent(s, event, startScoring);
+          s.nextEvent++;
+        }
       } else if (
         !currentSim.events?.length &&
         !s.scoring &&
@@ -402,6 +426,15 @@ export function useArenaLoop({
         }
       }
       if (s.ball.owner >= 0) s.ball.lastTeam = s.dots[s.ball.owner].team;
+      if (
+        Math.hypot(
+          s.ball.x - s.ball.previousX,
+          s.ball.y - s.ball.previousY,
+        ) > 0.18
+      ) {
+        s.ball.trail.push({ x: s.ball.previousX, y: s.ball.previousY, age: 0 });
+        if (s.ball.trail.length > 12) s.ball.trail.shift();
+      }
 
       if (reachedPeriodEnd) {
         const finalSim = simRef.current;
@@ -419,120 +452,11 @@ export function useArenaLoop({
         }
       }
 
-      // ---- movement AI ----
-      const ballTeam: 0 | 1 =
-        s.ball.owner >= 0 ? s.dots[s.ball.owner].team : s.ball.flightTo >= 0 ? s.dots[s.ball.flightTo].team : s.ball.lastTeam;
-      const fwdDir = (t: 0 | 1) => (t === 0 ? 1 : -1); // +x is attack for team 0
       const intensities = [
         liveIntensityRef.current,
         opponentIntensityRef.current,
       ] as const;
-      const defendingTeam: 0 | 1 = ballTeam === 0 ? 1 : 0;
-      const defendingIntensity = intensities[defendingTeam];
-      const defendingFluidity = defendingIntensity.fluidDefense / 100;
-      const defendingPress = defendingIntensity.attackPress / 100;
-      // is the ball in the attacking team's own build-up third? (defending team can high-press)
-      const deepLine = 34 + defendingPress * 18 + defendingFluidity * 8;
-      const deep = ballTeam === 0 ? s.ball.x < deepLine : s.ball.x > 100 - deepLine;
-
-      // defending team pressers: closest defender to ball, plus (if deep) their nearest forward
-      let presser = -1,
-        pmin = Infinity;
-      let highPress = -1,
-        hpMin = Infinity;
-      s.dots.forEach((d, i) => {
-        if (d.team === ballTeam) return;
-        const dd = d2(d.x, d.y, s.ball.x, s.ball.y);
-        const defensiveRead = 0.62 + d.defending / 170 + d.react * 0.12;
-        const pressScore = dd / defensiveRead;
-        if (pressScore < pmin) {
-          pmin = pressScore;
-          presser = i;
-        }
-        if (deep && d.role === "FWD" && pressScore < hpMin) {
-          hpMin = pressScore;
-          highPress = i;
-        }
-      });
-
-      s.dots.forEach((d, i) => {
-        let tx: number, ty: number, sp: number;
-        const dir = fwdDir(d.team);
-        const oppGoal = goalMouth(d.team);
-        const ownIntensity = intensities[d.team];
-        const ownFluidity = ownIntensity.fluidDefense / 100;
-        const ownPress = ownIntensity.attackPress / 100;
-        const abilitySpeed = 0.72 + d.pace / 245;
-        const fatigue = clampf(1 - (s.clock / 120) * (0.21 - d.stamina / 720), 0.76, 1);
-
-        if (s.scoring && i === s.scoring.shooter) {
-          // Follow through after the shot without carrying the ball into goal.
-          tx = d.x + dir * 4;
-          ty = d.y;
-          sp = 3.6;
-        } else if (s.ball.flightTarget?.owner === i) {
-          // The receiver attacks the fixed arrival point. The ball never bends
-          // to chase a receiver who has already run somewhere else.
-          tx = s.ball.flightTarget.x;
-          ty = s.ball.flightTarget.y;
-          sp = 3.4;
-        } else if (i === s.ball.owner) {
-          // dribble toward opponent goal, weaving
-          tx = d.x + dir * 7 + Math.sin(s.time * 3 + d.ph) * 3;
-          ty = d.y + (oppGoal.y - d.y) * 0.05 + Math.sin(s.time * 2 + d.ph) * 3;
-          sp = 3.3;
-        } else if (i === presser || i === highPress) {
-          // press the ball directly (a lone striker can chase the keeper)
-          tx = s.ball.x + dir * -2;
-          ty = s.ball.y;
-          sp = 3.4 + ownPress * 1.5;
-        } else if (d.team === ballTeam) {
-          // attacking team: role-differentiated support (not a uniform block)
-          const ballPull = clampf((s.ball.y - d.hy) * 0.01, -0.5, 0.5);
-          const attackPush = ownPress * 8;
-          const defenseHold = -ownFluidity * 7;
-          if (d.role === "FWD") {
-            tx = d.hx + dir * (22 + attackPush + defenseHold);
-            ty = d.hy + (s.ball.y - d.hy) * 0.45;
-            sp = 2.7;
-          } else if (d.role === "MID") {
-            tx = d.hx + dir * (11 + attackPush * 0.8 + defenseHold * 0.5);
-            ty = d.hy + (s.ball.y - d.hy) * 0.3;
-            sp = 2.2;
-          } else if (d.role === "DEF") {
-            tx = d.hx + dir * (4 + attackPush * 0.35 + defenseHold);
-            ty = d.hy + ballPull * (8 + ownFluidity * 12);
-            sp = 1.7;
-          } else {
-            tx = d.hx + dir * 1;
-            ty = d.hy + (s.ball.y - 50) * 0.06;
-            sp = 1.3;
-          }
-        } else {
-          // defending team: compact block, drop toward own goal, shift to ball side
-          const compact = 1 + ownFluidity * 0.55;
-          const pressStep = -ownPress * 5;
-          const drop = (d.role === "MID" ? 8 : d.role === "DEF" ? 5 : d.role === "FWD" ? 3 : 0) * compact + pressStep;
-          tx = d.hx - dir * drop;
-          ty = d.hy + (s.ball.y - d.hy) * (0.28 + ownFluidity * 0.24);
-          sp = d.role === "GK" ? 1.2 : 1.9 + ownPress * 0.9;
-        }
-
-        // The selected team width must be visible on the pitch, not just in
-        // probability calculations. Narrow teams compress toward the centre;
-        // wide teams stretch both attacking and defensive support positions.
-        if (d.role !== "GK") {
-          const widthScale = 0.62 + (ownIntensity.teamWidth / 100) * 0.76;
-          ty = 50 + (ty - 50) * widthScale;
-        }
-
-        // per-player idle noise so nobody glides in lockstep
-        tx += Math.sin(s.time * d.nz + d.ph) * 1.4;
-        ty += Math.cos(s.time * d.nz * 1.2 + d.ph) * 1.4;
-
-        d.x = lerp(d.x, clampf(tx, 2, 98), dt * sp * d.react * abilitySpeed * fatigue);
-        d.y = lerp(d.y, clampf(ty, 3, 97), dt * sp * d.react * abilitySpeed * fatigue);
-      });
+      updateArenaMovement(s, intensities, dt);
     }
 
 
@@ -540,9 +464,16 @@ export function useArenaLoop({
       const dt = Math.min(0.045, (now - last) / 1000);
       last = now;
       if (!pausedRef.current) {
-        const playbackSpeed = speedRef.current;
-        const steps = Math.max(1, Math.ceil(playbackSpeed));
-        for (let k = 0; k < steps; k++) update((dt * playbackSpeed) / steps);
+        simulationAccumulator = Math.min(
+          0.35,
+          simulationAccumulator + dt * speedRef.current,
+        );
+        while (simulationAccumulator >= FIXED_SIMULATION_STEP) {
+          update(FIXED_SIMULATION_STEP);
+          simulationAccumulator -= FIXED_SIMULATION_STEP;
+        }
+      } else {
+        simulationAccumulator = 0;
       }
       drawArenaFrame(canvas, ctx, stateRef.current!, userColor);
       hudAcc += dt;

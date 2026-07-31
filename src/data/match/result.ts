@@ -41,7 +41,10 @@ export function combinePeriods(previous: HalfResult | null, next: HalfResult): H
   if (!previous) return next;
   return {
     goals: [...previous.goals, ...next.goals].sort((a, b) => a.minute - b.minute),
-    events: [...previous.events, ...next.events].sort((a, b) => a.minute - b.minute),
+    events: [...previous.events, ...next.events].sort(
+      (a, b) =>
+        (a.timestamp ?? a.minute) - (b.timestamp ?? b.minute),
+    ),
     positionSamples: [...previous.positionSamples, ...next.positionSamples].sort((a, b) => a.minute - b.minute),
     userGoals: previous.userGoals + next.userGoals,
     oppGoals: previous.oppGoals + next.oppGoals,
