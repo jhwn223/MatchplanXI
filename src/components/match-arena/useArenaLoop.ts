@@ -6,14 +6,13 @@ import {
   prepareEventActor,
   projectMatchEvent,
 } from "./arenaEventProjector";
-import { updateArenaMovement } from "./arenaMovement";
 import { drawArenaFrame } from "./arenaRenderer";
 import { displayArenaName } from "./names";
 import { buildPenaltySequence } from "./penaltyKicks";
 import { clamp as clampf, distanceSquared as d2, lerp } from "./runtimeMath";
 import type { ArenaHud, ArenaState } from "./runtimeTypes";
-import type { LiveIntensity } from "./tactics";
 import type { ArenaSim } from "./types";
+import type { PositionSample } from "../../data/matchSim";
 
 const PK_AIM_T = 0.5;
 const PK_STRIKE_T = 0.55;
@@ -30,8 +29,7 @@ interface Options {
   completedRef: RefObject<boolean>;
   pausedRef: RefObject<boolean>;
   speedRef: RefObject<number>;
-  liveIntensityRef: RefObject<LiveIntensity>;
-  opponentIntensityRef: RefObject<LiveIntensity>;
+  pkOrderRef: RefObject<number[] | null>;
   buildState: () => ArenaState;
   userTeamName: string;
   oppTeamName: string;
@@ -40,6 +38,7 @@ interface Options {
   endMinute: number;
   onMinuteEnter: (minute: number) => void;
   onPeriodEnd: () => void;
+  onPenaltiesPending: () => void;
   onComplete: () => void;
   setEnded: Dispatch<SetStateAction<boolean>>;
   setPaused: Dispatch<SetStateAction<boolean>>;
@@ -53,8 +52,7 @@ export function useArenaLoop({
   completedRef,
   pausedRef,
   speedRef,
-  liveIntensityRef,
-  opponentIntensityRef,
+  pkOrderRef,
   buildState,
   userTeamName,
   oppTeamName,
@@ -63,6 +61,7 @@ export function useArenaLoop({
   endMinute,
   onMinuteEnter,
   onPeriodEnd,
+  onPenaltiesPending,
   onComplete,
   setEnded,
   setPaused,
@@ -91,9 +90,12 @@ export function useArenaLoop({
     let last = performance.now();
     let hudAcc = 0;
     let simulationAccumulator = 0;
+    let pkPendingNotified = false;
     const rng = mulbFromSeed(startMinute * 977 + endMinute * 131 + 97);
 
     const goalMouth = (side: 0 | 1) => (side === 0 ? { x: 99, y: 50 } : { x: 1, y: 50 });
+    // Real shootouts alternate at a single end, not each team's own attacking goal.
+    const SHOOTOUT_GOAL = goalMouth(1);
 
     function triggerGoal(s: ArenaState, side: 0 | 1, scorer?: string, assist?: string) {
       const shooter = s.scoring?.shooter ?? -1;
@@ -195,32 +197,36 @@ export function useArenaLoop({
       }
     }
 
-    const pkSpot = (team: 0 | 1) => {
-      const gm = goalMouth(team);
-      return { x: gm.x + (team === 0 ? -11 : 11), y: 50 };
-    };
+    // Both teams shoot at the same end during the shootout; only which side of
+    // the spot they approach from (and which corner they aim for) varies.
+    const pkSpot = () => ({
+      x: SHOOTOUT_GOAL.x + 11,
+      y: 50,
+    });
 
-    const pkTarget = (team: 0 | 1, scored: boolean) => {
-      const gm = goalMouth(team);
-      return { x: gm.x, y: clampf(50 + (scored ? (team === 0 ? 7 : -7) : 0), 20, 80) };
-    };
+    const pkTarget = (team: 0 | 1, scored: boolean) => ({
+      x: SHOOTOUT_GOAL.x,
+      y: clampf(50 + (scored ? (team === 0 ? 7 : -7) : 0), 20, 80),
+    });
 
     function positionForKick(s: ArenaState) {
       const kick = s.pkSequence[s.pkIndex];
       if (!kick) return;
       const kickNumber = Math.floor(s.pkIndex / 2);
-      const spot = pkSpot(kick.team);
+      const spot = pkSpot();
       const kickerPool = s.dots.filter((d) => d.team === kick.team && d.role !== "GK");
       const keeperDot = s.dots.find((d) => d.team !== kick.team && d.role === "GK");
-      const kicker = kickerPool.length ? kickerPool[kickNumber % kickerPool.length] : null;
+      const chosenKicker = kick.playerId != null
+        ? s.dots.find((d) => d.playerId === kick.playerId)
+        : null;
+      const kicker = chosenKicker ?? (kickerPool.length ? kickerPool[kickNumber % kickerPool.length] : null);
       if (kicker) {
         kicker.x = spot.x;
         kicker.y = spot.y;
       }
       if (keeperDot) {
-        const gm = goalMouth(kick.team);
-        keeperDot.x = gm.x;
-        keeperDot.y = gm.y;
+        keeperDot.x = SHOOTOUT_GOAL.x;
+        keeperDot.y = SHOOTOUT_GOAL.y;
       }
       s.ball.x = spot.x;
       s.ball.y = spot.y;
@@ -232,7 +238,7 @@ export function useArenaLoop({
     function startPenalties(s: ArenaState) {
       const currentSim = simRef.current;
       s.phase = "penalties";
-      s.pkSequence = buildPenaltySequence(currentSim.penalties!, rng);
+      s.pkSequence = buildPenaltySequence(currentSim.penalties!, rng, pkOrderRef.current ?? undefined);
       s.pkIndex = 0;
       s.pkScore = [0, 0];
       s.pkStage = "aim";
@@ -241,6 +247,64 @@ export function useArenaLoop({
       s.periodBanner = "승부차기";
       s.periodBannerT = PK_AIM_T + PK_STRIKE_T;
       positionForKick(s);
+    }
+
+    // Player positions come straight from the engine's position-aware world
+    // (HalfResult.positionSamples), one sample per player per match minute.
+    // This only interpolates between the two samples bracketing the current
+    // clock — it never invents a position the engine didn't compute.
+    let cachedSamples: PositionSample[] | undefined;
+    let samplesByPlayer: Map<number, PositionSample[]> | null = null;
+
+    function applyPositionSamples(s: ArenaState, positionSamples: PositionSample[] | undefined, dt: number) {
+      if (!positionSamples || !positionSamples.length) return;
+      if (positionSamples !== cachedSamples) {
+        cachedSamples = positionSamples;
+        samplesByPlayer = new Map();
+        for (const sample of positionSamples) {
+          const list = samplesByPlayer.get(sample.playerId);
+          if (list) list.push(sample);
+          else samplesByPlayer.set(sample.playerId, [sample]);
+        }
+      }
+      s.dots.forEach((dot) => {
+        const list = samplesByPlayer?.get(dot.playerId);
+        if (!list || !list.length) return;
+        let prev: PositionSample | null = null;
+        let next: PositionSample | null = null;
+        for (const sample of list) {
+          if (sample.minute <= s.clock) prev = sample;
+          else {
+            next = sample;
+            break;
+          }
+        }
+        let targetX: number;
+        let targetY: number;
+        if (prev && next) {
+          const span = next.minute - prev.minute || 1;
+          const t = clampf((s.clock - prev.minute) / span, 0, 1);
+          targetX = prev.x + (next.x - prev.x) * t;
+          targetY = prev.y + (next.y - prev.y) * t;
+        } else if (prev) {
+          targetX = prev.x;
+          targetY = prev.y;
+        } else if (next) {
+          targetX = next.x;
+          targetY = next.y;
+        } else {
+          return;
+        }
+        const dx = targetX - dot.x;
+        const dy = targetY - dot.y;
+        if (dt > 0) {
+          dot.vx = dx / dt;
+          dot.vy = dy / dt;
+        }
+        if (Math.hypot(dx, dy) > 0.15) dot.facing = Math.atan2(dy, dx);
+        dot.x = clampf(targetX, 2, 98);
+        dot.y = clampf(targetY, 3, 97);
+      });
     }
 
     function update(dt: number) {
@@ -321,7 +385,7 @@ export function useArenaLoop({
           return;
         }
         if (s.pkStage === "strike") {
-          const spot = pkSpot(kick.team);
+          const spot = pkSpot();
           const target = pkTarget(kick.team, kick.scored);
           const t = clampf(1 - s.penT / PK_STRIKE_T, 0, 1);
           s.ball.x = spot.x + (target.x - spot.x) * t;
@@ -537,6 +601,16 @@ export function useArenaLoop({
         if (!pendingEvents && !actionStillVisible) {
           s.score = [finalSim.userGoals, finalSim.oppGoals];
           if (finalSim.penalties) {
+            if (!pkOrderRef.current) {
+              // Freeze here — the taker-order screen is up. startPenalties()
+              // runs once the user confirms an order (or the app falls back
+              // to an auto order).
+              if (!pkPendingNotified) {
+                pkPendingNotified = true;
+                onPenaltiesPending();
+              }
+              return;
+            }
             startPenalties(s);
             return;
           }
@@ -545,11 +619,9 @@ export function useArenaLoop({
         }
       }
 
-      const intensities = [
-        liveIntensityRef.current,
-        opponentIntensityRef.current,
-      ] as const;
-      updateArenaMovement(s, intensities, dt);
+      if (s.phase === "play") {
+        applyPositionSamples(s, simRef.current.positionSamples, dt);
+      }
     }
 
 

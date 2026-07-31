@@ -136,21 +136,24 @@ describe("arena event projection", () => {
     expect(arena.ball.scripted).toBe(true);
   });
 
-  test("a failed pass continues directly to the nearest opponent", () => {
+  test("a failed pass travels to the recorded end coordinates without guessing a recoverer", () => {
     const arena = state();
     projectMatchEvent(arena, event({ success: false, endX: 61, endY: 72 }), vi.fn());
     expect(arena.ball.flightTo).toBe(-1);
+    // No side ever "invents" who wins the loose ball here — the ball just
+    // travels to the engine's recorded endX/endY. Whichever event comes next
+    // (an interception, a recovery) claims it using its own real actorId.
     expect(arena.ball.flightTarget).toMatchObject({
       fromX: 30,
       fromY: 50,
-      x: 96,
-      y: 50,
-      owner: 2,
+      x: 59,
+      y: 74,
+      owner: null,
       elapsed: 0,
     });
   });
 
-  test("legacy out-of-play coordinates do not start a throw-in", () => {
+  test("out-of-play end coordinates are still projected as recorded, without a throw-in restart", () => {
     const arena = state();
     projectMatchEvent(
       arena,
@@ -160,9 +163,9 @@ describe("arena event projection", () => {
     expect(arena.ball.flightTarget).toMatchObject({
       fromX: 30,
       fromY: 50,
-      x: 96,
-      y: 50,
-      owner: 2,
+      x: 59,
+      y: 102,
+      owner: null,
     });
     expect(arena.situation).toBeUndefined();
   });
@@ -235,42 +238,5 @@ describe("arena event projection", () => {
       action: "dribble",
     });
     expect(arena.ball.owner).toBe(0);
-  });
-
-  test("legacy throw-in events continue play without a restart situation", () => {
-    const arena = state();
-    const nearbyOutfielder = dot(4, 1, 61);
-    nearbyOutfielder.y = 91;
-    nearbyOutfielder.hy = 91;
-    const recordedTaker = dot(5, 1, 86);
-    recordedTaker.y = 44;
-    recordedTaker.hy = 44;
-    arena.dots.push(nearbyOutfielder, recordedTaker);
-    arena.ball.x = 64;
-    arena.ball.y = 102;
-    projectMatchEvent(
-      arena,
-      event({
-        type: "throwIn",
-        side: "opp",
-        actorId: 5,
-        actor: "Player 5",
-        targetId: undefined,
-        target: undefined,
-        x: 64,
-        y: 97,
-        endX: 64,
-        endY: 97,
-      }),
-      vi.fn(),
-    );
-    expect(arena.situation).toBeUndefined();
-    expect(arena.ball.flightTarget).toMatchObject({
-      fromX: 64,
-      fromY: 102,
-      x: 61,
-      y: 91,
-      owner: 3,
-    });
   });
 });

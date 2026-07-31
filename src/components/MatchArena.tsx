@@ -13,12 +13,11 @@ import type { Player, Position } from "../data/types";
 import { ArenaEventFeed } from "./match-arena/ArenaEventFeed";
 import { ArenaMatchCenter, type MatchCenterTab } from "./match-arena/ArenaMatchCenter";
 import { ArenaResultPanel } from "./match-arena/ArenaResultPanel";
+import { PenaltyTakerSelect, type PenaltyTakerCandidate } from "./match-arena/PenaltyTakerSelect";
 import {
   DEFAULT_TEAM_TACTICS,
   describeTeamTactics,
-  intensityFromTeamTactics,
   simProfileFromTeamTactics,
-  type LiveIntensity,
   type TeamTactics,
 } from "./match-arena/tactics";
 import { clamp as clampf, homeFor } from "./match-arena/runtimeMath";
@@ -75,11 +74,8 @@ export function MatchArena({
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
   const pausedBeforePanelRef = useRef(false);
-  const liveIntensityRef = useRef<LiveIntensity>(intensityFromTeamTactics(initialTactics));
-  const opponentIntensityRef = useRef<LiveIntensity>(
-    intensityFromTeamTactics(initialOpponentTactics),
-  );
   const completedRef = useRef(false);
+  const pkOrderRef = useRef<number[] | null>(null);
   const tacticsRef = useRef<TeamTactics>(initialTactics);
   const opponentTacticsRef = useRef<TeamTactics>(initialOpponentTactics);
   const periodRef = useRef<HalfResult | null>(null);
@@ -110,6 +106,7 @@ export function MatchArena({
     situation: null as string | null,
   });
   const [ended, setEnded] = useState(false);
+  const [pendingPenalties, setPendingPenalties] = useState(false);
   const [sim, setSim] = useState<ArenaSim>(simRef.current);
   const [simulatedThrough, setSimulatedThrough] = useState(startMinute);
   const [impactBaseline, setImpactBaseline] = useState<LiveMatchSnapshot | null>(null);
@@ -149,7 +146,6 @@ export function MatchArena({
     setTacticChangedAt(hud.minute);
     setHasTacticChange(true);
     tacticsRef.current = next;
-    liveIntensityRef.current = intensityFromTeamTactics(next);
     setTeamTactics(next);
     onTacticChange?.(next);
   }
@@ -191,7 +187,6 @@ export function MatchArena({
         JSON.stringify(opponentDecision.tactics) !== JSON.stringify(opponentTacticsRef.current)
       ) {
         opponentTacticsRef.current = opponentDecision.tactics;
-        opponentIntensityRef.current = intensityFromTeamTactics(opponentDecision.tactics);
         setOpponentTactics(opponentDecision.tactics);
         onOpponentTacticChange?.(opponentDecision.tactics);
         setOpponentTacticChanges((current) => [...current, opponentDecision]);
@@ -264,6 +259,30 @@ export function MatchArena({
   function applyTeamTactics(next: TeamTactics) {
     updateTeamTactics(next);
     closeMatchCenter();
+  }
+
+  function penaltyTakerCandidates(): PenaltyTakerCandidate[] {
+    return slotsOf(formation)
+      .filter((slot) => slot.position !== "GK")
+      .map((slot) => {
+        const pid = slots[slot.id];
+        const player = pid != null ? playersById.get(pid) : null;
+        if (!player) return null;
+        return {
+          playerId: player.player_id,
+          name: player.player_name,
+          position: player.position,
+          overall: player.ability?.overall ?? 65,
+          composure: player.ability?.composure ?? 65,
+          penalties: player.ability?.penalties ?? 65,
+        };
+      })
+      .filter((entry): entry is PenaltyTakerCandidate => entry != null);
+  }
+
+  function confirmPenaltyTakers(order: number[]) {
+    pkOrderRef.current = order;
+    setPendingPenalties(false);
   }
 
   function ratingsFor(
@@ -394,8 +413,7 @@ export function MatchArena({
     completedRef,
     pausedRef,
     speedRef,
-    liveIntensityRef,
-    opponentIntensityRef,
+    pkOrderRef,
     buildState,
     userTeamName,
     oppTeamName,
@@ -404,6 +422,7 @@ export function MatchArena({
     endMinute,
     onMinuteEnter: ensureSimulatedThrough,
     onPeriodEnd: finishLivePeriod,
+    onPenaltiesPending: () => setPendingPenalties(true),
     onComplete,
     setEnded,
     setPaused,
@@ -415,6 +434,8 @@ export function MatchArena({
     stateRef.current = buildState();
     // Replay the finished timeline without simulating or recording the match again.
     completedRef.current = true;
+    pkOrderRef.current = null;
+    setPendingPenalties(false);
     setEnded(false);
     setHud({
       minute: startMinute,
@@ -486,7 +507,15 @@ export function MatchArena({
           </button>
         </div>
 
-        {!ended && activePanel && (
+        {!ended && pendingPenalties && (
+          <PenaltyTakerSelect
+            userTeamName={userTeamName}
+            candidates={penaltyTakerCandidates()}
+            onConfirm={confirmPenaltyTakers}
+          />
+        )}
+
+        {!ended && !pendingPenalties && activePanel && (
           <ArenaMatchCenter
             activeTab={activePanel}
             onTabChange={setActivePanel}
@@ -506,8 +535,8 @@ export function MatchArena({
         )}
 
         <div
-          className={`arena-live-grid${activePanel || ended ? " arena-live-grid--panel-open" : ""}`}
-          aria-hidden={activePanel != null || ended}
+          className={`arena-live-grid${activePanel || ended || pendingPenalties ? " arena-live-grid--panel-open" : ""}`}
+          aria-hidden={activePanel != null || ended || pendingPenalties}
         >
           <div className="arena-canvas-wrap">
             <canvas ref={canvasRef} className="arena-canvas" />

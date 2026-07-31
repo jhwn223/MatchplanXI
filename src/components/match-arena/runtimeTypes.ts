@@ -110,6 +110,8 @@ export interface ArenaState {
 export interface PenaltyKick {
   team: 0 | 1;
   scored: boolean;
+  /** Only set for user (team 0) kicks once the player has chosen a taker order. */
+  playerId?: number;
 }
 
 export interface ArenaHud {

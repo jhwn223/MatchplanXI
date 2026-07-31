@@ -77,7 +77,23 @@ export function drawArenaFrame(
     context.fill();
   });
 
+  // During a shootout only the current kicker and the defending keeper stay on
+  // screen — everyone else drifted off wherever regulation ended and would
+  // otherwise clutter a scene that's meant to read as one kicker vs one keeper.
+  const pkKick = state.phase === "penalties" ? state.pkSequence[state.pkIndex] : null;
+  const visibleDotIndices = pkKick
+    ? new Set(
+        state.dots.reduce<number[]>((indices, dot, index) => {
+          if (index === state.ball.owner || (dot.team !== pkKick.team && dot.role === "GK")) {
+            indices.push(index);
+          }
+          return indices;
+        }, []),
+      )
+    : null;
+
   state.dots.forEach((dot, index) => {
+    if (visibleDotIndices && !visibleDotIndices.has(index)) return;
     const radius = Math.max(7, width * 0.016);
     const px = x(dot.x);
     const py = y(dot.y);

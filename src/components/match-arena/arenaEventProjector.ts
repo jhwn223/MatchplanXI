@@ -59,25 +59,6 @@ function startBallFlight(
   state.ball.scripted = true;
 }
 
-function nearestTeamDot(
-  state: ArenaState,
-  side: 0 | 1,
-  x: number,
-  y: number,
-) {
-  let nearest = -1;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  state.dots.forEach((dot, index) => {
-    if (dot.team !== side) return;
-    const distance = Math.hypot(dot.x - x, dot.y - y);
-    if (distance < nearestDistance) {
-      nearest = index;
-      nearestDistance = distance;
-    }
-  });
-  return nearest;
-}
-
 function moveBallToOwner(state: ArenaState, owner: number, speed = 72) {
   if (owner < 0) return;
   const target = state.dots[owner];
@@ -279,6 +260,9 @@ export function projectMatchEvent(
         passSpeed,
       );
     } else {
+      // A failed pass just goes to the engine's recorded endX/endY. Whichever
+      // real event comes next (an interception, a recovery) claims it from
+      // there using its own actorId — this layer never guesses a recoverer.
       const recordedStart = eventPoint(event);
       const recordedEnd = eventPoint(event, true);
       const failedX = clamp(
@@ -290,24 +274,7 @@ export function projectMatchEvent(
       const failedY = exitedTouchline
         ? recordedEnd.y
         : clamp(state.ball.y + recordedEnd.y - recordedStart.y, 3, 97);
-      const recoveringPlayer = nearestTeamDot(
-        state,
-        defendingSide,
-        failedX,
-        failedY,
-      );
-      if (recoveringPlayer >= 0) {
-        const recoveryTarget = state.dots[recoveringPlayer];
-        startBallFlight(
-          state,
-          recoveryTarget.x,
-          recoveryTarget.y,
-          recoveringPlayer,
-          passSpeed,
-        );
-      } else {
-        startBallFlight(state, failedX, failedY, null, passSpeed);
-      }
+      startBallFlight(state, failedX, failedY, null, passSpeed);
     }
     return;
   }
@@ -324,18 +291,10 @@ export function projectMatchEvent(
       event.type === "tackle") &&
     actor >= 0
   ) {
-    const visualActor =
-      state.ball.owner >= 0 && state.dots[state.ball.owner].team === side
-        ? state.ball.owner
-        : nearestTeamDot(state, side, state.ball.x, state.ball.y);
-    setAction(
-      state,
-      visualActor >= 0 ? visualActor : actor,
-      event.type === "recovery" ? "receive" : "tackle",
-      0.55,
-    );
+    // Trust the engine's actorId — it already decided who won the ball back.
+    setAction(state, actor, event.type === "recovery" ? "receive" : "tackle", 0.55);
     if (state.ball.owner < 0 || state.dots[state.ball.owner].team !== side) {
-      moveBallToOwner(state, visualActor >= 0 ? visualActor : actor);
+      moveBallToOwner(state, actor);
     }
     return;
   }
@@ -371,17 +330,6 @@ export function projectMatchEvent(
     return;
   }
 
-  if (event.type === "throwIn") {
-    const restartActor = nearestTeamDot(
-      state,
-      side,
-      state.ball.x,
-      state.ball.y,
-    );
-    moveBallToOwner(state, restartActor >= 0 ? restartActor : actor);
-    return;
-  }
-
   if (
     event.type === "corner" ||
     event.type === "freeKick" ||
@@ -394,21 +342,12 @@ export function projectMatchEvent(
   }
 
   if (event.type === "offside") {
+    // The engine doesn't name a specific defender to restart with here, so
+    // this only ever falls back to the goalkeeper rather than guessing one.
     const point = eventPoint(event);
     const keeper = state.dots.findIndex(
       (dot) => dot.team === defendingSide && dot.role === "GK",
     );
-    let restartActor = -1;
-    let restartDistance = Number.POSITIVE_INFINITY;
-    state.dots.forEach((dot, index) => {
-      if (dot.team !== defendingSide || dot.role === "GK") return;
-      const distance = Math.hypot(dot.x - point.x, dot.y - point.y);
-      if (distance < restartDistance) {
-        restartDistance = distance;
-        restartActor = index;
-      }
-    });
-    if (restartActor < 0) restartActor = keeper;
-    startSituation(state, "offside", defendingSide, restartActor, point);
+    startSituation(state, "offside", defendingSide, keeper, point);
   }
 }
