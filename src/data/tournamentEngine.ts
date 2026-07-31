@@ -131,9 +131,44 @@ export function qualificationProbability(
 ): number {
   const elo = eloOf(data);
   const groupMatches = data.matches.filter((m) => m.stage_name === "Group Stage");
-  const hasRemaining = groupMatches.some((m) => !played[m.match_id]);
+
+  // The standings screen (groupStandingsHub) reveals the user's own group on a
+  // shared matchday calendar: once the user has played through a matchday, the
+  // other fixtures in that group on the same date are already shown settled,
+  // using a fixed elo seed. Lock those same results in here before rolling any
+  // dice, or this estimate re-randomizes matches the standings table right
+  // above it has already declared final — which is why a team the table shows
+  // as mathematically eliminated could still show up as "1%" instead of "0%".
+  const userTeam = data.teams.find((t) => t.team_name === teamName);
+  const settledPlayed: PlayedMap = { ...played };
+  if (userTeam) {
+    const ownGroupMatches = groupMatches.filter(
+      (m) =>
+        data.teams.some((t) => t.team_name === m.home_team_name && t.group_letter === userTeam.group_letter) &&
+        data.teams.some((t) => t.team_name === m.away_team_name && t.group_letter === userTeam.group_letter)
+    );
+    const userPlayedDates = ownGroupMatches
+      .filter((m) => (m.home_team_name === teamName || m.away_team_name === teamName) && played[m.match_id])
+      .map((m) => m.date)
+      .sort();
+    const referenceDate = userPlayedDates.length > 0 ? userPlayedDates[userPlayedDates.length - 1] : null;
+    if (referenceDate) {
+      for (const m of ownGroupMatches) {
+        if (settledPlayed[m.match_id] || m.date > referenceDate) continue;
+        const seed = (m.match_id * 100003) >>> 0;
+        const r = quickSimScore(
+          seed,
+          elo.get(m.home_team_name)?.elo ?? 1600,
+          elo.get(m.away_team_name)?.elo ?? 1600,
+        );
+        settledPlayed[m.match_id] = { homeGoals: r.home, awayGoals: r.away };
+      }
+    }
+  }
+
+  const hasRemaining = groupMatches.some((m) => !settledPlayed[m.match_id]);
   const completedStandings = () =>
-    Object.fromEntries(GROUPS.map((group) => [group, groupStandingsSim(data, group, played)]));
+    Object.fromEntries(GROUPS.map((group) => [group, groupStandingsSim(data, group, settledPlayed)]));
   if (!hasRemaining) {
     return getQualifiers(data, completedStandings()).some((team) => team.name === teamName)
       ? 100
@@ -142,7 +177,7 @@ export function qualificationProbability(
 
   let qualifiedCount = 0;
   for (let trial = 0; trial < trials; trial++) {
-    const trialPlayed: PlayedMap = { ...played };
+    const trialPlayed: PlayedMap = { ...settledPlayed };
     for (const match of groupMatches) {
       if (trialPlayed[match.match_id]) continue;
       const seed = (trial * 100_003 + match.match_id * 7_919) >>> 0;
