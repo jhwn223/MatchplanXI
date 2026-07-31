@@ -86,6 +86,7 @@ export interface ArenaState {
     y: number;
     action: "dribble" | "receive";
     claimBall?: boolean;
+    elapsed?: number;
   } | null;
   periodBanner: string | null;
   periodBannerT: number;

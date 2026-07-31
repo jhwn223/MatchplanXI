@@ -287,9 +287,11 @@ export function useArenaLoop({
       if (s.scriptedRun) {
         const run = s.scriptedRun;
         const runner = s.dots[run.actor];
+        run.elapsed = (run.elapsed ?? 0) + dt;
+        const claimRadius = run.elapsed >= 1.2 ? 2.8 : 1.8;
         if (
           !runner ||
-          Math.hypot(runner.x - run.x, runner.y - run.y) <= 1.6
+          Math.hypot(runner.x - run.x, runner.y - run.y) <= claimRadius
         ) {
           if (runner && run.claimBall) {
             s.ball.owner = run.actor;
@@ -485,6 +487,7 @@ export function useArenaLoop({
                 y: target.y,
                 action: "receive",
                 claimBall: true,
+                elapsed: 0,
               };
             } else {
               s.ball.owner = target.owner ?? -1;

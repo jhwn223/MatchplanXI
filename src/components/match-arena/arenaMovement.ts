@@ -235,7 +235,8 @@ export function updateArenaMovement(
     state.ball.flightTarget == null &&
     state.ball.flightTo < 0 &&
     !state.scoring &&
-    !state.situation;
+    !state.situation &&
+    !state.scriptedRun;
   const looseChasers = new Set<number>();
   if (looseBall) {
     ([0, 1] as const).forEach((team) => {

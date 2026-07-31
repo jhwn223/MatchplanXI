@@ -137,6 +137,35 @@ describe("continuous arena movement", () => {
     expect(state.dots[1].y).toBeGreaterThan(supportBefore);
   });
 
+  test("a designated pass receiver does not trigger a whole-team loose-ball swarm", () => {
+    const state = arena();
+    state.ball.owner = -1;
+    state.ball.flightTo = -1;
+    state.ball.flightTarget = null;
+    state.ball.x = 52;
+    state.ball.y = 52;
+    state.scriptedRun = {
+      actor: 1,
+      x: 52,
+      y: 52,
+      action: "receive",
+      claimBall: true,
+      elapsed: 0,
+    };
+    for (let frame = 0; frame < 60; frame++) {
+      updateArenaMovement(state, [balanced, balanced], 1 / 60);
+    }
+    const playersAtBall = state.dots.filter(
+      (player) => Math.hypot(player.x - state.ball.x, player.y - state.ball.y) < 5,
+    );
+    expect(playersAtBall.length).toBeLessThanOrEqual(3);
+    expect(state.dots[1].action).toBe("receive");
+    expect(
+      state.dots.filter((player, index) => player.team === 0 && index !== 1)
+        .every((player) => player.action !== "press"),
+    ).toBe(true);
+  });
+
   test("high pressure visibly sends a second defender to the ball", () => {
     const lowState = arena();
     const highState = arena();

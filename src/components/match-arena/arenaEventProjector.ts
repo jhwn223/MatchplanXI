@@ -71,6 +71,7 @@ function claimLooseBall(state: ArenaState, owner: number) {
     y: state.ball.y,
     action: "receive",
     claimBall: true,
+    elapsed: 0,
   };
 }
 
@@ -153,6 +154,7 @@ export function prepareEventActor(state: ArenaState, event: MatchEvent) {
         x: target.x,
         y: clamp(target.y, 3, 97),
         action: "dribble",
+        elapsed: 0,
       };
       setAction(state, actor, "dribble", 0.7);
       return false;
