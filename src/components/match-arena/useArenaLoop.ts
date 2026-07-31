@@ -6,7 +6,10 @@ import {
   prepareEventActor,
   projectMatchEvent,
 } from "./arenaEventProjector";
-import { updateArenaMovement } from "./arenaMovement";
+import {
+  claimLooseBallIfReached,
+  updateArenaMovement,
+} from "./arenaMovement";
 import { drawArenaFrame } from "./arenaRenderer";
 import { displayArenaName } from "./names";
 import { buildPenaltySequence } from "./penaltyKicks";
@@ -263,9 +266,10 @@ export function useArenaLoop({
         if (s.situation.remaining <= 0) {
           const restart = s.situation;
           const actor = s.dots[restart.actor];
+          const readyDistance = restart.type === "throwIn" ? 5 : 3;
           const actorReady =
             !actor ||
-            Math.hypot(actor.x - restart.x, actor.y - restart.y) <= 3;
+            Math.hypot(actor.x - restart.x, actor.y - restart.y) <= readyDistance;
           if (
             restart.type === "foul" ||
             actorReady
@@ -550,6 +554,7 @@ export function useArenaLoop({
         opponentIntensityRef.current,
       ] as const;
       updateArenaMovement(s, intensities, dt);
+      claimLooseBallIfReached(s);
     }
 
 

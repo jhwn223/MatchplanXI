@@ -170,18 +170,30 @@ function startSituation(
   actor: number,
   point: { x: number; y: number },
 ) {
+  let restartActor = actor;
+  if (type === "throwIn") {
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    state.dots.forEach((dot, index) => {
+      if (dot.team !== side || dot.role === "GK") return;
+      const distance = Math.hypot(dot.x - point.x, dot.y - point.y);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        restartActor = index;
+      }
+    });
+  }
   const duration =
     type === "penaltyKick"
       ? 2
       : type === "corner" || type === "freeKick"
         ? 1.8
         : type === "throwIn"
-          ? 1.5
+          ? 0.65
           : 0.5;
   state.situation = {
     type,
     side,
-    actor,
+    actor: restartActor,
     x: point.x,
     y: point.y,
     remaining: duration,
@@ -194,13 +206,13 @@ function startSituation(
     x: point.x,
     y: point.y,
     owner: null,
-    chaser: actor >= 0 ? actor : null,
+    chaser: restartActor >= 0 ? restartActor : null,
     elapsed: 0,
     duration: 0.24,
   };
   state.ball.scripted = true;
-  if (actor >= 0) {
-    state.ball.lastTeam = state.dots[actor].team;
+  if (restartActor >= 0) {
+    state.ball.lastTeam = state.dots[restartActor].team;
   } else {
     state.ball.x = point.x;
     state.ball.y = point.y;

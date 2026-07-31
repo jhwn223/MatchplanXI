@@ -52,6 +52,66 @@ function nearestOpponent(state: ArenaState, index: number) {
   return best;
 }
 
+function nearestLooseBallPlayer(
+  state: ArenaState,
+  team: Team,
+  x: number,
+  y: number,
+) {
+  let best = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  state.dots.forEach((dot, index) => {
+    if (dot.team !== team) return;
+    const distance = distanceSquared(dot.x, dot.y, x, y);
+    if (distance < bestDistance) {
+      best = index;
+      bestDistance = distance;
+    }
+  });
+  return {
+    index: best,
+    distance: best >= 0 ? Math.sqrt(bestDistance) : Number.POSITIVE_INFINITY,
+  };
+}
+
+function isLooseBall(state: ArenaState) {
+  return (
+    state.ball.owner < 0 &&
+    state.ball.flightTarget == null &&
+    state.ball.flightTo < 0 &&
+    !state.scoring &&
+    !state.situation &&
+    !state.scriptedRun &&
+    state.ball.x >= 2 &&
+    state.ball.x <= 98 &&
+    state.ball.y >= 3 &&
+    state.ball.y <= 97
+  );
+}
+
+export function claimLooseBallIfReached(state: ArenaState) {
+  if (!isLooseBall(state)) return -1;
+  let nearest = -1;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  state.dots.forEach((dot, index) => {
+    const distance = Math.hypot(dot.x - state.ball.x, dot.y - state.ball.y);
+    if (distance < nearestDistance) {
+      nearest = index;
+      nearestDistance = distance;
+    }
+  });
+  if (nearest < 0 || nearestDistance > 1.9) return -1;
+  const winner = state.dots[nearest];
+  state.ball.owner = nearest;
+  state.ball.x = winner.x;
+  state.ball.y = winner.y;
+  state.ball.lastTeam = winner.team;
+  state.ball.scripted = false;
+  winner.action = "receive";
+  winner.actionT = Math.max(winner.actionT, 0.35);
+  return nearest;
+}
+
 function rankedOutfieldByHomeDistance(
   state: ArenaState,
   team: Team,
@@ -162,7 +222,7 @@ function setPieceTarget(
     return {
       x: situation.x,
       y: situation.y,
-      speed: 11,
+      speed: situation.type === "throwIn" ? 18 : 11,
       action: "receive",
     };
   }
@@ -298,38 +358,39 @@ export function updateArenaMovement(
   const defendingTeam: Team = ballTeam === 0 ? 1 : 0;
   const defendingIntensity = intensities[defendingTeam];
   const pressers = new Set<number>();
-  const looseBall =
-    state.ball.owner < 0 &&
-    state.ball.flightTarget == null &&
-    state.ball.flightTo < 0 &&
-    !state.scoring &&
-    !state.situation &&
-    !state.scriptedRun;
+  const looseBall = isLooseBall(state);
   const looseChasers = new Set<number>();
   if (looseBall) {
-    ([0, 1] as const).forEach((team) => {
-      const first = nearestIndex(state, team, state.ball.x, state.ball.y);
-      if (first >= 0) looseChasers.add(first);
-      const second = nearestIndex(state, team, state.ball.x, state.ball.y, looseChasers);
-      if (second >= 0) looseChasers.add(second);
-    });
+    const team0 = nearestLooseBallPlayer(state, 0, state.ball.x, state.ball.y);
+    const team1 = nearestLooseBallPlayer(state, 1, state.ball.x, state.ball.y);
+    const [closest, challenger] =
+      team0.distance <= team1.distance ? [team0, team1] : [team1, team0];
+    if (closest.index >= 0) looseChasers.add(closest.index);
+    if (
+      challenger.index >= 0 &&
+      challenger.distance <= Math.max(12, closest.distance + 6)
+    ) {
+      looseChasers.add(challenger.index);
+    }
   }
-  const firstPresser = nearestIndex(
-    state,
-    defendingTeam,
-    state.ball.x,
-    state.ball.y,
-  );
-  if (firstPresser >= 0) pressers.add(firstPresser);
-  if (defendingIntensity.attackPress >= 66) {
-    const secondPresser = nearestIndex(
+  if (state.ball.owner >= 0) {
+    const firstPresser = nearestIndex(
       state,
       defendingTeam,
       state.ball.x,
       state.ball.y,
-      pressers,
     );
-    if (secondPresser >= 0) pressers.add(secondPresser);
+    if (firstPresser >= 0) pressers.add(firstPresser);
+    if (defendingIntensity.attackPress >= 66) {
+      const secondPresser = nearestIndex(
+        state,
+        defendingTeam,
+        state.ball.x,
+        state.ball.y,
+        pressers,
+      );
+      if (secondPresser >= 0) pressers.add(secondPresser);
+    }
   }
   const offsideX = offsideLimit(state, ballTeam);
 
@@ -364,7 +425,7 @@ export function updateArenaMovement(
       target = {
         x: state.ball.x,
         y: state.ball.y,
-        speed: 11 * tempoScale,
+        speed: 15 * tempoScale,
         action: "press",
       };
     } else if (state.scoring && index === state.scoring.shooter) {

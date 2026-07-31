@@ -235,6 +235,13 @@ describe("arena event projection", () => {
 
   test("a throw-in restarts from the touchline reached by the ball", () => {
     const arena = state();
+    const nearbyOutfielder = dot(4, 1, 61);
+    nearbyOutfielder.y = 91;
+    nearbyOutfielder.hy = 91;
+    const recordedTaker = dot(5, 1, 86);
+    recordedTaker.y = 44;
+    recordedTaker.hy = 44;
+    arena.dots.push(nearbyOutfielder, recordedTaker);
     arena.ball.x = 64;
     arena.ball.y = 102;
     projectMatchEvent(
@@ -242,8 +249,8 @@ describe("arena event projection", () => {
       event({
         type: "throwIn",
         side: "opp",
-        actorId: 3,
-        actor: "Player 3",
+        actorId: 5,
+        actor: "Player 5",
         targetId: undefined,
         target: undefined,
         x: 64,
@@ -256,8 +263,10 @@ describe("arena event projection", () => {
     expect(arena.situation).toMatchObject({
       type: "throwIn",
       side: 1,
+      actor: 3,
       x: 64,
       y: 97,
+      remaining: 0.65,
     });
     expect(arena.ball.flightTarget).toMatchObject({
       fromX: 64,
