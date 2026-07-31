@@ -16,6 +16,7 @@ import {
   beginPossession,
 } from "./world/movementEngine";
 import {
+  isPlayerOffside,
   passOptionScore,
   worldDistance,
   worldPassLanePressure,
@@ -242,7 +243,18 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       x: coordinate.endX,
       y: coordinate.endY,
     };
-    samplesByMinute.set(minute, samplesFromWorld(world, minute));
+  };
+
+  const recordOffside = (
+    minute: number,
+    side: MatchSide,
+    receiver: PlacedPlayerLite,
+    passer: PlacedPlayerLite,
+  ) => {
+    running[side].offsides++;
+    const receiverStats = playerStat(playerStats, side, receiver);
+    if (receiverStats) receiverStats.offsides++;
+    addEvent(minute, side, "offside", receiver, passer, false);
   };
 
   const resolveSetPiece = (
@@ -375,7 +387,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       sidePlayers(input, defendingSide),
     );
     const routinePassCount = possessionPlayers.length > 1
-      ? Math.round(clamp(6 - directness * 1.6 - sideTactics.tempoBias * 1.1 + (rng() - 0.5) * 4, 2, 11))
+      ? Math.round(clamp(8 - directness * 1.6 - sideTactics.tempoBias * 1.1 + (rng() - 0.5) * 4, 3, 13))
       : 0;
     // A possession has one authoritative carrier. Previously every routine
     // pass picked a fresh random passer, so A→B could be followed by C→D
@@ -389,7 +401,11 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       rng,
     );
     beginPossession(world, side, possessionCarrier);
-    advanceWorld(world, input, tacticsBySide, 1.6);
+    // A newly sampled minute starts from the lineup coordinates. Give both
+    // blocks enough simulated time to settle around the ball before the first
+    // pass; otherwise forwards are repeatedly judged offside while still
+    // travelling back from their static formation slot.
+    advanceWorld(world, input, tacticsBySide, 5);
     addEvent(
       minute,
       side,
@@ -450,20 +466,54 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         defenders,
       );
       const routinePassChance = clamp(
-        0.9 +
+        0.92 +
           (passQuality - pressureQuality) / 500 -
           directness * 0.018 +
           matchupEdge * 0.35 -
-          laneRisk * 0.045,
-        0.82,
-        0.97
+          laneRisk * 0.045 -
+          defendingTactics.pressBias * 0.04 -
+          defendingTactics.defensiveLineBias * 0.015,
+        0.88,
+        0.98
       );
+      const pressingFoulChance = clamp(
+        0.003 +
+          (defendingTactics.pressBias + 1) * 0.007 +
+          (defendingTactics.tacklingBias + 1) * 0.002 +
+          Math.max(0, pressingDefender.aggression - 72) / 4000,
+        0.003,
+        0.024,
+      );
+      if (rng() < pressingFoulChance) {
+        running[defendingSide].fouls++;
+        const defenderStats = playerStat(playerStats, defendingSide, pressingDefender);
+        if (defenderStats) defenderStats.foulsCommitted++;
+        addEvent(minute, defendingSide, "foul", pressingDefender, passer, false);
+        const passerPoint = world.players[side].get(passer.playerId);
+        const canonicalFoulX = side === "user"
+          ? passerPoint?.x ?? 50
+          : 100 - (passerPoint?.x ?? 50);
+        resolveSetPiece(
+          minute,
+          side,
+          canonicalFoulX >= 82 ? "penaltyKick" : "freeKick",
+          passer,
+          keeperPlayer,
+        );
+        possessionLost = true;
+        break;
+      }
       const passerStats = playerStat(playerStats, side, passer);
       running[side].possessionTouches++;
       running[side].passesAttempted++;
       if (passerStats) {
         passerStats.touches++;
         passerStats.passesAttempted++;
+      }
+      if (isPlayerOffside(world, side, receiver)) {
+        recordOffside(minute, side, receiver, passer);
+        possessionLost = true;
+        break;
       }
       if (rng() < routinePassChance) {
         running[side].passesCompleted++;
@@ -560,6 +610,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           const foulChance = clamp(
             0.045 +
               Math.max(0, defendingTactics.tacklingBias) * 0.055 +
+              Math.max(0, defendingTactics.pressBias) * 0.035 +
               Math.max(0, defender.aggression - 65) / 900,
             0.025,
             0.16,
@@ -681,22 +732,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         );
         running[side].passesAttempted++;
         if (carrierStats) carrierStats.passesAttempted++;
-        const offsideChance =
-          receiver.position === "FWD" && receiver.baseX >= 70
-            ? clamp(
-                0.012 +
-                  Math.max(0, receiver.baseX - 70) / 500 +
-                  Math.max(0, defendingTactics.defensiveLineBias) * 0.035 +
-                  Math.max(0, sideTactics.counterBias) * 0.015,
-                0.01,
-                0.11,
-              )
-            : 0;
-        if (offsideChance > 0 && rng() < offsideChance) {
-          running[side].offsides++;
-          const receiverStats = playerStat(playerStats, side, receiver);
-          if (receiverStats) receiverStats.offsides++;
-          addEvent(minute, side, "offside", receiver, carrier, false);
+        if (isPlayerOffside(world, side, receiver)) {
+          recordOffside(minute, side, receiver, carrier);
           break;
         }
         if (rng() < passChance) {
@@ -728,11 +765,13 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       const roleShotChance = carrier.position === "FWD" ? 0.3 : carrier.position === "MID" ? 0.16 : 0.06;
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
-      const targetShotX =
-        carrier.longShots >= 82 && sideTactics.shootingBias >= 0.25 ? 78 : 82;
+      // The final touch has to reach the edge of the penalty area before a
+      // shot can be recorded. 78 is also the lower bound used by the visual
+      // replay, so a shot never appears to come from midfield.
+      const targetShotX = 78;
       const shootNow =
         carrier.position !== "GK" &&
-        canonicalShotX >= 60 &&
+        canonicalShotX >= 56 &&
         (
           rng() < roleShotChance + progress * 0.045 + tacticShotBias ||
           (action === maxActions - 1 && rng() < 0.36)
@@ -744,7 +783,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       // 2D projector makes the carrier run these coordinates instead of
       // teleporting the player or the ball to the shooting point.
       let approachX = canonicalShotX;
-      for (let carry = 0; carry < 4 && approachX < targetShotX; carry++) {
+      for (let carry = 0; carry < 7 && approachX < targetShotX; carry++) {
         if (carrierStats) {
           carrierStats.dribblesAttempted++;
           carrierStats.dribblesCompleted++;
@@ -755,7 +794,9 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           ? carriedPoint?.x ?? approachX
           : 100 - (carriedPoint?.x ?? 100 - approachX);
       }
-      if (approachX < targetShotX) continue;
+      if (approachX < targetShotX) {
+        continue;
+      }
 
       const marker = weightedPick(
         defenders,

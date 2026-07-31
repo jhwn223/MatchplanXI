@@ -1,4 +1,5 @@
 import type { Position } from "../../data/types";
+import type { FormationShapeProfile } from "../../data/match/world/formationShape";
 
 export interface ArenaDot {
   playerId: number;
@@ -16,6 +17,8 @@ export interface ArenaDot {
   react: number;
   pace: number;
   passing: number;
+  vision: number;
+  positioning: number;
   dribbling: number;
   shooting: number;
   defending: number;
@@ -36,7 +39,19 @@ export interface ArenaDot {
     | "save"
     | "celebrate";
   actionT: number;
+  defensiveRole?: "presser" | "cover" | "marker" | "screen" | "restDefense";
+  markingTargetId?: number;
+  pressingTargetId?: number;
+  assignmentExpiresAt?: number;
 }
+
+export type ArenaMatchPhase =
+  | "buildUp"
+  | "middleThird"
+  | "finalThird"
+  | "defensiveBlock"
+  | "transitionAttack"
+  | "transitionDefense";
 
 export interface ArenaState {
   clock: number;
@@ -46,7 +61,7 @@ export interface ArenaState {
   score: [number, number];
   nextGoal: number;
   nextEvent: number;
-  openingPossessionReady?: boolean;
+  kickoffPauseT?: number;
   dots: ArenaDot[];
   ball: {
     x: number;
@@ -97,6 +112,7 @@ export interface ArenaState {
     x: number;
     y: number;
     remaining: number;
+    elapsed: number;
   } | null;
   announcedET1: boolean;
   announcedET2: boolean;
@@ -105,6 +121,13 @@ export interface ArenaState {
   pkIndex: number;
   pkScore: [number, number];
   pkStage: "aim" | "strike" | "reveal";
+  movement?: {
+    possessionTeam: 0 | 1;
+    previousPossessionTeam: 0 | 1;
+    changedAt: number;
+    phaseByTeam: [ArenaMatchPhase, ArenaMatchPhase];
+  };
+  shapeProfiles?: [FormationShapeProfile, FormationShapeProfile];
 }
 
 export interface PenaltyKick {

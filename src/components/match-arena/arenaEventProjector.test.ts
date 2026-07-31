@@ -1,7 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import type { MatchEvent } from "../../data/matchSim";
 import {
-  alignOpeningPossession,
   eventPlaybackClock,
   prepareEventActor,
   projectMatchEvent,
@@ -25,6 +24,8 @@ function dot(playerId: number, team: 0 | 1, x: number): ArenaDot {
     react: 1,
     pace: 70,
     passing: 70,
+    vision: 70,
+    positioning: 70,
     dribbling: 70,
     shooting: 70,
     defending: 70,
@@ -47,7 +48,7 @@ function state(): ArenaState {
     score: [0, 0],
     nextGoal: 0,
     nextEvent: 0,
-    dots: [dot(1, 0, 30), dot(2, 0, 55), dot(3, 1, 96)],
+    dots: [dot(1, 0, 30), dot(2, 0, 55), dot(3, 1, 96), dot(4, 1, 65)],
     ball: {
       x: 30,
       y: 50,
@@ -96,21 +97,25 @@ function event(overrides: Partial<MatchEvent> = {}): MatchEvent {
 }
 
 describe("arena event projection", () => {
-  test("the opening event starts with a real owner instead of a frozen loose ball", () => {
+  test("an opening recovery by the other side flies the kickoff ball instead of teleporting it", () => {
     const arena = state();
     const opening = event({
       type: "recovery",
-      actorId: 2,
-      actor: "Player 2",
+      side: "opp",
+      actorId: 4,
+      actor: "Player 4",
       targetId: undefined,
       target: undefined,
     });
-    expect(alignOpeningPossession(arena, opening)).toBe(true);
-    expect(arena.ball.owner).toBe(1);
-    expect(arena.ball.x).toBe(55);
+    expect(prepareEventActor(arena, opening)).toBe(true);
     projectMatchEvent(arena, opening, vi.fn());
-    expect(arena.ball.owner).toBe(1);
-    expect(arena.scriptedRun).toBeNull();
+    expect(arena.ball.flightTarget).toMatchObject({
+      fromX: 30,
+      fromY: 50,
+      x: 65,
+      y: 50,
+      owner: 3,
+    });
   });
 
   test("events in the same minute are spread over the visual minute", () => {
@@ -134,6 +139,15 @@ describe("arena event projection", () => {
       elapsed: 0,
     });
     expect(arena.ball.scripted).toBe(true);
+  });
+
+  test("an extreme receiver velocity cannot launch the pass across the pitch", () => {
+    const arena = state();
+    arena.dots[1].vx = 900;
+    arena.dots[1].vy = -900;
+    projectMatchEvent(arena, event({ passType: "through" }), vi.fn());
+    expect(arena.ball.flightTarget?.x).toBe(60);
+    expect(arena.ball.flightTarget?.y).toBe(45);
   });
 
   test("a failed pass travels to the recorded end coordinates without guessing a recoverer", () => {
@@ -218,6 +232,22 @@ describe("arena event projection", () => {
     });
     expect(arena.ball.owner).toBe(-1);
     expect(arena.ball.flightTarget).toMatchObject({ x: 98, y: 3, chaser: 0 });
+  });
+
+  test("an offside restart is taken by the nearest defending outfielder, never the goalkeeper", () => {
+    const arena = state();
+    projectMatchEvent(
+      arena,
+      event({ type: "offside", x: 68, y: 52, endX: 68, endY: 52 }),
+      vi.fn(),
+    );
+    expect(arena.situation).toMatchObject({
+      type: "offside",
+      side: 1,
+      actor: 3,
+      elapsed: 0,
+    });
+    expect(arena.situation?.actor).not.toBe(2);
   });
 
   test("a shooter must carry the ball to the recorded box-area position", () => {

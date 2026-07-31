@@ -47,6 +47,7 @@ function createPlayerState(
     vy: 0,
     intent: player.position === "GK" ? "protectGoal" : "holdShape",
     target: { x, y },
+    assignmentExpiresAt: 0,
   };
 }
 
@@ -77,6 +78,13 @@ export function createMatchWorld(
       ownerSide: null,
       ownerId: null,
     },
+    phaseBySide: {
+      user: "middleThird",
+      opp: "middleThird",
+    },
+    lastPossessionSide: null,
+    previousPossessionSide: null,
+    possessionChangedAt: 0,
   };
 }
 

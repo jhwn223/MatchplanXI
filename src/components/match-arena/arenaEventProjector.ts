@@ -90,26 +90,6 @@ export function findEventDot(
   );
 }
 
-export function alignOpeningPossession(
-  state: ArenaState,
-  event: MatchEvent | undefined,
-) {
-  if (!event) return false;
-  const side: 0 | 1 = event.side === "user" ? 0 : 1;
-  const actor = findEventDot(state, side, event.actor, event.actorId);
-  if (actor < 0) return false;
-  const player = state.dots[actor];
-  state.ball.owner = actor;
-  state.ball.x = player.x;
-  state.ball.y = player.y;
-  state.ball.flightTo = -1;
-  state.ball.flightTarget = null;
-  state.ball.lastTeam = player.team;
-  state.ball.scripted = false;
-  state.scriptedRun = null;
-  return true;
-}
-
 /**
  * Events are stored with integer match minutes. Spread events from the same
  * minute across that minute so passes, tackles and shots can actually be seen.
@@ -181,6 +161,7 @@ function startSituation(
     x: point.x,
     y: point.y,
     remaining: duration,
+    elapsed: 0,
   };
   state.ball.owner = -1;
   state.ball.flightTo = -1;
@@ -252,10 +233,15 @@ export function projectMatchEvent(
             : event.passType === "short"
               ? 0.08
               : 0.2;
+      // Position samples drive a smooth tactical target, but a receiver can
+      // still be accelerating when the pass starts. Limit the lead so one
+      // noisy frame can never send the ball to the opposite touchline.
+      const leadX = clamp(receiver.vx * leadSeconds, -5, 5);
+      const leadY = clamp(receiver.vy * leadSeconds, -5, 5);
       startBallFlight(
         state,
-        clamp(receiver.x + receiver.vx * leadSeconds, 2, 98),
-        clamp(receiver.y + receiver.vy * leadSeconds, 3, 97),
+        clamp(receiver.x + leadX, 2, 98),
+        clamp(receiver.y + leadY, 3, 97),
         target,
         passSpeed,
       );
@@ -342,12 +328,19 @@ export function projectMatchEvent(
   }
 
   if (event.type === "offside") {
-    // The engine doesn't name a specific defender to restart with here, so
-    // this only ever falls back to the goalkeeper rather than guessing one.
     const point = eventPoint(event);
-    const keeper = state.dots.findIndex(
-      (dot) => dot.team === defendingSide && dot.role === "GK",
-    );
-    startSituation(state, "offside", defendingSide, keeper, point);
+    const candidates = state.dots
+      .map((dot, index) => ({ dot, index }))
+      .filter(({ dot }) => dot.team === defendingSide && dot.role !== "GK")
+      .sort(
+        (a, b) =>
+          Math.hypot(a.dot.x - point.x, a.dot.y - point.y) -
+          Math.hypot(b.dot.x - point.x, b.dot.y - point.y),
+      );
+    const fallback = state.dots.findIndex((dot) => dot.team === defendingSide);
+    const restartActor = candidates[0]?.index ?? fallback;
+    if (restartActor >= 0) {
+      startSituation(state, "offside", defendingSide, restartActor, point);
+    }
   }
 }

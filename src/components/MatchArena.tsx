@@ -20,7 +20,7 @@ import {
   simProfileFromTeamTactics,
   type TeamTactics,
 } from "./match-arena/tactics";
-import { clamp as clampf, homeFor } from "./match-arena/runtimeMath";
+import { clamp as clampf, homeFor, kickoffHomeFor } from "./match-arena/runtimeMath";
 import type { ArenaDot as Dot, ArenaState } from "./match-arena/runtimeTypes";
 import type { ArenaSim, MatchArenaProps } from "./match-arena/types";
 import { useArenaLoop } from "./match-arena/useArenaLoop";
@@ -146,6 +146,13 @@ export function MatchArena({
     setTacticChangedAt(hud.minute);
     setHasTacticChange(true);
     tacticsRef.current = next;
+    if (stateRef.current) {
+      const profiles = stateRef.current.shapeProfiles ?? [
+        simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+        simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+      ];
+      stateRef.current.shapeProfiles = [simProfileFromTeamTactics(next), profiles[1]];
+    }
     setTeamTactics(next);
     onTacticChange?.(next);
   }
@@ -187,6 +194,16 @@ export function MatchArena({
         JSON.stringify(opponentDecision.tactics) !== JSON.stringify(opponentTacticsRef.current)
       ) {
         opponentTacticsRef.current = opponentDecision.tactics;
+        if (stateRef.current) {
+          const profiles = stateRef.current.shapeProfiles ?? [
+            simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+            simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+          ];
+          stateRef.current.shapeProfiles = [
+            profiles[0],
+            simProfileFromTeamTactics(opponentDecision.tactics),
+          ];
+        }
         setOpponentTactics(opponentDecision.tactics);
         onOpponentTacticChange?.(opponentDecision.tactics);
         setOpponentTacticChanges((current) => [...current, opponentDecision]);
@@ -295,6 +312,8 @@ export function MatchArena({
       react: clampf((ability?.reactions ?? fallback) / 70, 0.72, 1.32),
       pace: ability?.pace ?? fallback,
       passing: ability?.passing ?? fallback,
+      vision: ability?.vision ?? simPlayer?.vision ?? fallback,
+      positioning: ability?.positioning ?? simPlayer?.positioning ?? fallback,
       dribbling: ability?.dribbling ?? fallback,
       shooting: ability?.shooting ?? fallback,
       defending: ability?.defending ?? fallback,
@@ -347,7 +366,8 @@ export function MatchArena({
       const num = player ? (player.player_id % 30) + 1 : i + 1;
       const coordinate = positions?.[s.id] ?? s;
       const h = homeFor(coordinate.x, coordinate.y, 0);
-      dots.push({ playerId: player?.player_id ?? -(i + 1), x: h.x, y: h.y, vx: 0, vy: 0, facing: 0, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, ...ratingsFor(player, simPlayerFor(player, "user")), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28, action: "idle", actionT: 0 });
+      const k = kickoffHomeFor(h.x, h.y, 0);
+      dots.push({ playerId: player?.player_id ?? -(i + 1), x: k.x, y: k.y, vx: 0, vy: 0, facing: 0, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, ...ratingsFor(player, simPlayerFor(player, "user")), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28, action: "idle", actionT: 0 });
     });
     const opponentQueues: Record<Position, Player[]> = {
       GK: opponentPlayers.filter((player) => player.position === "GK"),
@@ -357,9 +377,19 @@ export function MatchArena({
     };
     slotsOf(opponentFormation).forEach((s, i) => {
       const h = homeFor(s.x, s.y, 1);
+      const k = kickoffHomeFor(h.x, h.y, 1);
       const player = opponentQueues[s.position].shift() ?? opponentPlayers[i] ?? null;
-      dots.push({ playerId: player?.player_id ?? -(100 + i + 1), x: h.x, y: h.y, vx: 0, vy: 0, facing: Math.PI, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player, simPlayerFor(player, "opp")), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28, action: "idle", actionT: 0 });
+      dots.push({ playerId: player?.player_id ?? -(100 + i + 1), x: k.x, y: k.y, vx: 0, vy: 0, facing: Math.PI, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player, simPlayerFor(player, "opp")), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28, action: "idle", actionT: 0 });
     });
+    // The home side kicks off the match; the away side restarts the second
+    // half. The taker stands on the centre spot next to the stationary ball.
+    const kickoffTeam: 0 | 1 = startMinute === 45 ? 1 : 0;
+    let taker = dots.findIndex((dot) => dot.team === kickoffTeam && dot.role === "FWD");
+    if (taker < 0) taker = dots.findIndex((dot) => dot.team === kickoffTeam);
+    if (taker >= 0) {
+      dots[taker].x = kickoffTeam === 0 ? 48.6 : 51.4;
+      dots[taker].y = 50;
+    }
     return {
       clock: startMinute,
       phase: "play",
@@ -368,17 +398,21 @@ export function MatchArena({
       score: [...startScore],
       nextGoal: 0,
       nextEvent: 0,
-      openingPossessionReady: false,
+      kickoffPauseT: 1,
       dots,
+      shapeProfiles: [
+        simProfileFromTeamTactics(tacticsRef.current),
+        simProfileFromTeamTactics(opponentTacticsRef.current),
+      ],
       ball: {
         x: 50,
         y: 50,
         previousX: 50,
         previousY: 50,
-        owner: dots.findIndex((dot) => dot.team === 0 && dot.role === "FWD"),
+        owner: taker,
         flightTo: -1,
         flightTarget: null,
-        lastTeam: 0,
+        lastTeam: kickoffTeam,
         scripted: false,
         trail: [],
       },
