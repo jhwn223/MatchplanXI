@@ -19,8 +19,21 @@ This document records the ownership boundaries introduced to keep parallel featu
 - `quickSim.ts`: lightweight score-only simulation
 - `eventEngine.ts`: possession and event generation for each half
 - `result.ts`: half aggregation and extra-time result construction
+- `invariants.ts`: team/player/event statistic consistency checks
+- `world/createWorld.ts`: authoritative player and ball state creation
+- `world/movementEngine.ts`: ability, fatigue, and tactics-aware movement
+- `world/perception.ts`: current-position distance, pressure, and pass-option evaluation
+- `world/eventBridge.ts`: world state to event coordinates, heat samples, and public snapshots
 
 Changes to probability/event rules should normally touch `eventEngine.ts`; changes to output contracts belong in `types.ts`.
+
+The simulation owner exposes `MatchWorldSnapshot` through `data/matchSim.ts`.
+The live-match owner may render and interpolate that snapshot, but must not
+recalculate pass, duel, shot, or movement outcomes in UI code.
+
+`quickSimScore` remains backward compatible with ELO-only callers. Tournament
+code should pass `QuickSimOptions` with both teams' ability, condition, tactics,
+and elevation whenever those values are available.
 
 ## Match setup (`components/match-board/`)
 

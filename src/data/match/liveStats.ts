@@ -1,6 +1,7 @@
 import { currentCondition } from "./playerRuntime";
 import { clamp } from "./random";
 import { combineTeamStatsPair, finalizeTeamStatsPair, type RunningStats } from "./stats";
+import { tacticsForSide } from "./tactics";
 import type {
   LiveMatchSnapshot,
   MatchSide,
@@ -99,12 +100,21 @@ function playerRating(stat: PlayerMatchStats): number {
   return Math.round(clamp(value, 3.5, 10) * 10) / 10;
 }
 
-function distanceForMinutes(player: PlacedPlayerLite, stat: PlayerMatchStats, minutesPlayed: number, elevation: number) {
+function distanceForMinutes(
+  player: PlacedPlayerLite,
+  stat: PlayerMatchStats,
+  minutesPlayed: number,
+  elevation: number,
+  tacticalIntensity: number,
+) {
   const roleRate = player.position === "MID" ? 0.122 : player.position === "FWD" ? 0.116 : player.position === "DEF" ? 0.108 : 0.052;
   const workRate = 0.9 + clamp((player.stamina - 55) / 250, -0.08, 0.14);
+  const tacticalDistance = 1 + clamp(tacticalIntensity, 0, 1.6) * 0.085;
   const actionBonus = Math.min(0.7, (stat.touches + stat.tacklesWon + stat.interceptions) * 0.006);
   const altitudePenalty = clamp((elevation - 1200) / 12000, 0, 0.12);
-  return Math.round((minutesPlayed * roleRate * workRate * (1 - altitudePenalty) + actionBonus) * 10) / 10;
+  return Math.round(
+    (minutesPlayed * roleRate * workRate * tacticalDistance * (1 - altitudePenalty) + actionBonus) * 10,
+  ) / 10;
 }
 
 export function finalizePlayerStats(
@@ -117,14 +127,25 @@ export function finalizePlayerStats(
   const minutesPlayed = Math.max(0, minute - periodStartMinute);
   for (const side of ["user", "opp"] as const) {
     const players = side === "user" ? input.placed : input.oppPlaced;
+    const tactics = tacticsForSide(input, side);
+    const tacticalIntensity =
+      Math.max(0, tactics.pressBias) * 0.55 +
+      Math.max(0, tactics.tempoBias) * 0.35 +
+      Math.max(0, tactics.attackBias) * 0.1;
     for (const player of players) {
       const stat = stats[side].get(player.playerId);
       if (!stat) continue;
       const finalized = {
         ...stat,
-        condition: currentCondition(player, minute, input.elevation),
+        condition: currentCondition(player, minute, input.elevation, tactics),
         minutesPlayed,
-        distanceKm: distanceForMinutes(player, stat, minutesPlayed, input.elevation),
+        distanceKm: distanceForMinutes(
+          player,
+          stat,
+          minutesPlayed,
+          input.elevation,
+          tacticalIntensity,
+        ),
       };
       finalized.rating = playerRating(finalized);
       result.push(finalized);

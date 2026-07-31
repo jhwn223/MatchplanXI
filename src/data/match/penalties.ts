@@ -1,5 +1,6 @@
 import { goalkeeper, outfield, skill } from "./playerRuntime";
 import { clamp } from "./random";
+import { tacticsForSide } from "./tactics";
 import type { PenaltyResult, PlacedPlayerLite, SimInput } from "./types";
 
 export function simulatePenalties(rng: () => number, input: SimInput): PenaltyResult {
@@ -11,25 +12,32 @@ export function simulatePenalties(rng: () => number, input: SimInput): PenaltyRe
   );
   const userKeeper = goalkeeper(input.placed);
   const oppKeeper = goalkeeper(input.oppPlaced);
-  const kick = (taker: PlacedPlayerLite, keeperPlayer: PlacedPlayerLite) => {
+  const userTactics = tacticsForSide(input, "user");
+  const oppTactics = tacticsForSide(input, "opp");
+  const kick = (
+    taker: PlacedPlayerLite,
+    keeperPlayer: PlacedPlayerLite,
+    takerTactics: typeof userTactics,
+    keeperTactics: typeof userTactics,
+  ) => {
     const takerSkill = skill(taker, 120, input.elevation, [
       [taker.penalties, 0.55],
       [taker.composure, 0.3],
       [taker.finishing, 0.15],
-    ]);
+    ], "technical", takerTactics);
     const keeperSkill = skill(keeperPlayer, 120, input.elevation, [
       [keeperPlayer.gkDiving, 0.25],
       [keeperPlayer.gkReflexes, 0.35],
       [keeperPlayer.gkPositioning, 0.25],
       [keeperPlayer.reactions, 0.15],
-    ]);
+    ], "goalkeeping", keeperTactics);
     return rng() < clamp(0.74 + (takerSkill - keeperSkill) / 190, 0.52, 0.93);
   };
   let userGoals = 0;
   let oppGoals = 0;
 
   for (let index = 0; index < 5; index++) {
-    if (kick(userTakers[index % userTakers.length], oppKeeper)) userGoals++;
+    if (kick(userTakers[index % userTakers.length], oppKeeper, userTactics, oppTactics)) userGoals++;
     const userKicksRemaining = 4 - index;
     const oppKicksRemainingBeforeKick = 5 - index;
     if (userGoals > oppGoals + oppKicksRemainingBeforeKick) {
@@ -39,7 +47,7 @@ export function simulatePenalties(rng: () => number, input: SimInput): PenaltyRe
       return { userGoals, oppGoals, winner: "opp" };
     }
 
-    if (kick(oppTakers[index % oppTakers.length], userKeeper)) oppGoals++;
+    if (kick(oppTakers[index % oppTakers.length], userKeeper, oppTactics, userTactics)) oppGoals++;
     const oppKicksRemaining = 4 - index;
     if (userGoals > oppGoals + oppKicksRemaining) {
       return { userGoals, oppGoals, winner: "user" };
@@ -54,8 +62,8 @@ export function simulatePenalties(rng: () => number, input: SimInput): PenaltyRe
   }
 
   for (let round = 5; round < 105; round++) {
-    if (kick(userTakers[round % userTakers.length], oppKeeper)) userGoals++;
-    if (kick(oppTakers[round % oppTakers.length], userKeeper)) oppGoals++;
+    if (kick(userTakers[round % userTakers.length], oppKeeper, userTactics, oppTactics)) userGoals++;
+    if (kick(oppTakers[round % oppTakers.length], userKeeper, oppTactics, userTactics)) oppGoals++;
     if (userGoals !== oppGoals) {
       return { userGoals, oppGoals, winner: userGoals > oppGoals ? "user" : "opp" };
     }
