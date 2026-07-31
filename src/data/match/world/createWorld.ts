@@ -88,3 +88,88 @@ export function createMatchWorld(
   };
 }
 
+/**
+ * Carries the live spatial state into the next simulated chunk.
+ *
+ * MatchArena asks the event engine for one minute at a time so that tactical
+ * changes can take effect immediately. Rebuilding the world for every call
+ * made players jump back to their formation homes and forgot possession,
+ * marking, and transition state. This reconciles the previous world with the
+ * current lineup while preserving the state of players who are still active.
+ */
+export function continueMatchWorld(
+  previous: MatchWorld,
+  input: SimInput,
+  minute: number,
+  tactics: TacticsBySide,
+): MatchWorld {
+  const reconcileSide = (
+    side: MatchSide,
+    players: PlacedPlayerLite[],
+  ) => new Map(
+    players.map((player) => {
+      const existing = previous.players[side].get(player.playerId);
+      if (!existing) {
+        return [
+          player.playerId,
+          createPlayerState(input, minute, side, player, tactics),
+        ] as const;
+      }
+      return [
+        player.playerId,
+        {
+          ...existing,
+          player,
+          target: { ...existing.target },
+        },
+      ] as const;
+    }),
+  );
+
+  const players = {
+    user: reconcileSide("user", input.placed),
+    opp: reconcileSide("opp", input.oppPlaced),
+  };
+  const ownerStillActive =
+    previous.ball.ownerSide != null &&
+    previous.ball.ownerId != null &&
+    players[previous.ball.ownerSide].has(previous.ball.ownerId);
+  const world: MatchWorld = {
+    minute,
+    elapsedSeconds: previous.elapsedSeconds,
+    players,
+    ball: {
+      ...previous.ball,
+      ownerSide: ownerStillActive ? previous.ball.ownerSide : null,
+      ownerId: ownerStillActive ? previous.ball.ownerId : null,
+    },
+    phaseBySide: { ...previous.phaseBySide },
+    lastPossessionSide: previous.lastPossessionSide,
+    previousPossessionSide: previous.previousPossessionSide,
+    possessionChangedAt: previous.possessionChangedAt,
+  };
+
+  for (const side of ["user", "opp"] as MatchSide[]) {
+    const opponent = side === "user" ? "opp" : "user";
+    for (const state of world.players[side].values()) {
+      if (
+        state.markingTargetId != null &&
+        !world.players[opponent].has(state.markingTargetId)
+      ) {
+        state.markingTargetId = undefined;
+        state.defensiveRole = undefined;
+        state.assignmentExpiresAt = 0;
+      }
+      if (
+        state.pressingTargetId != null &&
+        !world.players[opponent].has(state.pressingTargetId)
+      ) {
+        state.pressingTargetId = undefined;
+        state.assignmentExpiresAt = 0;
+      }
+    }
+  }
+
+  return world;
+}
+

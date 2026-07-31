@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { simulatePeriod } from "./eventEngine";
+import { simulatePeriod, simulatePeriodWithWorld } from "./eventEngine";
 import { samplePlayerPositions } from "./spatial";
 import { BALANCED_SIM_TACTICS } from "./tactics";
 import type { PlacedPlayerLite, SimInput, SimTacticProfile } from "./types";
@@ -114,6 +114,56 @@ describe("match engine invariants", () => {
     const first = simulatePeriod(input(42), 1, 90, 0);
     const second = simulatePeriod(input(42), 1, 90, 0);
     expect(second).toEqual(first);
+  });
+
+  test("one-minute live chunks preserve and advance the same match world", () => {
+    const first = simulatePeriodWithWorld(input(43), 1, 1, 999_983);
+    const firstElapsedSeconds = first.world.elapsedSeconds;
+    const firstPositions = [...first.world.players.user.values()].map((state) => ({
+      playerId: state.player.playerId,
+      x: state.x,
+      y: state.y,
+    }));
+
+    const second = simulatePeriodWithWorld(
+      input(43),
+      2,
+      2,
+      2 * 999_983,
+      first.world,
+    );
+
+    expect(first.world.minute).toBe(1);
+    expect(first.world.elapsedSeconds).toBe(firstElapsedSeconds);
+    expect(second.world.minute).toBe(2);
+    expect(second.world.elapsedSeconds).toBeGreaterThan(firstElapsedSeconds);
+    expect(second.world).not.toBe(first.world);
+    for (const position of firstPositions) {
+      const preserved = first.world.players.user.get(position.playerId);
+      expect(preserved?.x).toBe(position.x);
+      expect(preserved?.y).toBe(position.y);
+    }
+  });
+
+  test("a continued world removes dismissed players without resetting everyone else", () => {
+    const first = simulatePeriodWithWorld(input(44), 1, 1, 999_983);
+    const removedId = first.world.players.user.keys().next().value as number;
+    first.world.ball.ownerSide = "user";
+    first.world.ball.ownerId = removedId;
+    const nextInput = input(44);
+    nextInput.placed = nextInput.placed.filter((player) => player.playerId !== removedId);
+
+    const second = simulatePeriodWithWorld(
+      nextInput,
+      2,
+      2,
+      2 * 999_983,
+      first.world,
+    );
+
+    expect(second.world.players.user.has(removedId)).toBe(false);
+    expect(second.world.ball.ownerId).not.toBe(removedId);
+    expect(second.world.elapsedSeconds).toBeGreaterThan(first.world.elapsedSeconds);
   });
 
   test("position heat samples preserve football roles and respond to width", () => {
