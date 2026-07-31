@@ -9,6 +9,12 @@ export interface RunningStats {
   saves: number;
   tacklesWon: number;
   interceptions: number;
+  fouls: number;
+  yellowCards: number;
+  redCards: number;
+  corners: number;
+  offsides: number;
+  injuries: number;
   xg: number;
 }
 
@@ -22,6 +28,12 @@ export function emptyRunningStats(): RunningStats {
     saves: 0,
     tacklesWon: 0,
     interceptions: 0,
+    fouls: 0,
+    yellowCards: 0,
+    redCards: 0,
+    corners: 0,
+    offsides: 0,
+    injuries: 0,
     xg: 0,
   };
 }
@@ -47,6 +59,12 @@ export function finalizeStats(running: RunningStats, other: RunningStats): TeamS
     shotsOnTarget: running.shotsOnTarget,
     tacklesWon: running.tacklesWon,
     interceptions: running.interceptions,
+    fouls: running.fouls,
+    yellowCards: running.yellowCards,
+    redCards: running.redCards,
+    corners: running.corners,
+    offsides: running.offsides,
+    injuries: running.injuries,
   };
 }
 
@@ -73,6 +91,12 @@ export function combineTeamStats(a: TeamStats, b: TeamStats): TeamStats {
     shotsOnTarget: a.shotsOnTarget + b.shotsOnTarget,
     tacklesWon: a.tacklesWon + b.tacklesWon,
     interceptions: a.interceptions + b.interceptions,
+    fouls: a.fouls + b.fouls,
+    yellowCards: a.yellowCards + b.yellowCards,
+    redCards: a.redCards + b.redCards,
+    corners: a.corners + b.corners,
+    offsides: a.offsides + b.offsides,
+    injuries: a.injuries + b.injuries,
   };
 }
 

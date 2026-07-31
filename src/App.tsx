@@ -77,7 +77,7 @@ function App() {
 
   /** cumulative scorer/assist ranking, carried across the whole tournament */
   function recordMatchStats(sim: SimResult) {
-    setLeaderboard((prev) => applyMatchToLeaderboard(prev, sim.goals));
+    setLeaderboard((prev) => applyMatchToLeaderboard(prev, sim));
   }
 
   function openMatch(matchId: number) {
@@ -129,7 +129,7 @@ function App() {
       match_id: koMatchIdNum(m.id),
       date: "",
       kickoff_time_utc: "",
-      stage_name: KO_ROUND_EN[m.round],
+      stage_name: m.placement === "third" ? "Third-place play-off" : KO_ROUND_EN[m.round],
       stadium_name: m.venue.stadium_name,
       city: m.venue.city,
       country: m.venue.country,

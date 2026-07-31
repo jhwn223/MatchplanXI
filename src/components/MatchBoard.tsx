@@ -266,6 +266,7 @@ export function MatchBoard({
       opponentEleven,
       opponentConditions,
       opponentTactics: opponentPlan?.tactics,
+      opponentFormation: opponentPlan?.formation,
       activeMatch,
       team,
       opponent,

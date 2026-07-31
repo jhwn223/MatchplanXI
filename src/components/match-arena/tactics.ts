@@ -2,6 +2,12 @@ export interface LiveIntensity {
   fluidDefense: number;
   attackPress: number;
   teamWidth: number;
+  tempo: number;
+  mentality: number;
+  directness: number;
+  focus: -1 | 0 | 1;
+  defensiveLine: number;
+  counter: number;
 }
 
 import type { SimTacticProfile } from "../../data/matchSim";
@@ -58,7 +64,17 @@ export interface TeamTactics {
 export type TacticSelectKey = "defenseStyle" | "buildUpPlay" | "chanceCreation";
 export type TacticMeterKey = "depth" | "boxPlayers" | "corners" | "freeKicks";
 
-export const DEFAULT_LIVE_INTENSITY: LiveIntensity = { fluidDefense: 35, attackPress: 30, teamWidth: 50 };
+export const DEFAULT_LIVE_INTENSITY: LiveIntensity = {
+  fluidDefense: 35,
+  attackPress: 30,
+  teamWidth: 50,
+  tempo: 50,
+  mentality: 50,
+  directness: 50,
+  focus: 0,
+  defensiveLine: 50,
+  counter: 50,
+};
 
 export const DEFAULT_TEAM_TACTICS: TeamTactics = {
   defenseStyle: "balanced",
@@ -150,6 +166,36 @@ export function intensityFromTeamTactics(tactics: TeamTactics): LiveIntensity {
   const linePush = { low: -18, standard: 0, high: 18 }[tactics.defensiveLine];
   const effort = { conserve: -12, balanced: 0, intense: 16 }[tactics.workRate];
   const teamWidth = { narrow: 20, balanced: 50, wide: 82 }[tactics.width];
+  const mentality = {
+    defensive: 12,
+    cautious: 30,
+    balanced: 50,
+    positive: 69,
+    attacking: 88,
+  }[tactics.mentality];
+  const tempo = {
+    slow: 24,
+    balanced: 50,
+    fast: 82,
+  }[tactics.tempo];
+  const passingDirectness = {
+    short: 18,
+    mixed: 50,
+    direct: 74,
+    long: 90,
+  }[tactics.passingStyle];
+  const buildDirectness = {
+    shortPass: -14,
+    balanced: 0,
+    longPass: 18,
+    fastBuildUp: 9,
+  }[tactics.buildUpPlay];
+  const focus: -1 | 0 | 1 =
+    tactics.attackFocus === "left"
+      ? -1
+      : tactics.attackFocus === "right"
+        ? 1
+        : 0;
   return {
     fluidDefense: clamp(88 - tactics.depth * 6 - linePush * 0.6 - (teamWidth - 50) * 0.12, 0, 100),
     attackPress: clamp(
@@ -164,6 +210,17 @@ export function intensityFromTeamTactics(tactics: TeamTactics): LiveIntensity {
       100
     ),
     teamWidth,
+    tempo: clamp(tempo + (tactics.buildUpPlay === "fastBuildUp" ? 10 : 0), 0, 100),
+    mentality,
+    directness: clamp(passingDirectness + buildDirectness, 0, 100),
+    focus,
+    defensiveLine: clamp(
+      { low: 24, standard: 50, high: 80 }[tactics.defensiveLine] +
+        (tactics.depth - 5) * 3,
+      10,
+      90,
+    ),
+    counter: tactics.counterAttack ? 100 : 25,
   };
 }
 
@@ -242,6 +299,7 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
     tacklingBias: clamp(tackling * 0.8 + (tactics.marking === "man" ? 0.2 : -0.05), -1, 1),
     widthBias: clamp(teamWidth * 0.6 + focusWidth * 0.25 + widePlay * 0.25, -1, 1),
     focusBias: focus,
+    setPieceBias: clamp(setPieceCommitment, -1, 1),
   };
 }
 

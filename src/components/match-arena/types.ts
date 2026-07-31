@@ -6,6 +6,7 @@ import type {
   LiveMatchSnapshot,
   MatchEvent,
   PenaltyResult,
+  PositionSample,
   SimComparison,
   SimInput,
   TeamStats,
@@ -17,6 +18,7 @@ import type { TeamTactics } from "./tactics";
 export interface ArenaSim {
   goals: GoalEvent[];
   events?: MatchEvent[];
+  positionSamples?: PositionSample[];
   userGoals: number;
   oppGoals: number;
   userXg?: number;

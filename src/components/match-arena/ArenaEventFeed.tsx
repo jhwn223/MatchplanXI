@@ -4,6 +4,7 @@ import { describeTeamTactics, type TeamTactics } from "./tactics";
 
 const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = {
   pass: { icon: "↗", label: "패스" },
+  recovery: { icon: "●", label: "볼 회수" },
   dribble: { icon: "◇", label: "돌파" },
   interception: { icon: "◆", label: "가로채기" },
   tackle: { icon: "✦", label: "태클" },
@@ -12,6 +13,15 @@ const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = 
   block: { icon: "■", label: "블록" },
   miss: { icon: "○", label: "빗나감" },
   goal: { icon: "⚽", label: "득점" },
+  foul: { icon: "!", label: "파울" },
+  yellowCard: { icon: "▰", label: "경고" },
+  redCard: { icon: "■", label: "퇴장" },
+  offside: { icon: "⚑", label: "오프사이드" },
+  corner: { icon: "⌜", label: "코너킥" },
+  freeKick: { icon: "◉", label: "프리킥" },
+  throwIn: { icon: "↥", label: "스로인" },
+  penaltyKick: { icon: "◎", label: "페널티킥" },
+  injury: { icon: "+", label: "부상" },
 };
 
 interface Props {
@@ -31,7 +41,12 @@ export function ArenaEventFeed({
 }: Props) {
   const elapsed = events.filter((event) => event.minute <= minute);
   const visible = elapsed
-    .filter((event) => event.type !== "pass" && event.type !== "shot")
+    .filter(
+      (event) =>
+        event.type !== "pass" &&
+        event.type !== "shot" &&
+        event.type !== "recovery",
+    )
     .slice(-7)
     .reverse();
   const latestOpponentChange = opponentTacticChanges

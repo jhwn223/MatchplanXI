@@ -11,6 +11,7 @@ export function combineHalves(input: SimInput, firstHalf: HalfResult, secondHalf
   const oppGoals = firstHalf.oppGoals + secondHalf.oppGoals;
   const goals = [...firstHalf.goals, ...secondHalf.goals].sort((a, b) => a.minute - b.minute);
   const events = [...firstHalf.events, ...secondHalf.events].sort((a, b) => a.minute - b.minute);
+  const positionSamples = [...firstHalf.positionSamples, ...secondHalf.positionSamples].sort((a, b) => a.minute - b.minute);
   const userXg = firstHalf.userXg + secondHalf.userXg;
   const oppXg = firstHalf.oppXg + secondHalf.oppXg;
   const outcome = userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
@@ -25,6 +26,7 @@ export function combineHalves(input: SimInput, firstHalf: HalfResult, secondHalf
     oppXg,
     goals,
     events,
+    positionSamples,
     comparison: buildComparison(input, userGoals, oppGoals, outcome),
     teamStats: combineTeamStatsPair(firstHalf.teamStats, secondHalf.teamStats),
     playerStats,
@@ -39,7 +41,11 @@ export function combinePeriods(previous: HalfResult | null, next: HalfResult): H
   if (!previous) return next;
   return {
     goals: [...previous.goals, ...next.goals].sort((a, b) => a.minute - b.minute),
-    events: [...previous.events, ...next.events].sort((a, b) => a.minute - b.minute),
+    events: [...previous.events, ...next.events].sort(
+      (a, b) =>
+        (a.timestamp ?? a.minute) - (b.timestamp ?? b.minute),
+    ),
+    positionSamples: [...previous.positionSamples, ...next.positionSamples].sort((a, b) => a.minute - b.minute),
     userGoals: previous.userGoals + next.userGoals,
     oppGoals: previous.oppGoals + next.oppGoals,
     userXg: previous.userXg + next.userXg,
@@ -55,6 +61,7 @@ export function combineExtraTime(input: SimInput, base: SimResult, extraTime: Ha
   const oppGoals = base.oppGoals + extraTime.oppGoals;
   const goals = [...base.goals, ...extraTime.goals].sort((a, b) => a.minute - b.minute);
   const events = [...base.events, ...extraTime.events].sort((a, b) => a.minute - b.minute);
+  const positionSamples = [...base.positionSamples, ...extraTime.positionSamples].sort((a, b) => a.minute - b.minute);
   const penalties = userGoals === oppGoals
     ? simulatePenalties(mulberry32((input.seed + 9_000029) >>> 0), input)
     : null;
@@ -69,6 +76,7 @@ export function combineExtraTime(input: SimInput, base: SimResult, extraTime: Ha
     oppXg: base.oppXg + extraTime.oppXg,
     goals,
     events,
+    positionSamples,
     comparison: buildComparison(input, userGoals, oppGoals, outcome),
     teamStats: combineTeamStatsPair(base.teamStats, extraTime.teamStats),
     playerStats,

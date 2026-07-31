@@ -6,6 +6,7 @@ export function firstHalfArenaSim(half: HalfResult | null): ArenaSim | null {
   return {
     goals: half.goals,
     events: half.events,
+    positionSamples: half.positionSamples,
     userGoals: half.userGoals,
     oppGoals: half.oppGoals,
     userXg: half.userXg,
@@ -20,6 +21,7 @@ export function secondHalfArenaSim(half: HalfResult | null, regulation: SimResul
   return {
     goals: half.goals,
     events: half.events,
+    positionSamples: regulation.positionSamples,
     userGoals: regulation.userGoals,
     oppGoals: regulation.oppGoals,
     userXg: regulation.userXg,
@@ -39,6 +41,7 @@ export function extraTimeArenaSim(result: SimResult | null): ArenaSim | null {
   return {
     goals: result.goals.filter((goal) => goal.minute > 90),
     events: result.events.filter((event) => event.minute > 90),
+    positionSamples: result.positionSamples.filter((sample) => sample.minute > 90),
     userGoals: result.userGoals,
     oppGoals: result.oppGoals,
     userXg: result.userXg,

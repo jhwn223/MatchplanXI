@@ -9,7 +9,7 @@ import type {
   SimInput,
 } from "./types";
 
-export type PlayerStatsBySide = Record<MatchSide, Map<string, PlayerMatchStats>>;
+export type PlayerStatsBySide = Record<MatchSide, Map<number, PlayerMatchStats>>;
 
 export function createPlayerStats(input: SimInput): PlayerStatsBySide {
   return {
@@ -19,8 +19,10 @@ export function createPlayerStats(input: SimInput): PlayerStatsBySide {
 }
 
 function createSidePlayerStats(side: MatchSide, players: PlacedPlayerLite[]) {
-  return new Map(players.map((player) => [player.name, {
+  return new Map(players.map((player) => [player.playerId, {
     side,
+    playerId: player.playerId,
+    teamId: player.teamId,
     name: player.name,
     position: player.position,
     condition: player.condition,
@@ -42,12 +44,17 @@ function createSidePlayerStats(side: MatchSide, players: PlacedPlayerLite[]) {
     bigChancesMissed: 0,
     goalsConceded: 0,
     saves: 0,
+    foulsCommitted: 0,
+    yellowCards: 0,
+    redCards: 0,
+    offsides: 0,
+    injuries: 0,
     distanceKm: 0,
   } satisfies PlayerMatchStats]));
 }
 
 export function playerStat(stats: PlayerStatsBySide, side: MatchSide, player: PlacedPlayerLite) {
-  return stats[side].get(player.name);
+  return stats[side].get(player.playerId);
 }
 
 function playerRating(stat: PlayerMatchStats): number {
@@ -83,6 +90,11 @@ function playerRating(stat: PlayerMatchStats): number {
     - failedDribbles * 0.035
     - missedShots * 0.03
     - stat.bigChancesMissed * 0.2
+    - stat.foulsCommitted * 0.025
+    - stat.yellowCards * 0.15
+    - stat.redCards * 0.9
+    - stat.offsides * 0.035
+    - stat.injuries * 0.25
     - defensiveConcessionPenalty;
   return Math.round(clamp(value, 3.5, 10) * 10) / 10;
 }
@@ -106,7 +118,7 @@ export function finalizePlayerStats(
   for (const side of ["user", "opp"] as const) {
     const players = side === "user" ? input.placed : input.oppPlaced;
     for (const player of players) {
-      const stat = stats[side].get(player.name);
+      const stat = stats[side].get(player.playerId);
       if (!stat) continue;
       const finalized = {
         ...stat,
@@ -143,7 +155,7 @@ export function createLiveSnapshot(
 export function combinePlayerStats(a: PlayerMatchStats[], b: PlayerMatchStats[]): PlayerMatchStats[] {
   const combined = new Map<string, PlayerMatchStats>();
   for (const stat of [...a, ...b]) {
-    const key = `${stat.side}:${stat.name}`;
+    const key = `${stat.side}:${stat.playerId}`;
     const previous = combined.get(key);
     if (!previous) {
       combined.set(key, { ...stat });
@@ -168,6 +180,11 @@ export function combinePlayerStats(a: PlayerMatchStats[], b: PlayerMatchStats[])
       bigChancesMissed: previous.bigChancesMissed + stat.bigChancesMissed,
       goalsConceded: previous.goalsConceded + stat.goalsConceded,
       saves: previous.saves + stat.saves,
+      foulsCommitted: previous.foulsCommitted + stat.foulsCommitted,
+      yellowCards: previous.yellowCards + stat.yellowCards,
+      redCards: previous.redCards + stat.redCards,
+      offsides: previous.offsides + stat.offsides,
+      injuries: previous.injuries + stat.injuries,
       distanceKm: Math.round((previous.distanceKm + stat.distanceKm) * 10) / 10,
     };
     merged.rating = playerRating(merged);

@@ -1,5 +1,5 @@
 import type { ConditionBreakdown } from "../../data/conditionEngine";
-import type { FormationSlot } from "../../data/formation";
+import { slotsOf, type FormationKey, type FormationSlot } from "../../data/formation";
 import type { PlacedPlayerLite, SimInput } from "../../data/matchSim";
 import { buildTeamAbilityProfile } from "../../data/playerAbility";
 import type { TeamMatch } from "../../data/tournament";
@@ -10,14 +10,24 @@ import {
 } from "../match-arena/tactics";
 import type { Lineup } from "./types";
 
-export function toSimPlayer(player: Player, assignedPosition: Player["position"], condition: number): PlacedPlayerLite {
+export function toSimPlayer(
+  player: Player,
+  slot: Pick<FormationSlot, "id" | "label" | "position" | "x" | "y">,
+  condition: number
+): PlacedPlayerLite {
   const ability = player.ability;
   const base = ability?.overall ?? 65;
   const gkBase = player.position === "GK" ? base : 12;
   return {
+    playerId: player.player_id,
+    teamId: player.team_id,
     name: player.player_name,
+    slotId: slot.id,
+    slotLabel: slot.label,
     naturalPosition: player.position,
-    position: assignedPosition,
+    position: slot.position,
+    baseX: 100 - slot.y,
+    baseY: slot.x,
     overall: base,
     pace: ability?.pace ?? base,
     acceleration: ability?.acceleration ?? ability?.pace ?? base,
@@ -68,6 +78,7 @@ interface BuildSimInputOptions {
   isKnockout: boolean;
   teamTactics: TeamTactics;
   opponentTactics?: TeamTactics;
+  opponentFormation?: FormationKey;
 }
 
 export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | null {
@@ -87,6 +98,7 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     isKnockout,
     teamTactics,
     opponentTactics,
+    opponentFormation = "4-3-3",
   } = options;
   if (placedIds.size < 11 || teamIndex == null) return null;
 
@@ -94,24 +106,25 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     .map((slot) => {
       const playerId = lineup.slots[slot.id];
       const player = playerId != null ? playersById.get(playerId) : null;
-      return player ? toSimPlayer(player, slot.position, conditions.get(player.player_id)?.score ?? 65) : null;
+      if (!player) return null;
+      const coordinate = lineup.positions?.[slot.id] ?? slot;
+      return toSimPlayer(
+        player,
+        { ...slot, x: coordinate.x, y: coordinate.y },
+        conditions.get(player.player_id)?.score ?? 65
+      );
     })
     .filter((player): player is PlacedPlayerLite => player != null);
   const selectedPlayers = [...placedIds]
     .map((id) => playersById.get(id))
     .filter((player): player is Player => player != null);
-  const positionSeed = formation.reduce((sum, slot, index) => {
-    const current = lineup.positions?.[slot.id] ?? slot;
-    return sum + Math.round(current.x * 7 + current.y * 13) * (index + 1);
-  }, 0);
   const match = activeMatch.match;
+  const opponentSlots = slotsOf(opponentFormation);
 
   return {
-    seed:
-      match.match_id * 100003 +
-      [...placedIds].reduce((sum, id) => sum + id, 0) * 31 +
-      lineup.formation.length * 7 +
-      positionSeed,
+    // Decisions change probabilities, not the random stream itself. This makes
+    // before/after tactical comparisons reproducible instead of rerolling a match.
+    seed: match.match_id * 100003,
     userTeamName: team.team_name,
     oppTeamName: activeMatch.opponentName,
     userElo: team.elo_rating,
@@ -121,10 +134,16 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     isHome: activeMatch.isHome,
     elevation: activeMatch.elevation,
     placed,
-    oppPlaced: opponentEleven.map((player) =>
+    oppPlaced: opponentEleven.map((player, index) =>
       toSimPlayer(
         player,
-        player.position,
+        opponentSlots[index] ?? {
+          id: `opp-${index}`,
+          label: player.position,
+          position: player.position,
+          x: 50,
+          y: player.position === "GK" ? 92 : player.position === "DEF" ? 75 : player.position === "MID" ? 50 : 20,
+        },
         opponentConditions.get(player.player_id)?.score ?? 72,
       ),
     ),

@@ -115,72 +115,55 @@ export function groupStandingsHub(
   return rows;
 }
 
-/** Monte Carlo estimate of `teamName` finishing top-2 in its group, simulating
- *  any unplayed group matches by elo via quickSimScore. Already-played results
- *  are held fixed each trial, so this updates as soon as a new match completes. */
+/** Monte Carlo estimate of advancing to the Round of 32.
+ *
+ *  The 2026 format advances all 12 group winners/runners-up plus the best
+ *  eight third-placed teams. We therefore simulate every unfinished group,
+ *  not just the selected team's group; otherwise a third-place probability
+ *  cannot be calculated correctly.
+ */
 export function qualificationProbability(
   data: TournamentData,
-  groupLetter: string,
+  _groupLetter: string,
   played: PlayedMap,
   teamName: string,
   trials = 400
 ): number {
-  const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
   const elo = eloOf(data);
-  const groupMatchRows = data.matches.filter(
-    (m) =>
-      m.stage_name === "Group Stage" &&
-      groupTeams.some((t) => t.team_name === m.home_team_name) &&
-      groupTeams.some((t) => t.team_name === m.away_team_name)
-  );
-  const remaining = groupMatchRows.filter((m) => !played[m.match_id]);
-
-  if (remaining.length === 0) {
-    const rows = groupStandingsSim(data, groupLetter, played);
-    const pos = rows.findIndex((r) => r.teamName === teamName) + 1;
-    return pos >= 1 && pos <= 2 ? 100 : 0;
+  const groupMatches = data.matches.filter((m) => m.stage_name === "Group Stage");
+  const hasRemaining = groupMatches.some((m) => !played[m.match_id]);
+  const completedStandings = () =>
+    Object.fromEntries(GROUPS.map((group) => [group, groupStandingsSim(data, group, played)]));
+  if (!hasRemaining) {
+    return getQualifiers(data, completedStandings()).some((team) => team.name === teamName)
+      ? 100
+      : 0;
   }
 
-  let top2Count = 0;
+  let qualifiedCount = 0;
   for (let trial = 0; trial < trials; trial++) {
-    const table = new Map<string, StandingRow>();
-    for (const t of groupTeams) {
-      table.set(t.team_name, {
-        teamName: t.team_name,
-        fifaCode: t.fifa_code,
-        played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0,
-      });
+    const trialPlayed: PlayedMap = { ...played };
+    for (const match of groupMatches) {
+      if (trialPlayed[match.match_id]) continue;
+      const seed = (trial * 100_003 + match.match_id * 7_919) >>> 0;
+      const result = quickSimScore(
+        seed,
+        elo.get(match.home_team_name)?.elo ?? 1600,
+        elo.get(match.away_team_name)?.elo ?? 1600,
+      );
+      trialPlayed[match.match_id] = {
+        homeGoals: result.home,
+        awayGoals: result.away,
+      };
     }
-    for (const m of groupMatchRows) {
-      const result = played[m.match_id];
-      let hs: number;
-      let as: number;
-      if (result) {
-        hs = result.homeGoals;
-        as = result.awayGoals;
-      } else {
-        const seed = (trial * 100003 + m.match_id * 7919) >>> 0;
-        const homeElo = elo.get(m.home_team_name)?.elo ?? 1600;
-        const awayElo = elo.get(m.away_team_name)?.elo ?? 1600;
-        const r = quickSimScore(seed, homeElo, awayElo);
-        hs = r.home;
-        as = r.away;
-      }
-      const h = table.get(m.home_team_name)!;
-      const a = table.get(m.away_team_name)!;
-      h.played++; a.played++;
-      h.gf += hs; h.ga += as; a.gf += as; a.ga += hs;
-      if (hs > as) { h.won++; h.points += 3; a.lost++; }
-      else if (hs < as) { a.won++; a.points += 3; h.lost++; }
-      else { h.drawn++; a.drawn++; h.points++; a.points++; }
+    const standings = Object.fromEntries(
+      GROUPS.map((group) => [group, groupStandingsSim(data, group, trialPlayed)]),
+    );
+    if (getQualifiers(data, standings).some((team) => team.name === teamName)) {
+      qualifiedCount++;
     }
-    const rows = [...table.values()];
-    for (const r of rows) r.gd = r.gf - r.ga;
-    rows.sort((x, y) => y.points - x.points || y.gd - x.gd || y.gf - x.gf);
-    const pos = rows.findIndex((r) => r.teamName === teamName) + 1;
-    if (pos >= 1 && pos <= 2) top2Count++;
   }
-  return Math.round((top2Count / trials) * 100);
+  return Math.round((qualifiedCount / trials) * 100);
 }
 
 const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
@@ -269,6 +252,9 @@ export function getQualifiers(
   standings: Record<string, StandingRow[]>
 ): KOTeam[] {
   const elo = eloOf(data);
+  const fifaRanking = new Map(
+    data.teams.map((team) => [team.team_name, team.fifa_ranking_pre_tournament]),
+  );
   const mk = (r: StandingRow, g: string, pos: number): KOTeam => ({
     name: r.teamName, code: r.fifaCode, elo: elo.get(r.teamName)?.elo ?? 1600, group: g, pos,
   });
@@ -281,7 +267,9 @@ export function getQualifiers(
     if (rows[1]) runners.push({ r: rows[1], g });
     if (rows[2]) thirds.push({ r: rows[2], g });
   }
-  const bySeed = (a: { r: StandingRow }, b: { r: StandingRow }) => seedScore(b.r) - seedScore(a.r);
+  const bySeed = (a: { r: StandingRow }, b: { r: StandingRow }) =>
+    seedScore(b.r) - seedScore(a.r) ||
+    (fifaRanking.get(a.r.teamName) ?? 999) - (fifaRanking.get(b.r.teamName) ?? 999);
   winners.sort(bySeed); runners.sort(bySeed); thirds.sort(bySeed);
   const best8 = thirds.slice(0, 8);
   return [
@@ -291,41 +279,71 @@ export function getQualifiers(
   ];
 }
 
-/** Pair the 32 qualifiers into 16 Round-of-32 ties: same strong-vs-weak
- *  seeding as a plain index/mirrored-index pairing, but swapped to avoid
- *  ever pairing two teams that came out of the same group, matching how
- *  real World Cup draws are seeded. Falls back to the plain pairing for a
- *  spot if no clash-free swap is available. */
-function seedRound32Pairs(qualifiers: KOTeam[]): [KOTeam | null, KOTeam | null][] {
-  const n = qualifiers.length;
-  const half = Math.ceil(n / 2);
-  const pairs: [KOTeam | null, KOTeam | null][] = [];
-  for (let m = 0; m < half; m++) {
-    pairs.push([qualifiers[m] ?? null, qualifiers[n - 1 - m] ?? null]);
-  }
+/**
+ * Official 2026 Round-of-32 slot structure.
+ *
+ * The order is intentionally the bracket path, rather than chronological
+ * match number: adjacent entries feed one Round-of-16 tie, then adjacent
+ * Round-of-16 winners feed the published quarter-final path.
+ */
+function officialRound32Pairs(
+  qualifiers: KOTeam[],
+): [KOTeam | null, KOTeam | null][] {
+  const ranked = (group: string, pos: number) =>
+    qualifiers.find((team) => team.group === group && team.pos === pos) ?? null;
+  const thirds = qualifiers.filter((team) => team.pos === 3);
+  const thirdSlots = [
+    { key: "1E", allowed: "ABCDF" },
+    { key: "1I", allowed: "CDFGH" },
+    { key: "1D", allowed: "BEFIJ" },
+    { key: "1G", allowed: "AEHIJ" },
+    { key: "1A", allowed: "CEFHI" },
+    { key: "1L", allowed: "EHIJK" },
+    { key: "1B", allowed: "EFGIJ" },
+    { key: "1K", allowed: "DEIJL" },
+  ];
+  const assigned = new Map<string, KOTeam>();
 
-  const sameGroup = (a: KOTeam | null, b: KOTeam | null) => !!a && !!b && a.group === b.group;
-
-  for (let i = 0; i < pairs.length; i++) {
-    if (!sameGroup(pairs[i][0], pairs[i][1])) continue;
-    for (let d = 1; d < pairs.length; d++) {
-      const j = d % 2 === 1 ? i + Math.ceil(d / 2) : i - d / 2;
-      if (j < 0 || j >= pairs.length || j === i) continue;
-      const candidate = pairs[j][1];
-      if (sameGroup(pairs[i][0], candidate)) continue; // would still clash
-      if (sameGroup(pairs[j][0], pairs[i][1])) continue; // would clash the other pair instead
-      const tmp = pairs[i][1];
-      pairs[i][1] = candidate;
-      pairs[j][1] = tmp;
-      break;
+  const assign = (index: number, used: Set<string>): boolean => {
+    if (index >= thirdSlots.length) return true;
+    const slot = thirdSlots[index];
+    for (const team of thirds) {
+      if (used.has(team.group) || !slot.allowed.includes(team.group)) continue;
+      assigned.set(slot.key, team);
+      used.add(team.group);
+      if (assign(index + 1, used)) return true;
+      assigned.delete(slot.key);
+      used.delete(team.group);
     }
-  }
-  return pairs;
+    return false;
+  };
+  assign(0, new Set());
+
+  const third = (key: string) => assigned.get(key) ?? null;
+  return [
+    [ranked("E", 1), third("1E")], // M74 -> M89
+    [ranked("I", 1), third("1I")], // M77 -> M89
+    [ranked("A", 2), ranked("B", 2)], // M73 -> M90
+    [ranked("F", 1), ranked("C", 2)], // M75 -> M90
+    [ranked("K", 2), ranked("L", 2)], // M83 -> M93
+    [ranked("H", 1), ranked("J", 2)], // M84 -> M93
+    [ranked("D", 1), third("1D")], // M81 -> M94
+    [ranked("G", 1), third("1G")], // M82 -> M94
+    [ranked("C", 1), ranked("F", 2)], // M76 -> M91
+    [ranked("E", 2), ranked("I", 2)], // M78 -> M91
+    [ranked("A", 1), third("1A")], // M79 -> M92
+    [ranked("L", 1), third("1L")], // M80 -> M92
+    [ranked("J", 1), ranked("H", 2)], // M86 -> M95
+    [ranked("D", 2), ranked("G", 2)], // M88 -> M95
+    [ranked("B", 1), third("1B")], // M85 -> M96
+    [ranked("K", 1), third("1K")], // M87 -> M96
+  ];
 }
 
 export interface KOMatch {
   id: string;
   round: number; // 0=R32 … 4=Final
+  placement?: "final" | "third";
   a: KOTeam | null;
   b: KOTeam | null;
   winner: KOTeam | null;
@@ -379,7 +397,7 @@ export function buildBracket(
   const venues = data.venues;
   const rounds: KOMatch[][] = [];
   let prevWinners: (KOTeam | null)[] = [];
-  const round32Pairs = seedRound32Pairs(qualifiers);
+  const round32Pairs = officialRound32Pairs(qualifiers);
 
   for (let r = 0; r < 5; r++) {
     const matches: KOMatch[] = [];
@@ -427,10 +445,85 @@ export function buildBracket(
           winner = w.winner; aGoals = w.a; bGoals = w.b; pens = w.pens; played = true;
         }
       }
-      matches.push({ id, round: r, a, b, winner, played, isUser, aGoals, bGoals, pens, venue });
+      matches.push({
+        id,
+        round: r,
+        placement: r === 4 ? "final" : undefined,
+        a,
+        b,
+        winner,
+        played,
+        isUser,
+        aGoals,
+        bGoals,
+        pens,
+        venue,
+      });
     }
     rounds.push(matches);
     prevWinners = matches.map((mt) => mt.winner);
+  }
+  const loserOf = (match: KOMatch | undefined): KOTeam | null => {
+    if (!match?.played || !match.a || !match.b || !match.winner) return null;
+    return match.winner.name === match.a.name ? match.b : match.a;
+  };
+  const thirdA = loserOf(rounds[3]?.[0]);
+  const thirdB = loserOf(rounds[3]?.[1]);
+  if (rounds[4]) {
+    const id = "4-third";
+    const venue = venues[hashNum(id) % venues.length];
+    let winner: KOTeam | null = null;
+    let played = false;
+    let aGoals: number | null = null;
+    let bGoals: number | null = null;
+    let pens = false;
+    let isUser = false;
+
+    if (thirdA && thirdB) {
+      const aUser = thirdA.name === userTeamName;
+      const bUser = thirdB.name === userTeamName;
+      isUser = aUser || bUser;
+      if (isUser) {
+        const result = koResults[id];
+        if (result) {
+          played = true;
+          aGoals = aUser ? result.userGoals : result.oppGoals;
+          bGoals = aUser ? result.oppGoals : result.userGoals;
+          if (aGoals > bGoals) winner = thirdA;
+          else if (bGoals > aGoals) winner = thirdB;
+          else {
+            pens = true;
+            const userWon =
+              result.wentToPenalties &&
+              (result.userPenGoals ?? 0) > (result.oppPenGoals ?? 0);
+            winner = aUser
+              ? (userWon ? thirdA : thirdB)
+              : (userWon ? thirdB : thirdA);
+          }
+        }
+      } else {
+        const result = koSimWinner(hashNum(id) + thirdA.elo + thirdB.elo, thirdA, thirdB);
+        winner = result.winner;
+        aGoals = result.a;
+        bGoals = result.b;
+        pens = result.pens;
+        played = true;
+      }
+    }
+    rounds[4].push({
+      id,
+      round: 4,
+      placement: "third",
+      a: thirdA,
+      b: thirdB,
+      winner,
+      played,
+      isUser,
+      aGoals,
+      bGoals,
+      pens,
+      venue,
+    });
   }
   return rounds;
 }
@@ -510,6 +603,10 @@ export interface TournamentLeader {
   teamCode: string;
   goals: number;
   assists: number;
+  appearances: number;
+  goalsConceded: number;
+  saves: number;
+  cleanSheets: number;
 }
 
 /** how often each position gets picked as a goal scorer / assist provider */
@@ -545,9 +642,52 @@ function bumpLeader(
     teamCode,
     goals: 0,
     assists: 0,
+    appearances: 0,
+    goalsConceded: 0,
+    saves: 0,
+    cleanSheets: 0,
   };
   prev[field] += 1;
   map.set(player.player_id, prev);
+}
+
+function recordGoalkeeperMatch(
+  map: Map<number, TournamentLeader>,
+  seed: number,
+  teamName: string,
+  teamCode: string,
+  squad: Player[],
+  goalsConceded: number,
+) {
+  const goalkeeper = squad
+    .filter((player) => player.position === "GK")
+    .sort((a, b) => (b.ability?.overall ?? 65) - (a.ability?.overall ?? 65))[0];
+  if (!goalkeeper) return;
+  const previous = map.get(goalkeeper.player_id) ?? {
+    playerId: goalkeeper.player_id,
+    name: goalkeeper.player_name,
+    teamName,
+    teamCode,
+    goals: 0,
+    assists: 0,
+    appearances: 0,
+    goalsConceded: 0,
+    saves: 0,
+    cleanSheets: 0,
+  };
+  const rng = mulberry32(seed);
+  const quality = goalkeeper.ability?.overall ?? 65;
+  const saves = Math.max(
+    0,
+    Math.round(1.5 + rng() * 3.5 + (quality - 65) / 18 + goalsConceded * 0.45),
+  );
+  map.set(goalkeeper.player_id, {
+    ...previous,
+    appearances: previous.appearances + 1,
+    goalsConceded: previous.goalsConceded + goalsConceded,
+    saves: previous.saves + saves,
+    cleanSheets: previous.cleanSheets + (goalsConceded === 0 ? 1 : 0),
+  });
 }
 
 function attributeMatchGoals(
@@ -591,7 +731,11 @@ export function buildTournamentLeaderboard(
   rounds: KOMatch[][],
   userTeamName: string,
   userLeaderboard: Leaderboard
-): { topScorers: TournamentLeader[]; topAssists: TournamentLeader[] } {
+): {
+  topScorers: TournamentLeader[];
+  topAssists: TournamentLeader[];
+  topGoalkeepers: TournamentLeader[];
+} {
   const map = new Map<number, TournamentLeader>();
   const teamByName = new Map(data.teams.map((t) => [t.team_name, t]));
   const elo = eloOf(data);
@@ -630,6 +774,22 @@ export function buildTournamentLeaderboard(
       playersOf(home.team_name), playersOf(away.team_name),
       hs, as
     );
+    recordGoalkeeperMatch(
+      map,
+      (m.match_id * 17 + 5) >>> 0,
+      home.team_name,
+      home.fifa_code,
+      playersOf(home.team_name),
+      as,
+    );
+    recordGoalkeeperMatch(
+      map,
+      (m.match_id * 17 + 7) >>> 0,
+      away.team_name,
+      away.fifa_code,
+      playersOf(away.team_name),
+      hs,
+    );
   }
 
   for (const round of rounds) {
@@ -643,6 +803,22 @@ export function buildTournamentLeaderboard(
         playersOf(m.a.name), playersOf(m.b.name),
         m.aGoals, m.bGoals
       );
+      recordGoalkeeperMatch(
+        map,
+        (hashNum(m.id) * 11 + 5) >>> 0,
+        m.a.name,
+        m.a.code,
+        playersOf(m.a.name),
+        m.bGoals,
+      );
+      recordGoalkeeperMatch(
+        map,
+        (hashNum(m.id) * 11 + 7) >>> 0,
+        m.b.name,
+        m.b.code,
+        playersOf(m.b.name),
+        m.aGoals,
+      );
     }
   }
 
@@ -651,7 +827,11 @@ export function buildTournamentLeaderboard(
   if (userTeam) {
     const userPlayers = playersOf(userTeamName);
     for (const entry of Object.values(userLeaderboard)) {
-      const player = userPlayers.find((p) => p.player_name === entry.name);
+      const player = userPlayers.find(
+        (candidate) =>
+          candidate.player_id === entry.playerId ||
+          candidate.player_name === entry.name,
+      );
       if (!player) continue;
       map.set(player.player_id, {
         playerId: player.player_id,
@@ -660,6 +840,10 @@ export function buildTournamentLeaderboard(
         teamCode: userTeam.fifa_code,
         goals: entry.goals,
         assists: entry.assists,
+        appearances: entry.appearances ?? 0,
+        goalsConceded: entry.goalsConceded ?? 0,
+        saves: entry.saves ?? 0,
+        cleanSheets: entry.cleanSheets ?? 0,
       });
     }
   }
@@ -667,5 +851,14 @@ export function buildTournamentLeaderboard(
   const all = [...map.values()];
   const topScorers = [...all].filter((e) => e.goals > 0).sort((a, b) => b.goals - a.goals || b.assists - a.assists).slice(0, 5);
   const topAssists = [...all].filter((e) => e.assists > 0).sort((a, b) => b.assists - a.assists || b.goals - a.goals).slice(0, 5);
-  return { topScorers, topAssists };
+  const topGoalkeepers = [...all]
+    .filter((entry) => entry.appearances >= 3)
+    .sort(
+      (a, b) =>
+        a.goalsConceded / a.appearances - b.goalsConceded / b.appearances ||
+        b.cleanSheets - a.cleanSheets ||
+        b.saves - a.saves,
+    )
+    .slice(0, 5);
+  return { topScorers, topAssists, topGoalkeepers };
 }
