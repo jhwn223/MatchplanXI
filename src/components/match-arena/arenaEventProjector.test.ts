@@ -136,21 +136,21 @@ describe("arena event projection", () => {
     expect(arena.ball.scripted).toBe(true);
   });
 
-  test("a failed pass follows the recorded coordinate without inventing a receiver", () => {
+  test("a failed pass continues directly to the nearest opponent", () => {
     const arena = state();
     projectMatchEvent(arena, event({ success: false, endX: 61, endY: 72 }), vi.fn());
     expect(arena.ball.flightTo).toBe(-1);
     expect(arena.ball.flightTarget).toMatchObject({
       fromX: 30,
       fromY: 50,
-      x: 59,
-      y: 74,
-      owner: null,
+      x: 96,
+      y: 50,
+      owner: 2,
       elapsed: 0,
     });
   });
 
-  test("an out-of-play pass visibly crosses the touchline", () => {
+  test("legacy out-of-play coordinates do not start a throw-in", () => {
     const arena = state();
     projectMatchEvent(
       arena,
@@ -160,9 +160,11 @@ describe("arena event projection", () => {
     expect(arena.ball.flightTarget).toMatchObject({
       fromX: 30,
       fromY: 50,
-      y: 102,
-      owner: null,
+      x: 96,
+      y: 50,
+      owner: 2,
     });
+    expect(arena.situation).toBeUndefined();
   });
 
   test("event lookup uses stable player ids even when display names differ", () => {
@@ -175,7 +177,7 @@ describe("arena event projection", () => {
     expect(arena.ball.flightTarget?.owner).toBe(1);
   });
 
-  test("a distant receiver runs to the stationary ball before gaining possession", () => {
+  test("a possession handoff uses ball movement without a loose-ball state", () => {
     const arena = state();
     const nextPass = event({
       actorId: 2,
@@ -187,11 +189,13 @@ describe("arena event projection", () => {
     expect(arena.ball.owner).toBe(-1);
     expect(arena.ball.x).toBe(30);
     expect(arena.ball.y).toBe(50);
-    expect(arena.scriptedRun).toMatchObject({
-      actor: 1,
-      x: 30,
+    expect(arena.scriptedRun).toBeUndefined();
+    expect(arena.ball.flightTarget).toMatchObject({
+      fromX: 30,
+      fromY: 50,
+      x: 55,
       y: 50,
-      claimBall: true,
+      owner: 1,
     });
   });
 
@@ -233,7 +237,7 @@ describe("arena event projection", () => {
     expect(arena.ball.owner).toBe(0);
   });
 
-  test("a throw-in restarts from the touchline reached by the ball", () => {
+  test("legacy throw-in events continue play without a restart situation", () => {
     const arena = state();
     const nearbyOutfielder = dot(4, 1, 61);
     nearbyOutfielder.y = 91;
@@ -260,19 +264,13 @@ describe("arena event projection", () => {
       }),
       vi.fn(),
     );
-    expect(arena.situation).toMatchObject({
-      type: "throwIn",
-      side: 1,
-      actor: 3,
-      x: 64,
-      y: 97,
-      remaining: 0.65,
-    });
+    expect(arena.situation).toBeUndefined();
     expect(arena.ball.flightTarget).toMatchObject({
       fromX: 64,
       fromY: 102,
-      x: 64,
-      y: 97,
+      x: 61,
+      y: 91,
+      owner: 3,
     });
   });
 });

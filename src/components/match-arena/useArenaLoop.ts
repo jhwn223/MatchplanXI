@@ -6,10 +6,7 @@ import {
   prepareEventActor,
   projectMatchEvent,
 } from "./arenaEventProjector";
-import {
-  claimLooseBallIfReached,
-  updateArenaMovement,
-} from "./arenaMovement";
+import { updateArenaMovement } from "./arenaMovement";
 import { drawArenaFrame } from "./arenaRenderer";
 import { displayArenaName } from "./names";
 import { buildPenaltySequence } from "./penaltyKicks";
@@ -266,10 +263,9 @@ export function useArenaLoop({
         if (s.situation.remaining <= 0) {
           const restart = s.situation;
           const actor = s.dots[restart.actor];
-          const readyDistance = restart.type === "throwIn" ? 5 : 3;
           const actorReady =
             !actor ||
-            Math.hypot(actor.x - restart.x, actor.y - restart.y) <= readyDistance;
+            Math.hypot(actor.x - restart.x, actor.y - restart.y) <= 3;
           if (
             restart.type === "foul" ||
             actorReady
@@ -554,7 +550,6 @@ export function useArenaLoop({
         opponentIntensityRef.current,
       ] as const;
       updateArenaMovement(s, intensities, dt);
-      claimLooseBallIfReached(s);
     }
 
 
@@ -582,19 +577,10 @@ export function useArenaLoop({
         const situationLabels = {
           foul: "파울 · 경기 중단",
           corner: "코너킥 준비",
-          throwIn: "스로인 준비",
           freeKick: "프리킥 준비",
           penaltyKick: "페널티킥 준비",
           offside: "오프사이드 · 간접 프리킥",
         } as const;
-        const looseBall =
-          s.ball.owner < 0 &&
-          s.ball.flightTarget == null &&
-          s.ball.flightTo < 0 &&
-          !s.scoring &&
-          !s.situation &&
-          !s.scriptedRun &&
-          s.phase === "play";
         setHud({
           minute: Math.floor(s.clock),
           home: s.score[0],
@@ -604,9 +590,7 @@ export function useArenaLoop({
           eventCount: Math.max(0, s.nextEvent - (s.scoring ? 1 : 0)),
           situation: s.situation
             ? situationLabels[s.situation.type]
-            : looseBall
-              ? "루즈볼 경합"
-              : null,
+            : null,
         });
       }
       raf = requestAnimationFrame(step);

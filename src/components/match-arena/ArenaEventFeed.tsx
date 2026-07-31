@@ -45,7 +45,8 @@ export function ArenaEventFeed({
       (event) =>
         event.type !== "pass" &&
         event.type !== "shot" &&
-        event.type !== "recovery",
+        event.type !== "recovery" &&
+        event.type !== "throwIn",
     )
     .slice(-7)
     .reverse();
