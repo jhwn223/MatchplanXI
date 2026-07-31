@@ -3,10 +3,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { slotsOf } from "../data/formation";
 import {
   combinePeriods,
-  simulatePeriod,
+  simulatePeriodWithWorld,
   snapshotAtMinute,
   type HalfResult,
   type LiveMatchSnapshot,
+  type MatchWorld,
   type PlacedPlayerLite,
 } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
@@ -79,6 +80,7 @@ export function MatchArena({
   const tacticsRef = useRef<TeamTactics>(initialTactics);
   const opponentTacticsRef = useRef<TeamTactics>(initialOpponentTactics);
   const periodRef = useRef<HalfResult | null>(null);
+  const matchWorldRef = useRef<MatchWorld | null>(null);
   const simulatedThroughRef = useRef(startMinute);
   const periodEndedRef = useRef(false);
   const simRef = useRef<ArenaSim>({
@@ -237,8 +239,15 @@ export function MatchArena({
         userTactics: simProfileFromTeamTactics(tacticsRef.current),
         oppTactics: simProfileFromTeamTactics(opponentTacticsRef.current),
       };
-      const next = simulatePeriod(minuteInput, minute, minute, minute * 999_983);
-      accumulated = combinePeriods(accumulated, next);
+      const step = simulatePeriodWithWorld(
+        minuteInput,
+        minute,
+        minute,
+        minute * 999_983,
+        matchWorldRef.current ?? undefined,
+      );
+      matchWorldRef.current = step.world;
+      accumulated = combinePeriods(accumulated, step.result);
     }
     if (!accumulated) return;
     periodRef.current = accumulated;

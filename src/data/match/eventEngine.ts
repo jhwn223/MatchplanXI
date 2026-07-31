@@ -6,7 +6,7 @@ import { tacticalWorkRate, tacticsForSide } from "./tactics";
 import {
   tacticalHome,
 } from "./spatial";
-import { createMatchWorld } from "./world/createWorld";
+import { continueMatchWorld, createMatchWorld } from "./world/createWorld";
 import {
   coordinateFromWorld,
   samplesFromWorld,
@@ -33,6 +33,12 @@ import type {
   SimInput,
   SimTacticProfile,
 } from "./types";
+import type { MatchWorld } from "./world/types";
+
+export interface PeriodSimulation {
+  result: HalfResult;
+  world: MatchWorld;
+}
 
 function averagePace(players: PlacedPlayerLite[], position: PlacedPlayerLite["position"]) {
   const selected = players.filter((player) => player.position === position);
@@ -104,7 +110,13 @@ function actionDetail(type: MatchEventType, actor: string, target?: string): str
   return `${actor} 득점`;
 }
 
-export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffset: number): HalfResult {
+export function simulatePeriodWithWorld(
+  input: SimInput,
+  lo: number,
+  hi: number,
+  seedOffset: number,
+  previousWorld?: MatchWorld,
+): PeriodSimulation {
   const rng = mulberry32((input.seed + seedOffset) >>> 0);
   const goals: GoalEvent[] = [];
   const events: MatchEvent[] = [];
@@ -127,7 +139,9 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   const userTactics = tacticsForSide(input, "user");
   const oppTactics = tacticsForSide(input, "opp");
   const tacticsBySide = { user: userTactics, opp: oppTactics };
-  let world = createMatchWorld(input, lo, tacticsBySide);
+  let world = previousWorld
+    ? continueMatchWorld(previousWorld, input, lo, tacticsBySide)
+    : createMatchWorld(input, lo, tacticsBySide);
   const eloEdge = (input.userElo - input.oppElo) / 600;
   const creativityEdge = (input.userAbility.creativity - input.oppAbility.creativity) / 120;
   const tacticalPossessionEdge =
@@ -360,11 +374,16 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     const minute = Math.min(hi, lo + Math.floor(((possession + rng()) / possessionCount) * duration));
     if (world.minute !== minute) {
       samplesByMinute.set(world.minute, samplesFromWorld(world, world.minute));
-      world = createMatchWorld(input, minute, tacticsBySide);
+      world.minute = minute;
     }
     activePossessionId = `${minute}:${possession}`;
     possessionBallPoint = null;
-    const side: MatchSide = rng() < userPossessionChance ? "user" : "opp";
+    const ownerSide = world.ball.ownerSide;
+    const side: MatchSide = ownerSide ?? (
+      world.lastPossessionSide != null
+        ? otherSide(world.lastPossessionSide)
+        : rng() < userPossessionChance ? "user" : "opp"
+    );
     const defendingSide = otherSide(side);
     const attackers = outfield(sidePlayers(input, side));
     const possessionPlayers = sidePlayers(input, side);
@@ -393,34 +412,56 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     // pass picked a fresh random passer, so A→B could be followed by C→D
     // without B ever touching the ball. Keeping the receiver as the next
     // carrier makes the statistical event log a real, replayable sequence.
-    let possessionCarrier = weightedPick(
+    const existingCarrier =
+      world.ball.ownerSide === side && world.ball.ownerId != null
+        ? possessionPlayers.find((player) => player.playerId === world.ball.ownerId)
+        : undefined;
+    const isFreshWorld = world.lastPossessionSide == null;
+    let possessionCarrier = existingCarrier ?? weightedPick(
       possessionPlayers,
-      (player) =>
-        (player.position === "GK" ? 0.8 : player.position === "DEF" ? 2.8 : player.position === "MID" ? 2.4 : 1.1) *
-        (0.55 + player.ballControl / 110),
+      (player) => {
+        const state = world.players[side].get(player.playerId);
+        const ballDistance = state
+          ? Math.hypot(state.x - world.ball.x, state.y - world.ball.y)
+          : 50;
+        const roleWeight = isFreshWorld
+          ? player.position === "GK" ? 0.8 : player.position === "DEF" ? 2.8 : player.position === "MID" ? 2.4 : 1.1
+          : 1 / Math.max(2, ballDistance);
+        return roleWeight * (0.55 + player.ballControl / 110);
+      },
       rng,
     );
+    const possessionChanged = world.lastPossessionSide !== side;
     beginPossession(world, side, possessionCarrier);
-    // A newly sampled minute starts from the lineup coordinates. Give both
-    // blocks enough simulated time to settle around the ball before the first
-    // pass; otherwise forwards are repeatedly judged offside while still
-    // travelling back from their static formation slot.
-    advanceWorld(world, input, tacticsBySide, 5);
-    addEvent(
-      minute,
-      side,
-      "recovery",
-      possessionCarrier,
-      undefined,
-      true,
+    // The first possession needs time to settle from kickoff coordinates.
+    // Subsequent chunks continue from their exact prior positions instead of
+    // replaying that five-second setup every simulated minute.
+    advanceWorld(
+      world,
+      input,
+      tacticsBySide,
+      isFreshWorld ? 5 : existingCarrier ? 0.75 : 1.5,
     );
+    if (!existingCarrier || possessionChanged) {
+      addEvent(
+        minute,
+        side,
+        "recovery",
+        possessionCarrier,
+        undefined,
+        true,
+      );
+    }
     let possessionLost = false;
     for (let pass = 0; pass < routinePassCount; pass++) {
       const passer = possessionCarrier;
       const receiver = weightedPick(
         possessionPlayers.filter((player) => player.playerId !== passer.playerId),
         (player) => {
-          return passOptionScore(world, side, passer, player, directness);
+          // Keep illegal receivers selectable so natural offside mistakes are
+          // still possible, but strongly prefer a legal passing lane.
+          const offsideFit = isPlayerOffside(world, side, player) ? 0.06 : 1;
+          return passOptionScore(world, side, passer, player, directness) * offsideFit;
         },
         rng
       );
@@ -471,8 +512,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           directness * 0.018 +
           matchupEdge * 0.35 -
           laneRisk * 0.045 -
-          defendingTactics.pressBias * 0.04 -
-          defendingTactics.defensiveLineBias * 0.015,
+          defendingTactics.pressBias * 0.055 -
+          defendingTactics.defensiveLineBias * 0.02,
         0.88,
         0.98
       );
@@ -525,11 +566,11 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       } else if (
         rng() <
         clamp(
-          0.35 +
-            defendingTactics.pressBias * 0.11 +
-            defendingTactics.defensiveLineBias * 0.045,
-          0.18,
-          0.58,
+          0.38 +
+            defendingTactics.pressBias * 0.26 +
+            defendingTactics.defensiveLineBias * 0.08,
+          0.08,
+          0.78,
         )
       ) {
         running[defendingSide].interceptions++;
@@ -685,10 +726,12 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
             );
             const forwardFit = clamp(1 + forwardDistance * directness / 55, 0.45, 1.8);
             const distanceFit = 1 / (1 + Math.max(0, distance - (22 + directness * 8)) / 22);
+            const offsideFit = isPlayerOffside(world, side, player) ? 0.06 : 1;
             return forwardWeight *
               (0.45 + (player.positioning + player.pace + player.reactions) / 300) *
               forwardFit *
-              distanceFit;
+              distanceFit *
+              offsideFit;
           },
           rng
         );
@@ -708,7 +751,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           [defender.pace, 0.12],
         ], "decision", defendingTactics) * defendingWorkRate * (
           1 +
-          defendingTactics.pressBias * 0.05 +
+          defendingTactics.pressBias * 0.08 +
           defendingTactics.defensiveLineBias * 0.03 +
           defendingTactics.tacklingBias * 0.018
         );
@@ -931,26 +974,42 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   }
 
   samplesByMinute.set(world.minute, samplesFromWorld(world, world.minute));
+  let lastSamples = samplesFromWorld(world, lo);
   for (let minute = lo; minute <= hi; minute++) {
-    const samples = samplesByMinute.get(minute) ??
-      samplesFromWorld(createMatchWorld(input, minute, tacticsBySide), minute);
+    const samples = samplesByMinute.get(minute) ?? lastSamples.map((sample) => ({
+      ...sample,
+      minute,
+    }));
     positionSamples.push(...samples);
+    lastSamples = samples;
   }
   goals.sort((a, b) => a.minute - b.minute);
   events.sort((a, b) => a.minute - b.minute);
   snapshots.set(hi, createLiveSnapshot(input, hi, running, playerStats, goals, periodStartMinute));
   return {
-    goals,
-    events,
-    positionSamples,
-    userGoals: goals.filter((goal) => goal.side === "user").length,
-    oppGoals: goals.filter((goal) => goal.side === "opp").length,
-    userXg: running.user.xg,
-    oppXg: running.opp.xg,
-    teamStats: finalizeTeamStatsPair(running),
-    playerStats: finalizePlayerStats(input, playerStats, hi, periodStartMinute),
-    liveSnapshots: [...snapshots.values()].sort((a, b) => a.minute - b.minute),
+    result: {
+      goals,
+      events,
+      positionSamples,
+      userGoals: goals.filter((goal) => goal.side === "user").length,
+      oppGoals: goals.filter((goal) => goal.side === "opp").length,
+      userXg: running.user.xg,
+      oppXg: running.opp.xg,
+      teamStats: finalizeTeamStatsPair(running),
+      playerStats: finalizePlayerStats(input, playerStats, hi, periodStartMinute),
+      liveSnapshots: [...snapshots.values()].sort((a, b) => a.minute - b.minute),
+    },
+    world,
   };
+}
+
+export function simulatePeriod(
+  input: SimInput,
+  lo: number,
+  hi: number,
+  seedOffset: number,
+): HalfResult {
+  return simulatePeriodWithWorld(input, lo, hi, seedOffset).result;
 }
 
 export function simulateHalf(input: SimInput, half: 1 | 2): HalfResult {

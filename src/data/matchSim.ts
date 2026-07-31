@@ -15,7 +15,11 @@ export type {
   QuickSimOptions,
   QuickSimTeamInput,
 } from "./match/quickSim";
-export { simulateHalf, simulatePeriod } from "./match/eventEngine";
+export {
+  simulateHalf,
+  simulatePeriod,
+  simulatePeriodWithWorld,
+} from "./match/eventEngine";
 export { applyExtraTime, combineExtraTime, combineHalves, combinePeriods } from "./match/result";
 export { selectPlayerOfMatch, snapshotAtMinute } from "./match/liveStats";
 export {
@@ -33,7 +37,7 @@ export type {
   ActionKind,
   FatigueBreakdown,
 } from "./match/playerRuntime";
-export { createMatchWorld } from "./match/world/createWorld";
+export { continueMatchWorld, createMatchWorld } from "./match/world/createWorld";
 export {
   coordinateFromWorld,
   samplesFromWorld,
