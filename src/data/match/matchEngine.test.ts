@@ -3,6 +3,7 @@ import { simulatePeriod, simulatePeriodWithWorld } from "./eventEngine";
 import { samplePlayerPositions } from "./spatial";
 import { BALANCED_SIM_TACTICS } from "./tactics";
 import type { PlacedPlayerLite, SimInput, SimTacticProfile } from "./types";
+import type { MatchWorld } from "./world/types";
 
 const profile = {
   overall: 74,
@@ -145,6 +146,35 @@ describe("match engine invariants", () => {
     }
   });
 
+  test("live minute chunks timestamp every event inside their own minute", () => {
+    // The arena replays by timestamp and holds its clock at the period end
+    // while events are pending. An event stamped outside its chunk — or after
+    // the final whistle — can never be reached, which froze the match just
+    // short of half time.
+    for (let seed = 0; seed < 6; seed++) {
+      let world: MatchWorld | undefined;
+      let previousTimestamp = 0;
+      for (let minute = 1; minute <= 45; minute++) {
+        const step = simulatePeriodWithWorld(
+          input(seed + 1),
+          minute,
+          minute,
+          minute * 999_983,
+          world,
+        );
+        world = step.world;
+        for (const event of step.result.events) {
+          const timestamp = event.timestamp ?? event.minute - 1;
+          expect(timestamp).toBeGreaterThanOrEqual(minute - 1);
+          expect(timestamp).toBeLessThan(minute);
+          expect(timestamp).toBeGreaterThanOrEqual(previousTimestamp);
+          previousTimestamp = timestamp;
+          expect(event.minute).toBe(minute);
+        }
+      }
+    }
+  });
+
   test("a continued world removes dismissed players without resetting everyone else", () => {
     const first = simulatePeriodWithWorld(input(44), 1, 1, 999_983);
     const removedId = first.world.players.user.keys().next().value as number;
@@ -200,7 +230,7 @@ describe("match engine invariants", () => {
         .reduce((sum, playerStat) => sum + playerStat.shots, 0);
       expect(goalkeeperShots).toBe(0);
     }
-  }, 20_000);
+  });
 
   test("successful passes preserve the carrier inside each possession", () => {
     const result = simulatePeriod(input(77), 1, 90, 0);
@@ -270,7 +300,7 @@ describe("match engine invariants", () => {
       const squad = shot.side === "user" ? input(0).placed : input(0).oppPlaced;
       expect(squad.find((player) => player.playerId === shot.actorId)?.position).not.toBe("GK");
     }
-  }, 20_000);
+  });
 
   test("dead-ball restarts exclude throw-ins from the continuous match flow", () => {
     const results = Array.from({ length: 45 }, (_, seed) =>
@@ -287,7 +317,7 @@ describe("match engine invariants", () => {
       expect(event.endY ?? 50).toBeGreaterThanOrEqual(3);
       expect(event.endY ?? 50).toBeLessThanOrEqual(97);
     }
-  }, 20_000);
+  });
 
   test("high pressing changes recoveries and carries a fatigue/foul trade-off", () => {
     const high = Array.from({ length: 50 }, (_, seed) =>
@@ -326,5 +356,7 @@ describe("match engine invariants", () => {
     expect(recoveries(high)).toBeGreaterThan(recoveries(low));
     expect(high.reduce((sum, result) => sum + result.teamStats.user.fouls, 0))
       .toBeGreaterThanOrEqual(low.reduce((sum, result) => sum + result.teamStats.user.fouls, 0));
-  }, 30_000);
+    // A hundred full matches, and the engine now steps the world through every
+    // second of match time rather than a few seconds per possession.
+  });
 });

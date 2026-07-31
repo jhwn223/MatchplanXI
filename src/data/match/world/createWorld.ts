@@ -70,7 +70,9 @@ export function createMatchWorld(
   );
   return {
     minute,
-    elapsedSeconds: 0,
+    // The world clock is the match clock: seconds since kickoff. A world
+    // created for minute `m` starts at the beginning of that minute.
+    elapsedSeconds: Math.max(0, minute - 1) * 60,
     players: { user, opp },
     ball: {
       x: 50,

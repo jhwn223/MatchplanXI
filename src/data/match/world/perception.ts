@@ -2,6 +2,16 @@ import { clamp } from "../random";
 import type { MatchSide, PlacedPlayerLite } from "../types";
 import type { MatchWorld, WorldPlayerState } from "./types";
 
+/**
+ * Pitch coordinates stay far inside the range where Math.hypot's overflow
+ * guarding earns its cost, and these run on every simulation tick.
+ */
+function pointDistance(ax: number, ay: number, bx: number, by: number) {
+  const dx = ax - bx;
+  const dy = ay - by;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 export function worldPlayer(
   world: MatchWorld,
   side: MatchSide,
@@ -20,7 +30,7 @@ export function worldDistance(
   const first = worldPlayer(world, aSide, a);
   const second = worldPlayer(world, bSide, b);
   if (!first || !second) return 100;
-  return Math.hypot(first.x - second.x, first.y - second.y);
+  return pointDistance(first.x, first.y, second.x, second.y);
 }
 
 export function nearestOpponentDistance(
@@ -34,24 +44,35 @@ export function nearestOpponentDistance(
   let nearest = 100;
   for (const opponent of world.players[opponentSide].values()) {
     if (opponent.player.position === "GK") continue;
-    nearest = Math.min(nearest, Math.hypot(state.x - opponent.x, state.y - opponent.y));
+    nearest = Math.min(nearest, pointDistance(state.x, state.y, opponent.x, opponent.y));
   }
   return nearest;
 }
 
-/** The furthest legal receiving line: the ball or the second-last opponent. */
+/**
+ * The furthest legal receiving line: the ball or the second-last opponent.
+ * Runs on every simulation tick, so it scans for the two extreme defenders
+ * rather than sorting the whole defence.
+ */
 export function offsideLineFor(world: MatchWorld, attackingSide: MatchSide) {
   const defendingSide = attackingSide === "user" ? "opp" : "user";
-  const defenderX = [...world.players[defendingSide].values()]
-    .map((state) => state.x)
-    .sort((a, b) => a - b);
-  if (defenderX.length < 2) return attackingSide === "user" ? 96 : 4;
-  if (attackingSide === "user") {
-    const secondLastOpponent = defenderX[defenderX.length - 2];
-    return Math.max(world.ball.x, secondLastOpponent);
+  const attackingRight = attackingSide === "user";
+  let count = 0;
+  let deepest = attackingRight ? -Infinity : Infinity;
+  let secondDeepest = deepest;
+  for (const state of world.players[defendingSide].values()) {
+    count++;
+    if (attackingRight ? state.x > deepest : state.x < deepest) {
+      secondDeepest = deepest;
+      deepest = state.x;
+    } else if (attackingRight ? state.x > secondDeepest : state.x < secondDeepest) {
+      secondDeepest = state.x;
+    }
   }
-  const secondLastOpponent = defenderX[1];
-  return Math.min(world.ball.x, secondLastOpponent);
+  if (count < 2) return attackingRight ? 96 : 4;
+  return attackingRight
+    ? Math.max(world.ball.x, secondDeepest)
+    : Math.min(world.ball.x, secondDeepest);
 }
 
 export function isPlayerOffside(
@@ -94,7 +115,7 @@ export function worldPassLanePressure(
     if (projection <= 0.06 || projection >= 0.97) return pressure;
     const laneX = start.x + dx * projection;
     const laneY = start.y + dy * projection;
-    const distance = Math.hypot(point.x - laneX, point.y - laneY);
+    const distance = pointDistance(point.x, point.y, laneX, laneY);
     const reach =
       3.4 +
       defender.interceptions / 48 +
@@ -116,7 +137,7 @@ export function passOptionScore(
   if (!start || !end) return 0.01;
   const direction = side === "user" ? 1 : -1;
   const forwardDistance = (end.x - start.x) * direction;
-  const distance = Math.hypot(end.x - start.x, end.y - start.y);
+  const distance = pointDistance(end.x, end.y, start.x, start.y);
   const idealDistance = directness > 0.35 ? 30 : directness < -0.35 ? 14 : 21;
   const distanceFit = 1 / (1 + Math.abs(distance - idealDistance) / 13);
   const space = clamp(nearestOpponentDistance(world, side, receiver) / 12, 0.25, 1.4);

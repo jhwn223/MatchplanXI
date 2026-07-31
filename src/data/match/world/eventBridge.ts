@@ -61,11 +61,11 @@ export function coordinateFromWorld(
       x: side === "user" ? 99 : 1,
       y: clamp(50 + (actor.finishing - 70) * 0.04, 42, 58),
     };
-  } else if (type === "corner") {
-    end = { x: side === "user" ? 98 : 2, y: start.y < 50 ? 3 : 97 };
-  } else if (type === "penaltyKick") {
-    end = { x: side === "user" ? 99 : 1, y: 50 };
   }
+  // A restart (corner, free kick, penalty) records the spot the ball is
+  // placed on, which the caller has already moved it to. The delivery itself
+  // is the shot or pass event that follows, so start and end coincide here
+  // and the recorded ball path stays continuous.
 
   const coordinate = {
     x: clamp(start.x, 1, 99),

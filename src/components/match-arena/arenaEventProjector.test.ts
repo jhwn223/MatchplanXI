@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { MatchEvent } from "../../data/matchSim";
 import {
   eventPlaybackClock,
+  heldPlaybackClock,
   prepareEventActor,
   projectMatchEvent,
 } from "./arenaEventProjector";
@@ -116,6 +117,21 @@ describe("arena event projection", () => {
       y: 50,
       owner: 3,
     });
+  });
+
+  test("the held clock can still reach an event timestamped just before the whistle", () => {
+    // The engine timestamps a period's last events up to `endMinute - 0.001`.
+    // Holding the clock at `endMinute - 0.01` while events were pending meant
+    // such an event could never be consumed and the match froze on 44'.
+    const lastEvent = 45 - 0.001;
+    const held = heldPlaybackClock(45, 45, lastEvent, true);
+    expect(held).toBeGreaterThanOrEqual(lastEvent);
+    expect(held).toBeLessThan(45);
+  });
+
+  test("the held clock still stops short of the whistle while the ball is busy", () => {
+    expect(heldPlaybackClock(45, 45, Number.POSITIVE_INFINITY, true)).toBe(44.99);
+    expect(heldPlaybackClock(45, 45, Number.POSITIVE_INFINITY, false)).toBe(45);
   });
 
   test("events in the same minute are spread over the visual minute", () => {

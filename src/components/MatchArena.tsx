@@ -650,7 +650,10 @@ export function MatchArena({
             <button type="button" className="arena-ctrl" disabled={activePanel != null} onClick={() => { pausedRef.current = !paused; setPaused(!paused); }}>
               {activePanel ? "분석 중 · 일시정지" : paused ? "▶ 재생" : "⏸ 일시정지"}
             </button>
-            {[1, 2, 4].map((sp) => (
+            {/* 16x is a skip tier, not a viewing speed: the shortest pass
+                flight is under one frame there, and it only reaches a true
+                16x above ~46fps before the simulation accumulator clamps. */}
+            {[1, 2, 4, 16].map((sp) => (
               <button
                 key={sp}
                 type="button"
