@@ -52,87 +52,6 @@ function nearestOpponent(state: ArenaState, index: number) {
   return best;
 }
 
-function nearestLooseBallPlayer(
-  state: ArenaState,
-  team: Team,
-  x: number,
-  y: number,
-) {
-  let best = -1;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  state.dots.forEach((dot, index) => {
-    if (dot.team !== team) return;
-    const distance = distanceSquared(dot.x, dot.y, x, y);
-    if (distance < bestDistance) {
-      best = index;
-      bestDistance = distance;
-    }
-  });
-  return {
-    index: best,
-    distance: best >= 0 ? Math.sqrt(bestDistance) : Number.POSITIVE_INFINITY,
-  };
-}
-
-function isLooseBall(state: ArenaState) {
-  return (
-    state.ball.owner < 0 &&
-    state.ball.flightTarget == null &&
-    state.ball.flightTo < 0 &&
-    !state.scoring &&
-    !state.situation &&
-    !state.scriptedRun &&
-    state.ball.x >= 2 &&
-    state.ball.x <= 98 &&
-    state.ball.y >= 3 &&
-    state.ball.y <= 97
-  );
-}
-
-export function claimLooseBallIfReached(state: ArenaState) {
-  if (!isLooseBall(state)) return -1;
-  let nearest = -1;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  state.dots.forEach((dot, index) => {
-    const distance = Math.hypot(dot.x - state.ball.x, dot.y - state.ball.y);
-    if (distance < nearestDistance) {
-      nearest = index;
-      nearestDistance = distance;
-    }
-  });
-  if (nearest < 0 || nearestDistance > 1.9) return -1;
-  const winner = state.dots[nearest];
-  state.ball.owner = nearest;
-  state.ball.x = winner.x;
-  state.ball.y = winner.y;
-  state.ball.lastTeam = winner.team;
-  state.ball.scripted = false;
-  winner.action = "receive";
-  winner.actionT = Math.max(winner.actionT, 0.35);
-  return nearest;
-}
-
-function rankedOutfieldByHomeDistance(
-  state: ArenaState,
-  team: Team,
-  x: number,
-  y: number,
-  excluded = -1,
-) {
-  return state.dots
-    .map((dot, index) => ({
-      dot,
-      index,
-      distance: distanceSquared(dot.hx, dot.hy, x, y),
-    }))
-    .filter(
-      ({ dot, index }) =>
-        dot.team === team && dot.role !== "GK" && index !== excluded,
-    )
-    .sort((a, b) => a.distance - b.distance)
-    .map(({ index }) => index);
-}
-
 function offsideLimit(state: ArenaState, attackingTeam: Team) {
   const defenders = state.dots
     .filter((dot) => dot.team !== attackingTeam && dot.role !== "GK")
@@ -222,7 +141,7 @@ function setPieceTarget(
     return {
       x: situation.x,
       y: situation.y,
-      speed: situation.type === "throwIn" ? 18 : 11,
+      speed: 11,
       action: "receive",
     };
   }
@@ -251,66 +170,6 @@ function setPieceTarget(
       y: clamp(50 + lane * (attacking ? 8 : 6), 18, 82),
       speed: 9,
       action: attacking ? "receive" : "press",
-    };
-  }
-
-  if (situation.type === "throwIn") {
-    if (dot.role === "GK") {
-      return { x: ownGoalX(dot.team), y: 50, speed: 4, action: "move" };
-    }
-
-    const insideDirection = situation.y > 50 ? -1 : 1;
-    const supportPlayers = rankedOutfieldByHomeDistance(
-      state,
-      situation.side,
-      situation.x,
-      situation.y,
-      situation.actor,
-    ).slice(0, 3);
-    const markingPlayers = rankedOutfieldByHomeDistance(
-      state,
-      situation.side === 0 ? 1 : 0,
-      situation.x,
-      situation.y,
-    ).slice(0, 3);
-    const participantRank = attacking
-      ? supportPlayers.indexOf(index)
-      : markingPlayers.indexOf(index);
-
-    if (participantRank >= 0) {
-      const forwardOffsets = [5, -4, 11];
-      const insideOffsets = [6, 11, 17];
-      const supportX =
-        situation.x +
-        direction(situation.side) * forwardOffsets[participantRank];
-      const supportY =
-        situation.y + insideDirection * insideOffsets[participantRank];
-      return {
-        x: clamp(
-          supportX +
-            (attacking ? 0 : direction(situation.side) * 1.8),
-          3,
-          97,
-        ),
-        y: clamp(
-          supportY + (attacking ? 0 : insideDirection * 1.8),
-          5,
-          95,
-        ),
-        speed: attacking ? 8 : 7.5,
-        action: attacking ? "receive" : "press",
-      };
-    }
-
-    // Players not directly involved in the restart keep the team's formation
-    // and only make a small ball-side adjustment instead of swarming the line.
-    const formationShiftX = clamp((situation.x - 50) * 0.1, -4, 4);
-    const formationShiftY = clamp((situation.y - 50) * 0.08, -3.5, 3.5);
-    return {
-      x: clamp(dot.hx + formationShiftX, 3, 97),
-      y: clamp(dot.hy + formationShiftY, 5, 95),
-      speed: 4.5,
-      action: "move",
     };
   }
 
@@ -358,21 +217,6 @@ export function updateArenaMovement(
   const defendingTeam: Team = ballTeam === 0 ? 1 : 0;
   const defendingIntensity = intensities[defendingTeam];
   const pressers = new Set<number>();
-  const looseBall = isLooseBall(state);
-  const looseChasers = new Set<number>();
-  if (looseBall) {
-    const team0 = nearestLooseBallPlayer(state, 0, state.ball.x, state.ball.y);
-    const team1 = nearestLooseBallPlayer(state, 1, state.ball.x, state.ball.y);
-    const [closest, challenger] =
-      team0.distance <= team1.distance ? [team0, team1] : [team1, team0];
-    if (closest.index >= 0) looseChasers.add(closest.index);
-    if (
-      challenger.index >= 0 &&
-      challenger.distance <= Math.max(12, closest.distance + 6)
-    ) {
-      looseChasers.add(challenger.index);
-    }
-  }
   if (state.ball.owner >= 0) {
     const firstPresser = nearestIndex(
       state,
@@ -421,13 +265,6 @@ export function updateArenaMovement(
       };
     } else if (deadBallTarget) {
       target = deadBallTarget;
-    } else if (looseChasers.has(index)) {
-      target = {
-        x: state.ball.x,
-        y: state.ball.y,
-        speed: 15 * tempoScale,
-        action: "press",
-      };
     } else if (state.scoring && index === state.scoring.shooter) {
       target = {
         x: clamp(dot.x + dir * 5, 3, 97),

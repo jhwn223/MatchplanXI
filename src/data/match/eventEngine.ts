@@ -563,24 +563,6 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         break;
       } else {
         addEvent(minute, side, "pass", passer, receiver, false);
-        const outOfPlayPass = events.at(-1);
-        if (outOfPlayPass) {
-          const exitY = (outOfPlayPass.endY ?? outOfPlayPass.y ?? 50) <= 50 ? -2 : 102;
-          outOfPlayPass.endY = exitY;
-          possessionBallPoint = {
-            x: clamp(outOfPlayPass.endX ?? outOfPlayPass.x ?? 50, 2, 98),
-            y: exitY,
-          };
-        }
-        activePossessionId = `${minute}:restart:${events.length}`;
-        addEvent(
-          minute,
-          defendingSide,
-          "throwIn",
-          pressingDefender,
-          undefined,
-          true,
-        );
         possessionLost = true;
         break;
       }

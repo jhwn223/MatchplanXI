@@ -59,20 +59,34 @@ function startBallFlight(
   state.ball.scripted = true;
 }
 
-function claimLooseBall(state: ArenaState, owner: number) {
+function nearestTeamDot(
+  state: ArenaState,
+  side: 0 | 1,
+  x: number,
+  y: number,
+) {
+  let nearest = -1;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  state.dots.forEach((dot, index) => {
+    if (dot.team !== side) return;
+    const distance = Math.hypot(dot.x - x, dot.y - y);
+    if (distance < nearestDistance) {
+      nearest = index;
+      nearestDistance = distance;
+    }
+  });
+  return nearest;
+}
+
+function moveBallToOwner(state: ArenaState, owner: number, speed = 72) {
   if (owner < 0) return;
-  state.ball.owner = -1;
-  state.ball.flightTo = -1;
-  state.ball.flightTarget = null;
-  state.ball.scripted = false;
-  state.scriptedRun = {
-    actor: owner,
-    x: state.ball.x,
-    y: state.ball.y,
-    action: "receive",
-    claimBall: true,
-    elapsed: 0,
-  };
+  const target = state.dots[owner];
+  setAction(state, owner, "receive", 0.45);
+  if (Math.hypot(target.x - state.ball.x, target.y - state.ball.y) <= 2.2) {
+    giveBallTo(state, owner);
+    return;
+  }
+  startBallFlight(state, target.x, target.y, owner, speed);
 }
 
 export function findEventDot(
@@ -142,8 +156,10 @@ export function prepareEventActor(state: ArenaState, event: MatchEvent) {
   const actor = findEventDot(state, side, event.actor, event.actorId);
   if (actor < 0) return true;
   if (state.ball.owner !== actor) {
-    setAction(state, actor, "receive", 0.7);
-    claimLooseBall(state, actor);
+    if (state.ball.owner >= 0) {
+      setAction(state, state.ball.owner, "pass", 0.3);
+    }
+    moveBallToOwner(state, actor);
     return false;
   }
   if (event.type === "dribble" || event.type === "shot") {
@@ -170,26 +186,13 @@ function startSituation(
   actor: number,
   point: { x: number; y: number },
 ) {
-  let restartActor = actor;
-  if (type === "throwIn") {
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    state.dots.forEach((dot, index) => {
-      if (dot.team !== side || dot.role === "GK") return;
-      const distance = Math.hypot(dot.x - point.x, dot.y - point.y);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        restartActor = index;
-      }
-    });
-  }
+  const restartActor = actor;
   const duration =
     type === "penaltyKick"
       ? 2
       : type === "corner" || type === "freeKick"
         ? 1.8
-        : type === "throwIn"
-          ? 0.65
-          : 0.5;
+        : 0.5;
   state.situation = {
     type,
     side,
@@ -287,7 +290,24 @@ export function projectMatchEvent(
       const failedY = exitedTouchline
         ? recordedEnd.y
         : clamp(state.ball.y + recordedEnd.y - recordedStart.y, 3, 97);
-      startBallFlight(state, failedX, failedY, null, passSpeed);
+      const recoveringPlayer = nearestTeamDot(
+        state,
+        defendingSide,
+        failedX,
+        failedY,
+      );
+      if (recoveringPlayer >= 0) {
+        const recoveryTarget = state.dots[recoveringPlayer];
+        startBallFlight(
+          state,
+          recoveryTarget.x,
+          recoveryTarget.y,
+          recoveringPlayer,
+          passSpeed,
+        );
+      } else {
+        startBallFlight(state, failedX, failedY, null, passSpeed);
+      }
     }
     return;
   }
@@ -304,13 +324,19 @@ export function projectMatchEvent(
       event.type === "tackle") &&
     actor >= 0
   ) {
+    const visualActor =
+      state.ball.owner >= 0 && state.dots[state.ball.owner].team === side
+        ? state.ball.owner
+        : nearestTeamDot(state, side, state.ball.x, state.ball.y);
     setAction(
       state,
-      actor,
+      visualActor >= 0 ? visualActor : actor,
       event.type === "recovery" ? "receive" : "tackle",
       0.55,
     );
-    if (state.ball.owner !== actor) claimLooseBall(state, actor);
+    if (state.ball.owner < 0 || state.dots[state.ball.owner].team !== side) {
+      moveBallToOwner(state, visualActor >= 0 ? visualActor : actor);
+    }
     return;
   }
 
@@ -331,7 +357,7 @@ export function projectMatchEvent(
 
   if ((event.type === "save" || event.type === "block") && actor >= 0) {
     setAction(state, actor, event.type === "save" ? "save" : "tackle", 0.7);
-    claimLooseBall(state, actor);
+    moveBallToOwner(state, actor, 78);
     return;
   }
 
@@ -345,10 +371,20 @@ export function projectMatchEvent(
     return;
   }
 
+  if (event.type === "throwIn") {
+    const restartActor = nearestTeamDot(
+      state,
+      side,
+      state.ball.x,
+      state.ball.y,
+    );
+    moveBallToOwner(state, restartActor >= 0 ? restartActor : actor);
+    return;
+  }
+
   if (
     event.type === "corner" ||
     event.type === "freeKick" ||
-    event.type === "throwIn" ||
     event.type === "penaltyKick" ||
     event.type === "foul"
   ) {

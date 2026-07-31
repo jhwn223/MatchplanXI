@@ -91,7 +91,7 @@ export interface ArenaState {
   periodBanner: string | null;
   periodBannerT: number;
   situation?: {
-    type: "foul" | "corner" | "throwIn" | "freeKick" | "penaltyKick" | "offside";
+    type: "foul" | "corner" | "freeKick" | "penaltyKick" | "offside";
     side: 0 | 1;
     actor: number;
     x: number;
