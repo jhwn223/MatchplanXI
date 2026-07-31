@@ -349,6 +349,7 @@ export function MatchArena({
       score: [...startScore],
       nextGoal: 0,
       nextEvent: 0,
+      openingPossessionReady: false,
       dots,
       ball: {
         x: 50,

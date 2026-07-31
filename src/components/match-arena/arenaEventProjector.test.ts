@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import type { MatchEvent } from "../../data/matchSim";
 import {
+  alignOpeningPossession,
   eventPlaybackClock,
   prepareEventActor,
   projectMatchEvent,
@@ -95,6 +96,23 @@ function event(overrides: Partial<MatchEvent> = {}): MatchEvent {
 }
 
 describe("arena event projection", () => {
+  test("the opening event starts with a real owner instead of a frozen loose ball", () => {
+    const arena = state();
+    const opening = event({
+      type: "recovery",
+      actorId: 2,
+      actor: "Player 2",
+      targetId: undefined,
+      target: undefined,
+    });
+    expect(alignOpeningPossession(arena, opening)).toBe(true);
+    expect(arena.ball.owner).toBe(1);
+    expect(arena.ball.x).toBe(55);
+    projectMatchEvent(arena, opening, vi.fn());
+    expect(arena.ball.owner).toBe(1);
+    expect(arena.scriptedRun).toBeNull();
+  });
+
   test("events in the same minute are spread over the visual minute", () => {
     const events = [event(), event({ type: "tackle" }), event({ type: "shot" })];
     expect(eventPlaybackClock(events, 0)).toBe(11.25);

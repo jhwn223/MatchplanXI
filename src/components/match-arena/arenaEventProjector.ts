@@ -94,6 +94,26 @@ export function findEventDot(
   );
 }
 
+export function alignOpeningPossession(
+  state: ArenaState,
+  event: MatchEvent | undefined,
+) {
+  if (!event) return false;
+  const side: 0 | 1 = event.side === "user" ? 0 : 1;
+  const actor = findEventDot(state, side, event.actor, event.actorId);
+  if (actor < 0) return false;
+  const player = state.dots[actor];
+  state.ball.owner = actor;
+  state.ball.x = player.x;
+  state.ball.y = player.y;
+  state.ball.flightTo = -1;
+  state.ball.flightTarget = null;
+  state.ball.lastTeam = player.team;
+  state.ball.scripted = false;
+  state.scriptedRun = null;
+  return true;
+}
+
 /**
  * Events are stored with integer match minutes. Spread events from the same
  * minute across that minute so passes, tackles and shots can actually be seen.
@@ -276,7 +296,7 @@ export function projectMatchEvent(
       event.type === "recovery" ? "receive" : "tackle",
       0.55,
     );
-    claimLooseBall(state, actor);
+    if (state.ball.owner !== actor) claimLooseBall(state, actor);
     return;
   }
 

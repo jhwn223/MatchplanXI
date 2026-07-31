@@ -46,6 +46,7 @@ export interface ArenaState {
   score: [number, number];
   nextGoal: number;
   nextEvent: number;
+  openingPossessionReady?: boolean;
   dots: ArenaDot[];
   ball: {
     x: number;

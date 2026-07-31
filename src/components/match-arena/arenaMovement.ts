@@ -286,7 +286,7 @@ export function updateArenaMovement(
       target = {
         x: scriptedRun.x,
         y: scriptedRun.y,
-        speed: 10.5 * tempoScale,
+        speed: (scriptedRun.claimBall ? 16 : 11.5) * tempoScale,
         action: scriptedRun.action,
       };
     } else if (deadBallTarget) {

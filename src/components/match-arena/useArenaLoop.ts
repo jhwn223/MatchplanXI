@@ -1,5 +1,6 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import {
+  alignOpeningPossession,
   eventPlaybackClock,
   findEventDot,
   prepareEventActor,
@@ -384,6 +385,15 @@ export function useArenaLoop({
       // Multiple events in one minute are deliberately spread across that
       // minute instead of firing in consecutive animation frames.
       const currentSim = simRef.current;
+      if (
+        !s.openingPossessionReady &&
+        currentSim.events?.length
+      ) {
+        s.openingPossessionReady = alignOpeningPossession(
+          s,
+          currentSim.events[0],
+        );
+      }
       const ballBusy =
         s.ball.flightTo >= 0 ||
         s.ball.flightTarget != null ||
@@ -575,6 +585,7 @@ export function useArenaLoop({
           s.ball.flightTo < 0 &&
           !s.scoring &&
           !s.situation &&
+          !s.scriptedRun &&
           s.phase === "play";
         setHud({
           minute: Math.floor(s.clock),
