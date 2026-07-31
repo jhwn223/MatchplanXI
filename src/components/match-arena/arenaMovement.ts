@@ -52,6 +52,27 @@ function nearestOpponent(state: ArenaState, index: number) {
   return best;
 }
 
+function rankedOutfieldByHomeDistance(
+  state: ArenaState,
+  team: Team,
+  x: number,
+  y: number,
+  excluded = -1,
+) {
+  return state.dots
+    .map((dot, index) => ({
+      dot,
+      index,
+      distance: distanceSquared(dot.hx, dot.hy, x, y),
+    }))
+    .filter(
+      ({ dot, index }) =>
+        dot.team === team && dot.role !== "GK" && index !== excluded,
+    )
+    .sort((a, b) => a.distance - b.distance)
+    .map(({ index }) => index);
+}
+
 function offsideLimit(state: ArenaState, attackingTeam: Team) {
   const defenders = state.dots
     .filter((dot) => dot.team !== attackingTeam && dot.role !== "GK")
@@ -177,12 +198,59 @@ function setPieceTarget(
     if (dot.role === "GK") {
       return { x: ownGoalX(dot.team), y: 50, speed: 4, action: "move" };
     }
-    const supportX = situation.x + (attacking ? dir : -dir) * (5 + (index % 3) * 3);
+
+    const insideDirection = situation.y > 50 ? -1 : 1;
+    const supportPlayers = rankedOutfieldByHomeDistance(
+      state,
+      situation.side,
+      situation.x,
+      situation.y,
+      situation.actor,
+    ).slice(0, 3);
+    const markingPlayers = rankedOutfieldByHomeDistance(
+      state,
+      situation.side === 0 ? 1 : 0,
+      situation.x,
+      situation.y,
+    ).slice(0, 3);
+    const participantRank = attacking
+      ? supportPlayers.indexOf(index)
+      : markingPlayers.indexOf(index);
+
+    if (participantRank >= 0) {
+      const forwardOffsets = [5, -4, 11];
+      const insideOffsets = [6, 11, 17];
+      const supportX =
+        situation.x +
+        direction(situation.side) * forwardOffsets[participantRank];
+      const supportY =
+        situation.y + insideDirection * insideOffsets[participantRank];
+      return {
+        x: clamp(
+          supportX +
+            (attacking ? 0 : direction(situation.side) * 1.8),
+          3,
+          97,
+        ),
+        y: clamp(
+          supportY + (attacking ? 0 : insideDirection * 1.8),
+          5,
+          95,
+        ),
+        speed: attacking ? 8 : 7.5,
+        action: attacking ? "receive" : "press",
+      };
+    }
+
+    // Players not directly involved in the restart keep the team's formation
+    // and only make a small ball-side adjustment instead of swarming the line.
+    const formationShiftX = clamp((situation.x - 50) * 0.1, -4, 4);
+    const formationShiftY = clamp((situation.y - 50) * 0.08, -3.5, 3.5);
     return {
-      x: clamp(supportX, 3, 97),
-      y: clamp(situation.y + (lane * 5), 5, 95),
-      speed: 8,
-      action: attacking ? "receive" : "press",
+      x: clamp(dot.hx + formationShiftX, 3, 97),
+      y: clamp(dot.hy + formationShiftY, 5, 95),
+      speed: 4.5,
+      action: "move",
     };
   }
 

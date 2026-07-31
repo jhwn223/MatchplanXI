@@ -120,6 +120,24 @@ describe("continuous arena movement", () => {
 
   test("throw-in taker and nearby teammates move toward the correct touchline", () => {
     const state = arena();
+    for (let offset = 0; offset < 7; offset++) {
+      state.dots.push(
+        dot(
+          20 + offset,
+          0,
+          offset < 3 ? "DEF" : offset < 6 ? "MID" : "FWD",
+          20 + offset * 8,
+          14 + (offset % 4) * 18,
+        ),
+        dot(
+          40 + offset,
+          1,
+          offset < 3 ? "DEF" : offset < 6 ? "MID" : "FWD",
+          80 - offset * 8,
+          14 + (offset % 4) * 18,
+        ),
+      );
+    }
     state.ball.owner = -1;
     state.ball.y = 102;
     state.situation = {
@@ -135,6 +153,24 @@ describe("continuous arena movement", () => {
     updateArenaMovement(state, [balanced, balanced], 0.1);
     expect(state.dots[2].y).toBeGreaterThan(takerBefore);
     expect(state.dots[1].y).toBeGreaterThan(supportBefore);
+    expect(
+      state.dots.filter(
+        (player) => player.team === 0 && player.action === "receive",
+      ),
+    ).toHaveLength(4);
+    expect(
+      state.dots.filter(
+        (player) => player.team === 1 && player.action === "press",
+      ),
+    ).toHaveLength(3);
+    expect(
+      state.dots.filter(
+        (player) =>
+          player.role !== "GK" &&
+          player.action !== "receive" &&
+          player.action !== "press",
+      ).length,
+    ).toBeGreaterThan(6);
   });
 
   test("a designated pass receiver does not trigger a whole-team loose-ball swarm", () => {
