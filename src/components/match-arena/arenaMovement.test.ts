@@ -118,6 +118,25 @@ describe("continuous arena movement", () => {
     expect(state.dots.some((player) => player.team === 1 && player.action === "press")).toBe(true);
   });
 
+  test("throw-in taker and nearby teammates move toward the correct touchline", () => {
+    const state = arena();
+    state.ball.owner = -1;
+    state.ball.y = 102;
+    state.situation = {
+      type: "throwIn",
+      side: 0,
+      actor: 2,
+      x: 66,
+      y: 97,
+      remaining: 1.5,
+    };
+    const takerBefore = state.dots[2].y;
+    const supportBefore = state.dots[1].y;
+    updateArenaMovement(state, [balanced, balanced], 0.1);
+    expect(state.dots[2].y).toBeGreaterThan(takerBefore);
+    expect(state.dots[1].y).toBeGreaterThan(supportBefore);
+  });
+
   test("high pressure visibly sends a second defender to the ball", () => {
     const lowState = arena();
     const highState = arena();

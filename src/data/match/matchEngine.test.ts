@@ -214,9 +214,35 @@ describe("match engine invariants", () => {
     expect(shots.length).toBeGreaterThan(20);
     for (const shot of shots) {
       const canonicalX = shot.side === "user" ? shot.x ?? 0 : 100 - (shot.x ?? 100);
-      expect(canonicalX).toBeGreaterThanOrEqual(65);
+      expect(canonicalX).toBeGreaterThanOrEqual(78);
       const squad = shot.side === "user" ? input(0).placed : input(0).oppPlaced;
       expect(squad.find((player) => player.playerId === shot.actorId)?.position).not.toBe("GK");
+    }
+  });
+
+  test("dead-ball restarts are generated from rule-valid preceding events", () => {
+    const results = Array.from({ length: 45 }, (_, seed) =>
+      simulatePeriod(input(seed + 1200), 1, 90, 0),
+    );
+    const events = results.flatMap((result) => result.events);
+    const types = new Set(events.map((event) => event.type));
+    expect(types.has("corner")).toBe(true);
+    expect(types.has("freeKick")).toBe(true);
+    expect(types.has("offside")).toBe(true);
+    expect(types.has("throwIn")).toBe(true);
+
+    for (const result of results) {
+      result.events.forEach((event, index) => {
+        if (event.type !== "throwIn") return;
+        const precedingPass = result.events[index - 1];
+        expect(precedingPass?.type).toBe("pass");
+        expect(precedingPass?.success).toBe(false);
+        expect(
+          (precedingPass?.endY ?? 50) <= -2 ||
+          (precedingPass?.endY ?? 50) >= 102,
+        ).toBe(true);
+        expect(event.y === 3 || event.y === 97).toBe(true);
+      });
     }
   });
 

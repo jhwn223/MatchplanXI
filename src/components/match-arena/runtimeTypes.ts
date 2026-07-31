@@ -79,6 +79,13 @@ export interface ArenaState {
     shooter: number;
     t: number;
   } | null;
+  scriptedRun?: {
+    actor: number;
+    x: number;
+    y: number;
+    action: "dribble" | "receive";
+    claimBall?: boolean;
+  } | null;
   periodBanner: string | null;
   periodBannerT: number;
   situation?: {

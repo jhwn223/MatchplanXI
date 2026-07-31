@@ -278,8 +278,18 @@ export function updateArenaMovement(
     const directRun = (ownIntensity.directness - 50) / 6.5;
     let target: Target;
 
+    const scriptedRun = state.scriptedRun?.actor === index
+      ? state.scriptedRun
+      : null;
     const deadBallTarget = setPieceTarget(state, dot, index);
-    if (deadBallTarget) {
+    if (scriptedRun) {
+      target = {
+        x: scriptedRun.x,
+        y: scriptedRun.y,
+        speed: 10.5 * tempoScale,
+        action: scriptedRun.action,
+      };
+    } else if (deadBallTarget) {
       target = deadBallTarget;
     } else if (looseChasers.has(index)) {
       target = {

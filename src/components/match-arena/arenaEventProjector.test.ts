@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { MatchEvent } from "../../data/matchSim";
 import {
   eventPlaybackClock,
+  prepareEventActor,
   projectMatchEvent,
 } from "./arenaEventProjector";
 import type { ArenaDot, ArenaState } from "./runtimeTypes";
@@ -131,6 +132,21 @@ describe("arena event projection", () => {
     });
   });
 
+  test("an out-of-play pass visibly crosses the touchline", () => {
+    const arena = state();
+    projectMatchEvent(
+      arena,
+      event({ success: false, endX: 61, endY: 102 }),
+      vi.fn(),
+    );
+    expect(arena.ball.flightTarget).toMatchObject({
+      fromX: 30,
+      fromY: 50,
+      y: 102,
+      owner: null,
+    });
+  });
+
   test("event lookup uses stable player ids even when display names differ", () => {
     const arena = state();
     projectMatchEvent(
@@ -139,6 +155,26 @@ describe("arena event projection", () => {
       vi.fn(),
     );
     expect(arena.ball.flightTarget?.owner).toBe(1);
+  });
+
+  test("a distant receiver runs to the stationary ball before gaining possession", () => {
+    const arena = state();
+    const nextPass = event({
+      actorId: 2,
+      actor: "Player 2",
+      targetId: 1,
+      target: "Player 1",
+    });
+    expect(prepareEventActor(arena, nextPass)).toBe(false);
+    expect(arena.ball.owner).toBe(-1);
+    expect(arena.ball.x).toBe(30);
+    expect(arena.ball.y).toBe(50);
+    expect(arena.scriptedRun).toMatchObject({
+      actor: 1,
+      x: 30,
+      y: 50,
+      claimBall: true,
+    });
   });
 
   test("a corner creates a visible restart state before normal play resumes", () => {
@@ -155,6 +191,61 @@ describe("arena event projection", () => {
       x: 98,
       y: 3,
     });
+    expect(arena.ball.owner).toBe(-1);
+    expect(arena.ball.flightTarget).toMatchObject({ x: 98, y: 3, chaser: 0 });
+  });
+
+  test("a shooter must carry the ball to the recorded box-area position", () => {
+    const arena = state();
+    const shot = event({
+      type: "shot",
+      targetId: 3,
+      x: 82,
+      y: 48,
+      endX: 99,
+      endY: 50,
+    });
+    expect(prepareEventActor(arena, shot)).toBe(false);
+    expect(arena.scriptedRun).toMatchObject({
+      actor: 0,
+      x: 82,
+      y: 48,
+      action: "dribble",
+    });
     expect(arena.ball.owner).toBe(0);
+  });
+
+  test("a throw-in restarts from the touchline reached by the ball", () => {
+    const arena = state();
+    arena.ball.x = 64;
+    arena.ball.y = 102;
+    projectMatchEvent(
+      arena,
+      event({
+        type: "throwIn",
+        side: "opp",
+        actorId: 3,
+        actor: "Player 3",
+        targetId: undefined,
+        target: undefined,
+        x: 64,
+        y: 97,
+        endX: 64,
+        endY: 97,
+      }),
+      vi.fn(),
+    );
+    expect(arena.situation).toMatchObject({
+      type: "throwIn",
+      side: 1,
+      x: 64,
+      y: 97,
+    });
+    expect(arena.ball.flightTarget).toMatchObject({
+      fromX: 64,
+      fromY: 102,
+      x: 64,
+      y: 97,
+    });
   });
 });

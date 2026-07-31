@@ -364,6 +364,7 @@ export function MatchArena({
       },
       banner: null,
       goalSide: null,
+      scriptedRun: null,
       time: 0,
       periodBanner: null,
       periodBannerT: 0,

@@ -143,6 +143,7 @@ export function useArenaLoop({
       s.goalSide = null;
       s.scoring = null;
       s.situation = null;
+      s.scriptedRun = null;
       s.phase = "play";
       s.actionT = 0.6;
     }
@@ -258,7 +259,48 @@ export function useArenaLoop({
       }
       if (s.situation) {
         s.situation.remaining -= dt;
-        if (s.situation.remaining <= 0) s.situation = null;
+        if (s.situation.remaining <= 0) {
+          const restart = s.situation;
+          const actor = s.dots[restart.actor];
+          const actorReady =
+            !actor ||
+            Math.hypot(actor.x - restart.x, actor.y - restart.y) <= 3;
+          if (
+            restart.type === "foul" ||
+            actorReady
+          ) {
+            if (actor && restart.type !== "foul") {
+              s.ball.owner = restart.actor;
+              s.ball.x = actor.x;
+              s.ball.y = actor.y;
+              s.ball.flightTo = -1;
+              s.ball.flightTarget = null;
+              s.ball.scripted = false;
+            }
+            s.situation = null;
+          } else {
+            s.situation.remaining = 0.12;
+          }
+        }
+      }
+      if (s.scriptedRun) {
+        const run = s.scriptedRun;
+        const runner = s.dots[run.actor];
+        if (
+          !runner ||
+          Math.hypot(runner.x - run.x, runner.y - run.y) <= 1.6
+        ) {
+          if (runner && run.claimBall) {
+            s.ball.owner = run.actor;
+            s.ball.x = runner.x;
+            s.ball.y = runner.y;
+            s.ball.lastTeam = runner.team;
+            s.ball.flightTo = -1;
+            s.ball.flightTarget = null;
+            s.ball.scripted = false;
+          }
+          s.scriptedRun = null;
+        }
       }
 
       if (s.phase === "penalties") {
@@ -346,7 +388,8 @@ export function useArenaLoop({
         s.ball.flightTo >= 0 ||
         s.ball.flightTarget != null ||
         s.scoring != null ||
-        s.situation != null;
+        s.situation != null ||
+        s.scriptedRun != null;
       const nextPlayback = eventPlaybackClock(
         currentSim.events ?? [],
         s.nextEvent,
@@ -420,7 +463,22 @@ export function useArenaLoop({
           s.ball.x = lerp(target.fromX, target.x, progress);
           s.ball.y = lerp(target.fromY, target.y, progress);
           if (progress >= 1) {
-            s.ball.owner = target.owner ?? -1;
+            const receiver = target.owner != null ? s.dots[target.owner] : null;
+            if (
+              receiver &&
+              Math.hypot(receiver.x - target.x, receiver.y - target.y) > 2.2
+            ) {
+              s.ball.owner = -1;
+              s.scriptedRun = {
+                actor: target.owner!,
+                x: target.x,
+                y: target.y,
+                action: "receive",
+                claimBall: true,
+              };
+            } else {
+              s.ball.owner = target.owner ?? -1;
+            }
             s.ball.flightTarget = null;
             s.ball.scripted = false;
           }
@@ -509,7 +567,7 @@ export function useArenaLoop({
           throwIn: "스로인 준비",
           freeKick: "프리킥 준비",
           penaltyKick: "페널티킥 준비",
-          offside: "오프사이드 · 경기 중단",
+          offside: "오프사이드 · 간접 프리킥",
         } as const;
         const looseBall =
           s.ball.owner < 0 &&

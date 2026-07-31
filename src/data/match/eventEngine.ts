@@ -189,7 +189,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       type === "corner"
         ? unit(8) < 0.5 ? 3 : 97
         : type === "throwIn"
-          ? unit(8) < 0.5 ? 3 : 97
+          ? (possessionBallPoint?.y ?? actorHome.y) <= 50 ? 3 : 97
           : type === "penaltyKick"
             ? 50
             : clamp(actorHome.y + (unit(8) - 0.5) * (role === "GK" ? 3 : 9), 3, 97);
@@ -563,6 +563,15 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         break;
       } else {
         addEvent(minute, side, "pass", passer, receiver, false);
+        const outOfPlayPass = events.at(-1);
+        if (outOfPlayPass) {
+          const exitY = (outOfPlayPass.endY ?? outOfPlayPass.y ?? 50) <= 50 ? -2 : 102;
+          outOfPlayPass.endY = exitY;
+          possessionBallPoint = {
+            x: clamp(outOfPlayPass.endX ?? outOfPlayPass.x ?? 50, 2, 98),
+            y: exitY,
+          };
+        }
         activePossessionId = `${minute}:restart:${events.length}`;
         addEvent(
           minute,
@@ -804,16 +813,34 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       const roleShotChance = carrier.position === "FWD" ? 0.3 : carrier.position === "MID" ? 0.16 : 0.06;
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
-      const minimumShotX =
-        carrier.longShots >= 82 && sideTactics.shootingBias >= 0.25 ? 65 : 68;
+      const targetShotX =
+        carrier.longShots >= 82 && sideTactics.shootingBias >= 0.25 ? 78 : 82;
       const shootNow =
         carrier.position !== "GK" &&
-        canonicalShotX >= minimumShotX &&
+        canonicalShotX >= 60 &&
         (
           rng() < roleShotChance + progress * 0.045 + tacticShotBias ||
           (action === maxActions - 1 && rng() < 0.36)
         );
       if (!shootNow) continue;
+
+      // A shot cannot be resolved from midfield. If a promising possession is
+      // still short of the box, add visible ball-carrying actions first. The
+      // 2D projector makes the carrier run these coordinates instead of
+      // teleporting the player or the ball to the shooting point.
+      let approachX = canonicalShotX;
+      for (let carry = 0; carry < 4 && approachX < targetShotX; carry++) {
+        if (carrierStats) {
+          carrierStats.dribblesAttempted++;
+          carrierStats.dribblesCompleted++;
+        }
+        addEvent(minute, side, "dribble", carrier, undefined, true);
+        const carriedPoint = possessionBallPoint as { x: number; y: number } | null;
+        approachX = side === "user"
+          ? carriedPoint?.x ?? approachX
+          : 100 - (carriedPoint?.x ?? 100 - approachX);
+      }
+      if (approachX < targetShotX) continue;
 
       const marker = weightedPick(
         defenders,

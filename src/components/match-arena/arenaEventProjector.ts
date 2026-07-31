@@ -6,7 +6,7 @@ import type { ArenaState } from "./runtimeTypes";
 function eventPoint(event: MatchEvent, end = false) {
   return {
     x: clamp((end ? event.endX : event.x) ?? 50, 1, 99),
-    y: clamp((end ? event.endY : event.y) ?? 50, 3, 97),
+    y: clamp((end ? event.endY : event.y) ?? 50, -2, 102),
   };
 }
 
@@ -61,21 +61,17 @@ function startBallFlight(
 
 function claimLooseBall(state: ArenaState, owner: number) {
   if (owner < 0) return;
-  const player = state.dots[owner];
-  const distance = Math.hypot(player.x - state.ball.x, player.y - state.ball.y);
   state.ball.owner = -1;
   state.ball.flightTo = -1;
-  state.ball.flightTarget = {
-    fromX: state.ball.x,
-    fromY: state.ball.y,
+  state.ball.flightTarget = null;
+  state.ball.scripted = false;
+  state.scriptedRun = {
+    actor: owner,
     x: state.ball.x,
     y: state.ball.y,
-    owner,
-    chaser: owner,
-    elapsed: 0,
-    duration: clamp(distance / 24, 0.12, 0.5),
+    action: "receive",
+    claimBall: true,
   };
-  state.ball.scripted = true;
 }
 
 export function findEventDot(
@@ -123,10 +119,26 @@ export function prepareEventActor(state: ArenaState, event: MatchEvent) {
   }
   const side: 0 | 1 = event.side === "user" ? 0 : 1;
   const actor = findEventDot(state, side, event.actor, event.actorId);
-  if (actor < 0 || state.ball.owner === actor) return true;
-  setAction(state, actor, "receive", 0.7);
-  claimLooseBall(state, actor);
-  return false;
+  if (actor < 0) return true;
+  if (state.ball.owner !== actor) {
+    setAction(state, actor, "receive", 0.7);
+    claimLooseBall(state, actor);
+    return false;
+  }
+  if (event.type === "dribble" || event.type === "shot") {
+    const target = eventPoint(event, event.type === "dribble");
+    if (Math.hypot(state.dots[actor].x - target.x, state.dots[actor].y - target.y) > 2.2) {
+      state.scriptedRun = {
+        actor,
+        x: target.x,
+        y: clamp(target.y, 3, 97),
+        action: "dribble",
+      };
+      setAction(state, actor, "dribble", 0.7);
+      return false;
+    }
+  }
+  return true;
 }
 
 function startSituation(
@@ -138,11 +150,11 @@ function startSituation(
 ) {
   const duration =
     type === "penaltyKick"
-      ? 1.25
+      ? 2
       : type === "corner" || type === "freeKick"
-        ? 0.9
+        ? 1.8
         : type === "throwIn"
-          ? 0.7
+          ? 1.5
           : 0.5;
   state.situation = {
     type,
@@ -152,10 +164,19 @@ function startSituation(
     y: point.y,
     remaining: duration,
   };
-  state.ball.owner = actor;
+  state.ball.owner = -1;
   state.ball.flightTo = -1;
-  state.ball.flightTarget = null;
-  state.ball.scripted = false;
+  state.ball.flightTarget = {
+    fromX: state.ball.x,
+    fromY: state.ball.y,
+    x: point.x,
+    y: point.y,
+    owner: null,
+    chaser: actor >= 0 ? actor : null,
+    elapsed: 0,
+    duration: 0.24,
+  };
+  state.ball.scripted = true;
   if (actor >= 0) {
     state.ball.lastTeam = state.dots[actor].team;
   } else {
@@ -228,11 +249,10 @@ export function projectMatchEvent(
         1,
         99,
       );
-      const failedY = clamp(
-        state.ball.y + recordedEnd.y - recordedStart.y,
-        3,
-        97,
-      );
+      const exitedTouchline = recordedEnd.y <= 0 || recordedEnd.y >= 100;
+      const failedY = exitedTouchline
+        ? recordedEnd.y
+        : clamp(state.ball.y + recordedEnd.y - recordedStart.y, 3, 97);
       startBallFlight(state, failedX, failedY, null, passSpeed);
     }
     return;
@@ -304,10 +324,21 @@ export function projectMatchEvent(
   }
 
   if (event.type === "offside") {
+    const point = eventPoint(event);
     const keeper = state.dots.findIndex(
       (dot) => dot.team === defendingSide && dot.role === "GK",
     );
-    if (keeper >= 0) claimLooseBall(state, keeper);
-    startSituation(state, "offside", defendingSide, keeper, eventPoint(event));
+    let restartActor = -1;
+    let restartDistance = Number.POSITIVE_INFINITY;
+    state.dots.forEach((dot, index) => {
+      if (dot.team !== defendingSide || dot.role === "GK") return;
+      const distance = Math.hypot(dot.x - point.x, dot.y - point.y);
+      if (distance < restartDistance) {
+        restartDistance = distance;
+        restartActor = index;
+      }
+    });
+    if (restartActor < 0) restartActor = keeper;
+    startSituation(state, "offside", defendingSide, restartActor, point);
   }
 }
