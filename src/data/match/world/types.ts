@@ -9,6 +9,21 @@ export type WorldIntent =
   | "mark"
   | "protectGoal";
 
+export type MatchPhase =
+  | "buildUp"
+  | "middleThird"
+  | "finalThird"
+  | "defensiveBlock"
+  | "transitionAttack"
+  | "transitionDefense";
+
+export type DefensiveRole =
+  | "presser"
+  | "cover"
+  | "marker"
+  | "screen"
+  | "restDefense";
+
 export interface WorldPoint {
   x: number;
   y: number;
@@ -21,6 +36,10 @@ export interface WorldPlayerState extends WorldPoint {
   vy: number;
   intent: WorldIntent;
   target: WorldPoint;
+  defensiveRole?: DefensiveRole;
+  markingTargetId?: number;
+  pressingTargetId?: number;
+  assignmentExpiresAt: number;
 }
 
 export interface WorldBallState extends WorldPoint {
@@ -33,6 +52,10 @@ export interface MatchWorld {
   elapsedSeconds: number;
   players: Record<MatchSide, Map<number, WorldPlayerState>>;
   ball: WorldBallState;
+  phaseBySide: Record<MatchSide, MatchPhase>;
+  lastPossessionSide: MatchSide | null;
+  previousPossessionSide: MatchSide | null;
+  possessionChangedAt: number;
 }
 
 export type TacticsBySide = Record<MatchSide, SimTacticProfile>;

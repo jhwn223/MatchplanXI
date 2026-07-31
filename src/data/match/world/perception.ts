@@ -39,6 +39,35 @@ export function nearestOpponentDistance(
   return nearest;
 }
 
+/** The furthest legal receiving line: the ball or the second-last opponent. */
+export function offsideLineFor(world: MatchWorld, attackingSide: MatchSide) {
+  const defendingSide = attackingSide === "user" ? "opp" : "user";
+  const defenderX = [...world.players[defendingSide].values()]
+    .map((state) => state.x)
+    .sort((a, b) => a - b);
+  if (defenderX.length < 2) return attackingSide === "user" ? 96 : 4;
+  if (attackingSide === "user") {
+    const secondLastOpponent = defenderX[defenderX.length - 2];
+    return Math.max(world.ball.x, secondLastOpponent);
+  }
+  const secondLastOpponent = defenderX[1];
+  return Math.min(world.ball.x, secondLastOpponent);
+}
+
+export function isPlayerOffside(
+  world: MatchWorld,
+  attackingSide: MatchSide,
+  receiver: PlacedPlayerLite,
+) {
+  const state = worldPlayer(world, attackingSide, receiver);
+  if (!state) return false;
+  const line = offsideLineFor(world, attackingSide);
+  if (attackingSide === "user") {
+    return state.x > 50 && state.x > world.ball.x + 0.25 && state.x > line + 0.25;
+  }
+  return state.x < 50 && state.x < world.ball.x - 0.25 && state.x < line - 0.25;
+}
+
 export function worldPassLanePressure(
   world: MatchWorld,
   passerSide: MatchSide,

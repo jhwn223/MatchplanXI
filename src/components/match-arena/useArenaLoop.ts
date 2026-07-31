@@ -1,18 +1,21 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import {
-  alignOpeningPossession,
   eventPlaybackClock,
   findEventDot,
   prepareEventActor,
   projectMatchEvent,
 } from "./arenaEventProjector";
+import {
+  indexPositionSamples,
+  interpolatePositionTargets,
+  updateArenaMovement,
+} from "./arenaMovement";
 import { drawArenaFrame } from "./arenaRenderer";
 import { displayArenaName } from "./names";
 import { buildPenaltySequence } from "./penaltyKicks";
-import { clamp as clampf, distanceSquared as d2, lerp } from "./runtimeMath";
+import { clamp as clampf, distanceSquared as d2, kickoffHomeFor, lerp } from "./runtimeMath";
 import type { ArenaHud, ArenaState } from "./runtimeTypes";
 import type { ArenaSim } from "./types";
-import type { PositionSample } from "../../data/matchSim";
 
 const PK_AIM_T = 0.5;
 const PK_STRIKE_T = 0.55;
@@ -69,6 +72,7 @@ export function useArenaLoop({
 }: Options) {
   useEffect(() => {
     stateRef.current = buildState();
+    stateRef.current.kickoffPauseT = 1;
     completedRef.current = false;
     setEnded(false);
     setPaused(false);
@@ -100,12 +104,12 @@ export function useArenaLoop({
     function triggerGoal(s: ArenaState, side: 0 | 1, scorer?: string, assist?: string) {
       const shooter = s.scoring?.shooter ?? -1;
       s.phase = "celebrate";
-      s.celebrateT = 1.9;
+      s.celebrateT = 2.6;
       s.goalSide = side;
       s.scoring = null;
       if (shooter >= 0) {
         s.dots[shooter].action = "celebrate";
-        s.dots[shooter].actionT = 1.9;
+        s.dots[shooter].actionT = 1.3;
       }
       if (side === 0) s.score[0]++;
       else s.score[1]++;
@@ -121,10 +125,28 @@ export function useArenaLoop({
         side === 0 ? `${scorer ?? userTeamName}${assist ? ` (도움: ${assist})` : ""}` : oppTeamName;
     }
 
+    function kickoffTakerIndex(s: ArenaState, toTeam: 0 | 1) {
+      const forward = s.dots.findIndex(
+        (dot) => dot.team === toTeam && dot.role === "FWD",
+      );
+      return forward >= 0
+        ? forward
+        : s.dots.findIndex((dot) => dot.team === toTeam);
+    }
+
+    function kickoffSpotFor(s: ArenaState, index: number, toTeam: 0 | 1) {
+      if (index === kickoffTakerIndex(s, toTeam)) {
+        return { x: toTeam === 0 ? 48.6 : 51.4, y: 50 };
+      }
+      const dot = s.dots[index];
+      return kickoffHomeFor(dot.hx, dot.hy, dot.team);
+    }
+
     function kickoff(s: ArenaState, toTeam: 0 | 1) {
-      s.dots.forEach((d) => {
-        d.x = d.hx;
-        d.y = d.hy;
+      s.dots.forEach((d, i) => {
+        const spot = kickoffSpotFor(s, i, toTeam);
+        d.x = spot.x;
+        d.y = spot.y;
         d.vx = 0;
         d.vy = 0;
         d.action = "idle";
@@ -132,11 +154,7 @@ export function useArenaLoop({
       });
       s.ball.x = 50;
       s.ball.y = 50;
-      const kickoffOwner = s.dots.findIndex(
-        (dot) => dot.team === toTeam && dot.role === "FWD",
-      );
-      const fallbackOwner = s.dots.findIndex((dot) => dot.team === toTeam);
-      s.ball.owner = kickoffOwner >= 0 ? kickoffOwner : fallbackOwner;
+      s.ball.owner = kickoffTakerIndex(s, toTeam);
       s.ball.flightTo = -1;
       s.ball.flightTarget = null;
       s.ball.scripted = false;
@@ -149,6 +167,7 @@ export function useArenaLoop({
       s.scriptedRun = null;
       s.phase = "play";
       s.actionT = 0.6;
+      s.kickoffPauseT = 1;
     }
 
     // begin a scripted attack toward goal; GOAL only fires once the ball arrives
@@ -175,10 +194,6 @@ export function useArenaLoop({
         });
       }
       s.scoring = { side, scorer, assist, shooter: best, t: 0 };
-      if (best >= 0 && Math.abs(s.ball.x - gm.x) > 25) {
-        s.ball.x = s.dots[best].x;
-        s.ball.y = s.dots[best].y;
-      }
       s.ball.owner = -1;
       s.ball.flightTo = -1;
       s.ball.flightTarget = null;
@@ -249,67 +264,15 @@ export function useArenaLoop({
       positionForKick(s);
     }
 
-    // Player positions come straight from the engine's position-aware world
-    // (HalfResult.positionSamples), one sample per player per match minute.
-    // This only interpolates between the two samples bracketing the current
-    // clock — it never invents a position the engine didn't compute.
-    let cachedSamples: PositionSample[] | undefined;
-    let samplesByPlayer: Map<number, PositionSample[]> | null = null;
-
-    function applyPositionSamples(s: ArenaState, positionSamples: PositionSample[] | undefined, dt: number) {
-      if (!positionSamples || !positionSamples.length) return;
-      if (positionSamples !== cachedSamples) {
-        cachedSamples = positionSamples;
-        samplesByPlayer = new Map();
-        for (const sample of positionSamples) {
-          const list = samplesByPlayer.get(sample.playerId);
-          if (list) list.push(sample);
-          else samplesByPlayer.set(sample.playerId, [sample]);
-        }
-      }
-      s.dots.forEach((dot) => {
-        const list = samplesByPlayer?.get(dot.playerId);
-        if (!list || !list.length) return;
-        let prev: PositionSample | null = null;
-        let next: PositionSample | null = null;
-        for (const sample of list) {
-          if (sample.minute <= s.clock) prev = sample;
-          else {
-            next = sample;
-            break;
-          }
-        }
-        let targetX: number;
-        let targetY: number;
-        if (prev && next) {
-          const span = next.minute - prev.minute || 1;
-          const t = clampf((s.clock - prev.minute) / span, 0, 1);
-          targetX = prev.x + (next.x - prev.x) * t;
-          targetY = prev.y + (next.y - prev.y) * t;
-        } else if (prev) {
-          targetX = prev.x;
-          targetY = prev.y;
-        } else if (next) {
-          targetX = next.x;
-          targetY = next.y;
-        } else {
-          return;
-        }
-        const dx = targetX - dot.x;
-        const dy = targetY - dot.y;
-        if (dt > 0) {
-          dot.vx = dx / dt;
-          dot.vy = dy / dt;
-        }
-        if (Math.hypot(dx, dy) > 0.15) dot.facing = Math.atan2(dy, dx);
-        dot.x = clampf(targetX, 2, 98);
-        dot.y = clampf(targetY, 3, 97);
-      });
-    }
+    let cachedSamples = simRef.current.positionSamples;
+    let positionSampleIndex = indexPositionSamples(cachedSamples);
 
     function update(dt: number) {
       const s = stateRef.current!;
       if (s.phase === "ended" || s.phase === "interim") return;
+      if ((s.kickoffPauseT ?? 0) > 0) {
+        return;
+      }
       s.time += dt;
       s.ball.previousX = s.ball.x;
       s.ball.previousY = s.ball.y;
@@ -323,6 +286,7 @@ export function useArenaLoop({
         if (s.periodBannerT <= 0) s.periodBanner = null;
       }
       if (s.situation) {
+        s.situation.elapsed = (s.situation.elapsed ?? 0) + dt;
         s.situation.remaining -= dt;
         if (s.situation.remaining <= 0) {
           const restart = s.situation;
@@ -330,10 +294,8 @@ export function useArenaLoop({
           const actorReady =
             !actor ||
             Math.hypot(actor.x - restart.x, actor.y - restart.y) <= 3;
-          if (
-            restart.type === "foul" ||
-            actorReady
-          ) {
+          const restartTimedOut = restart.elapsed >= 4;
+          if (restart.type === "foul" || actorReady || restartTimedOut) {
             if (actor && restart.type !== "foul") {
               s.ball.owner = restart.actor;
               s.ball.x = actor.x;
@@ -353,8 +315,13 @@ export function useArenaLoop({
         const runner = s.dots[run.actor];
         run.elapsed = (run.elapsed ?? 0) + dt;
         const claimRadius = run.elapsed >= 1.2 ? 2.8 : 1.8;
+        // A run that cannot physically be completed (the target sits outside
+        // the runner's allowed zone) must still release the match instead of
+        // freezing event playback forever.
+        const runTimedOut = run.elapsed >= 3.5;
         if (
           !runner ||
+          runTimedOut ||
           Math.hypot(runner.x - run.x, runner.y - run.y) <= claimRadius
         ) {
           if (runner && run.claimBall) {
@@ -418,7 +385,38 @@ export function useArenaLoop({
 
       if (s.phase === "celebrate") {
         s.celebrateT -= dt;
-        if (s.celebrateT <= 0) kickoff(s, s.goalSide === 0 ? 1 : 0);
+        // Players jog back to the kickoff shape during the celebration so the
+        // restart never has to teleport a whole team into position.
+        const nextKickoffTeam: 0 | 1 = s.goalSide === 0 ? 1 : 0;
+        let everyoneSet = true;
+        s.dots.forEach((d, i) => {
+          if (d.action === "celebrate" && d.actionT > 0) {
+            d.actionT = Math.max(0, d.actionT - dt);
+            everyoneSet = false;
+            return;
+          }
+          const spot = kickoffSpotFor(s, i, nextKickoffTeam);
+          const dx = spot.x - d.x;
+          const dy = spot.y - d.y;
+          const distance = Math.hypot(dx, dy);
+          if (distance < 0.4) {
+            d.vx = 0;
+            d.vy = 0;
+            return;
+          }
+          everyoneSet = false;
+          const step = Math.min(distance, 18 * dt);
+          d.x += (dx / distance) * step;
+          d.y += (dy / distance) * step;
+          d.facing = Math.atan2(dy, dx);
+          d.action = "move";
+          d.actionT = 0;
+        });
+        // Restart once the picture is set; the extra 2s cap keeps a distant
+        // straggler from stalling the game (they snap the last few metres).
+        if (s.celebrateT <= 0 && (everyoneSet || s.celebrateT <= -2)) {
+          kickoff(s, nextKickoffTeam);
+        }
         return;
       }
 
@@ -451,15 +449,6 @@ export function useArenaLoop({
       // Multiple events in one minute are deliberately spread across that
       // minute instead of firing in consecutive animation frames.
       const currentSim = simRef.current;
-      if (
-        !s.openingPossessionReady &&
-        currentSim.events?.length
-      ) {
-        s.openingPossessionReady = alignOpeningPossession(
-          s,
-          currentSim.events[0],
-        );
-      }
       const ballBusy =
         s.ball.flightTo >= 0 ||
         s.ball.flightTarget != null ||
@@ -620,7 +609,13 @@ export function useArenaLoop({
       }
 
       if (s.phase === "play") {
-        applyPositionSamples(s, simRef.current.positionSamples, dt);
+        const currentSamples = simRef.current.positionSamples;
+        if (currentSamples !== cachedSamples) {
+          cachedSamples = currentSamples;
+          positionSampleIndex = indexPositionSamples(currentSamples);
+        }
+        const targets = interpolatePositionTargets(positionSampleIndex, s.clock);
+        updateArenaMovement(s, targets, dt);
       }
     }
 
@@ -628,14 +623,27 @@ export function useArenaLoop({
     const step = (now: number) => {
       const dt = Math.min(0.045, (now - last) / 1000);
       last = now;
-      if (!pausedRef.current) {
-        simulationAccumulator = Math.min(
-          0.35,
-          simulationAccumulator + dt * speedRef.current,
+      const kickoffPaused = (stateRef.current?.kickoffPauseT ?? 0) > 0;
+      if (kickoffPaused && stateRef.current) {
+        // Opening stillness is wall-clock time, so 2x/4x playback never
+        // shortens the one-second kickoff presentation.
+        stateRef.current.kickoffPauseT = Math.max(
+          0,
+          (stateRef.current.kickoffPauseT ?? 0) - dt,
         );
-        while (simulationAccumulator >= FIXED_SIMULATION_STEP) {
-          update(FIXED_SIMULATION_STEP);
-          simulationAccumulator -= FIXED_SIMULATION_STEP;
+      }
+      if (!pausedRef.current) {
+        if (kickoffPaused) {
+          simulationAccumulator = 0;
+        } else {
+          simulationAccumulator = Math.min(
+            0.35,
+            simulationAccumulator + dt * speedRef.current,
+          );
+          while (simulationAccumulator >= FIXED_SIMULATION_STEP) {
+            update(FIXED_SIMULATION_STEP);
+            simulationAccumulator -= FIXED_SIMULATION_STEP;
+          }
         }
       } else {
         simulationAccumulator = 0;

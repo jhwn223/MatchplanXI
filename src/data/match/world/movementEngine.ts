@@ -1,8 +1,15 @@
 import { actionPerformanceFactor } from "../playerRuntime";
 import { clamp } from "../random";
-import { tacticalHome } from "../spatial";
 import type { MatchSide, PlacedPlayerLite, SimInput } from "../types";
+import {
+  blendPoint,
+  constrainToAnchor,
+  formationAnchor,
+} from "./formationShape";
+import { offsideLineFor } from "./perception";
 import type {
+  DefensiveRole,
+  MatchPhase,
   MatchWorld,
   TacticsBySide,
   WorldIntent,
@@ -10,85 +17,292 @@ import type {
   WorldPoint,
 } from "./types";
 
+function otherSide(side: MatchSide): MatchSide {
+  return side === "user" ? "opp" : "user";
+}
+
+function direction(side: MatchSide) {
+  return side === "user" ? 1 : -1;
+}
+
+function ownGoalX(side: MatchSide) {
+  return side === "user" ? 2 : 98;
+}
+
 function distance(a: WorldPoint, b: WorldPoint) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function nearestState(states: WorldPlayerState[], point: WorldPoint) {
-  return [...states].sort((a, b) => distance(a, point) - distance(b, point))[0];
+function effectivePossessionSide(world: MatchWorld) {
+  return world.ball.ownerSide ?? world.lastPossessionSide;
+}
+
+function registerPossession(world: MatchWorld, side: MatchSide) {
+  if (world.lastPossessionSide === side) return;
+  world.previousPossessionSide = world.lastPossessionSide;
+  world.lastPossessionSide = side;
+  world.possessionChangedAt = world.elapsedSeconds;
+  for (const team of ["user", "opp"] as MatchSide[]) {
+    for (const player of world.players[team].values()) {
+      player.assignmentExpiresAt = 0;
+    }
+  }
+}
+
+function phaseForSide(world: MatchWorld, side: MatchSide): MatchPhase {
+  const possessionSide = effectivePossessionSide(world);
+  const transitionAge = world.elapsedSeconds - world.possessionChangedAt;
+  if (transitionAge < 3.2 && world.previousPossessionSide !== world.lastPossessionSide) {
+    return possessionSide === side ? "transitionAttack" : "transitionDefense";
+  }
+  if (possessionSide !== side) return "defensiveBlock";
+  const canonicalBallX = side === "user" ? world.ball.x : 100 - world.ball.x;
+  const owner = world.ball.ownerId != null ? world.players[side].get(world.ball.ownerId) : undefined;
+  if (canonicalBallX < 32 || owner?.player.position === "GK") return "buildUp";
+  if (canonicalBallX < 68) return "middleThird";
+  return "finalThird";
+}
+
+function refreshPhases(world: MatchWorld) {
+  world.phaseBySide.user = phaseForSide(world, "user");
+  world.phaseBySide.opp = phaseForSide(world, "opp");
+}
+
+function formationLineTarget(
+  world: MatchWorld,
+  state: WorldPlayerState,
+  tactics: TacticsBySide,
+): WorldPoint {
+  const { side, player } = state;
+  const phase = world.phaseBySide[side];
+  const hasBall = effectivePossessionSide(world) === side;
+  return formationAnchor({
+    direction: direction(side),
+    role: player.position,
+    baseX: player.baseX,
+    baseY: player.baseY,
+    ball: world.ball,
+    phase,
+    hasBall,
+    profile: tactics[side],
+  });
+}
+
+function setDefensiveAssignment(
+  state: WorldPlayerState,
+  role: DefensiveRole,
+  expiresAt: number,
+  targetId?: number,
+) {
+  state.defensiveRole = role;
+  state.assignmentExpiresAt = expiresAt;
+  state.markingTargetId = role === "marker" ? targetId : undefined;
+  state.pressingTargetId = role === "presser" ? targetId : undefined;
+}
+
+function assignDefensiveRoles(world: MatchWorld, side: MatchSide, tactics: TacticsBySide) {
+  const states = [...world.players[side].values()].filter(
+    (state) => state.player.position !== "GK",
+  );
+  if (
+    states.length &&
+    states.every((state) => state.assignmentExpiresAt > world.elapsedSeconds) &&
+    states.some((state) => state.defensiveRole === "presser")
+  ) return;
+
+  const expiresAt = world.elapsedSeconds + 1.4;
+  const opponentSide = otherSide(side);
+  const ownerId = world.ball.ownerSide === opponentSide ? world.ball.ownerId ?? undefined : undefined;
+  for (const state of states) {
+    setDefensiveAssignment(
+      state,
+      state.player.position === "MID" ? "screen" : "restDefense",
+      expiresAt,
+    );
+  }
+
+  const used = new Set<number>();
+  const presser = [...states].sort((a, b) => {
+    const rolePenalty = (state: WorldPlayerState) =>
+      state.player.position === "DEF" ? 6 : state.player.position === "MID" ? 1.5 : 0;
+    return distance(a, world.ball) + rolePenalty(a) - distance(b, world.ball) - rolePenalty(b);
+  })[0];
+  if (presser) {
+    used.add(presser.player.playerId);
+    setDefensiveAssignment(presser, "presser", expiresAt, ownerId);
+  }
+  const cover = [...states]
+    .filter((state) => !used.has(state.player.playerId))
+    .sort((a, b) => {
+      const rolePenalty = (state: WorldPlayerState) => state.player.position === "FWD" ? 6 : 0;
+      return distance(a, world.ball) + rolePenalty(a) - distance(b, world.ball) - rolePenalty(b);
+    })[0];
+  if (cover) {
+    used.add(cover.player.playerId);
+    setDefensiveAssignment(cover, "cover", expiresAt);
+  }
+
+  const opponents = [...world.players[opponentSide].values()]
+    .filter((state) => state.player.position !== "GK")
+    .sort((a, b) => {
+      const threat = (state: WorldPlayerState) =>
+        (state.player.position === "FWD" ? 30 : state.player.position === "MID" ? 15 : 0) -
+        Math.abs(state.x - ownGoalX(side)) * 0.2;
+      return threat(b) - threat(a);
+    });
+  const marked = new Set<number>();
+  const markingDefenders = states
+    .filter((state) => state.player.position === "DEF" && !used.has(state.player.playerId))
+    .sort((a, b) => distance(a, world.ball) - distance(b, world.ball))
+    .slice(0, 3);
+  for (const defender of markingDefenders) {
+    const target = opponents
+      .filter((candidate) => !marked.has(candidate.player.playerId))
+      .sort((a, b) => distance(defender, a) - distance(defender, b))[0];
+    const anchor = formationLineTarget(world, defender, tactics);
+    if (target && distance(anchor, target) <= 24) {
+      marked.add(target.player.playerId);
+      setDefensiveAssignment(defender, "marker", expiresAt, target.player.playerId);
+    }
+  }
+}
+
+function supportIds(world: MatchWorld, side: MatchSide) {
+  const ownerId = world.ball.ownerId;
+  if (world.ball.ownerSide !== side || ownerId == null) return [];
+  return [...world.players[side].values()]
+    .filter((candidate) => candidate.player.position !== "GK" && candidate.player.playerId !== ownerId)
+    .sort((a, b) => distance(a, world.ball) - distance(b, world.ball))
+    .slice(0, 2)
+    .map((candidate) => candidate.player.playerId);
 }
 
 function targetForPlayer(
   world: MatchWorld,
   state: WorldPlayerState,
   tactics: TacticsBySide,
+  nearbySupportIds: readonly number[],
 ): { point: WorldPoint; intent: WorldIntent } {
   const { side, player } = state;
-  const ownTactics = tactics[side];
-  const home = tacticalHome(player, side, ownTactics);
-  const direction = side === "user" ? 1 : -1;
-  const ownsBall =
-    world.ball.ownerSide === side &&
-    world.ball.ownerId === player.playerId;
-  const teamHasBall = world.ball.ownerSide === side;
+  const dir = direction(side);
+  const phase = world.phaseBySide[side];
+  const hasBall = effectivePossessionSide(world) === side;
+  const ownsBall = world.ball.ownerSide === side && world.ball.ownerId === player.playerId;
+  const shape = formationLineTarget(world, state, tactics);
 
   if (player.position === "GK") {
-    const ownGoalX = side === "user" ? 4 : 96;
+    const goalX = ownGoalX(side);
     return {
       point: {
-        x: clamp(ownGoalX + (world.ball.x - 50) * 0.045, side === "user" ? 2 : 86, side === "user" ? 14 : 98),
-        y: clamp(50 + (world.ball.y - 50) * 0.18, 34, 66),
+        x: clamp(goalX + (world.ball.x - goalX) * 0.07, side === "user" ? 2 : 84, side === "user" ? 16 : 98),
+        y: clamp(50 + (world.ball.y - 50) * 0.17, 35, 65),
       },
       intent: "protectGoal",
     };
   }
-
   if (ownsBall) {
+    const desired = {
+      x: state.x + dir * (phase === "transitionAttack" ? 5 : 3),
+      y: state.y + (shape.y - state.y) * 0.28,
+    };
     return {
-      point: {
-        x: clamp(state.x + direction * (5 + Math.max(0, ownTactics.tempoBias) * 2), 3, 97),
-        y: clamp(state.y + (50 - state.y) * 0.08, 3, 97),
-      },
+      point: constrainToAnchor(
+        shape,
+        desired,
+        player.position === "FWD" ? 14 : player.position === "MID" ? 5 : 6,
+        player.position === "FWD" ? 14 : 12,
+      ),
       intent: "carry",
     };
   }
-
-  if (teamHasBall) {
-    const supportDepth =
-      player.position === "FWD" ? 9 :
-        player.position === "MID" ? 3 : -5;
-    const widthStretch = ownTactics.widthBias * (player.baseY < 50 ? -5 : 5);
+  if (hasBall) {
+    const nearbySupportRank = nearbySupportIds.indexOf(player.playerId);
+    if (nearbySupportRank >= 0 && player.position !== "FWD") {
+      const desired = {
+        x: world.ball.x - dir * (7 + nearbySupportRank * 2),
+        y: world.ball.y + (nearbySupportRank === 0 ? -10 : 10),
+      };
+      return {
+        point: constrainToAnchor(shape, desired, 5, 14),
+        intent: "support",
+      };
+    }
+    let targetX = shape.x;
+    const pulse = Math.sin(world.elapsedSeconds * 0.9 + player.playerId * 0.37);
+    if (player.position === "FWD") {
+      const offsideLine = offsideLineFor(world, side);
+      const timingError = pulse > 0.999
+        ? 0.3 + (100 - player.positioning) / 90
+        : -2.2;
+      const permitted = offsideLine + dir * timingError;
+      targetX = side === "user" ? Math.min(targetX + pulse * 2.4, permitted) : Math.max(targetX - pulse * 2.4, permitted);
+    } else if (player.position === "MID") {
+      targetX += dir * (phase === "transitionAttack" ? 4 : 1.5);
+    }
     return {
       point: {
-        x: clamp(home.x + direction * supportDepth + (world.ball.x - home.x) * 0.12, 4, 96),
-        y: clamp(home.y + widthStretch + (world.ball.y - home.y) * 0.1, 3, 97),
+        x: clamp(targetX, 3, 97),
+        y: clamp(shape.y + (world.ball.y - shape.y) * (player.position === "MID" ? 0.18 : 0.08), 4, 96),
       },
       intent: "support",
     };
   }
 
-  const teammates = [...world.players[side].values()].filter(
-    (candidate) => candidate.player.position !== "GK",
-  );
-  const nearest = nearestState(teammates, world.ball);
-  if (nearest?.player.playerId === player.playerId) {
+  if (phase === "transitionDefense" && distance(state, world.ball) < 13) {
     return {
-      point: {
-        x: world.ball.x - direction * 0.8,
-        y: world.ball.y,
-      },
+      point: constrainToAnchor(
+        shape,
+        { x: world.ball.x - dir * 1.2, y: world.ball.y },
+        player.position === "DEF" ? 11 : 15,
+        player.position === "DEF" ? 13 : 17,
+      ),
       intent: "press",
     };
   }
-
-  const pressShift = Math.max(0, ownTactics.pressBias) * 5;
-  return {
-    point: {
-      x: clamp(home.x + direction * pressShift + (world.ball.x - home.x) * 0.08, 4, 96),
-      y: clamp(home.y + (world.ball.y - home.y) * 0.07, 3, 97),
-    },
-    intent: "mark",
-  };
+  if (state.defensiveRole === "presser") {
+    return {
+      point: constrainToAnchor(
+        shape,
+        { x: world.ball.x - dir * 1.1, y: world.ball.y },
+        player.position === "DEF" ? 12 : player.position === "MID" ? 16 : 20,
+        player.position === "DEF" ? 14 : 19,
+      ),
+      intent: "press",
+    };
+  }
+  if (state.defensiveRole === "cover") {
+    const desired = {
+      x: world.ball.x + (ownGoalX(side) - world.ball.x) * 0.12,
+      y: world.ball.y + (50 - world.ball.y) * 0.12,
+    };
+    return {
+      point: constrainToAnchor(shape, desired, 10, 13),
+      intent: "mark",
+    };
+  }
+  if (state.defensiveRole === "marker" && state.markingTargetId != null) {
+    const marked = world.players[otherSide(side)].get(state.markingTargetId);
+    if (marked) {
+      const goalSide = {
+        x: marked.x + (ownGoalX(side) - marked.x) * 0.1,
+        y: marked.y,
+      };
+      return {
+        point: constrainToAnchor(shape, blendPoint(shape, goalSide, 0.48), 9, 13),
+        intent: "mark",
+      };
+    }
+  }
+  if (state.defensiveRole === "screen") {
+    return {
+      point: {
+        x: shape.x + (world.ball.x - shape.x) * 0.18,
+        y: shape.y + (world.ball.y - shape.y) * 0.35,
+      },
+      intent: "mark",
+    };
+  }
+  return { point: shape, intent: "holdShape" };
 }
 
 function movePlayer(
@@ -115,12 +329,64 @@ function movePlayer(
     tactics[state.side],
   );
   const pace = (state.player.pace * 0.62 + state.player.acceleration * 0.38) / 100;
-  const maxSpeed = (2.3 + pace * 3.1) * performance;
+  const intelligence = clamp((state.player.positioning + state.player.reactions) / 180, 0.65, 1.1);
+  const maxSpeed = (2.5 + pace * 3.4) * performance * intelligence;
   const step = Math.min(remaining, maxSpeed * seconds);
   state.vx = (dx / remaining) * (step / Math.max(seconds, 0.001));
   state.vy = (dy / remaining) * (step / Math.max(seconds, 0.001));
   state.x = clamp(state.x + (dx / remaining) * step, 1, 99);
   state.y = clamp(state.y + (dy / remaining) * step, 2, 98);
+}
+
+function enforceSpacingAndLines(world: MatchWorld) {
+  const all = [...world.players.user.values(), ...world.players.opp.values()];
+  for (let first = 0; first < all.length; first++) {
+    for (let second = first + 1; second < all.length; second++) {
+      const a = all[first];
+      const b = all[second];
+      let dx = b.x - a.x;
+      let dy = b.y - a.y;
+      let current = Math.hypot(dx, dy);
+      const sameTeam = a.side === b.side;
+      const sameLine = sameTeam && a.player.position === b.player.position;
+      const minimum = sameLine ? 5.2 : sameTeam ? 3.7 : 0.85;
+      if (current >= minimum) continue;
+      if (current <= 0.01) {
+        dx = 0;
+        dy = a.player.baseY <= b.player.baseY ? 1 : -1;
+        current = 1;
+      }
+      const push = (minimum - current) * (sameTeam ? 0.42 : 0.3);
+      let nx = dx / current;
+      let ny = dy / current;
+      if (sameLine && Math.abs(ny) < 0.45) {
+        ny = a.player.baseY <= b.player.baseY ? 1 : -1;
+        nx *= 0.2;
+      }
+      a.x = clamp(a.x - nx * push, 1, 99);
+      a.y = clamp(a.y - ny * push, 2, 98);
+      b.x = clamp(b.x + nx * push, 1, 99);
+      b.y = clamp(b.y + ny * push, 2, 98);
+    }
+  }
+  for (const side of ["user", "opp"] as MatchSide[]) {
+    const defenders = [...world.players[side].values()].filter(
+      (state) => state.player.position === "DEF",
+    );
+    if (defenders.length) {
+      const targetLineX = defenders.reduce((sum, state) => sum + state.target.x, 0) / defenders.length;
+      for (const defender of defenders) {
+        defender.x = clamp(defender.x, targetLineX - 5.5, targetLineX + 5.5);
+      }
+    }
+    const keeper = [...world.players[side].values()].find(
+      (state) => state.player.position === "GK",
+    );
+    if (keeper) {
+      keeper.x = clamp(keeper.x, side === "user" ? 2 : 84, side === "user" ? 16 : 98);
+      keeper.y = clamp(keeper.y, 35, 65);
+    }
+  }
 }
 
 export function advanceWorld(
@@ -129,18 +395,29 @@ export function advanceWorld(
   tactics: TacticsBySide,
   seconds: number,
 ) {
-  const tickLength = 0.2;
+  // Statistical world snapshots do not need animation-frame granularity.
+  // Half-second tactical ticks retain movement continuity while keeping
+  // full-match simulation and calibration tests fast.
+  const tickLength = 0.5;
   let remaining = clamp(seconds, 0, 12);
   while (remaining > 0.001) {
     const tick = Math.min(tickLength, remaining);
+    refreshPhases(world);
+    const possessionSide = effectivePossessionSide(world);
+    if (possessionSide) assignDefensiveRoles(world, otherSide(possessionSide), tactics);
+    const supporters = {
+      user: supportIds(world, "user"),
+      opp: supportIds(world, "opp"),
+    };
     for (const side of ["user", "opp"] as MatchSide[]) {
       for (const state of world.players[side].values()) {
-        const next = targetForPlayer(world, state, tactics);
+        const next = targetForPlayer(world, state, tactics, supporters[side]);
         state.target = next.point;
         state.intent = next.intent;
         movePlayer(state, next.point, tick, world.minute, input, tactics);
       }
     }
+    enforceSpacingAndLines(world);
     const owner =
       world.ball.ownerSide && world.ball.ownerId != null
         ? world.players[world.ball.ownerSide].get(world.ball.ownerId)
@@ -161,6 +438,7 @@ export function beginPossession(
 ) {
   const state = world.players[side].get(carrier.playerId);
   if (!state) return;
+  registerPossession(world, side);
   world.ball.ownerSide = side;
   world.ball.ownerId = carrier.playerId;
   world.ball.x = state.x;
@@ -179,6 +457,7 @@ export function moveBallOwner(
   }
   const state = world.players[side].get(player.playerId);
   if (!state) return;
+  registerPossession(world, side);
   world.ball.ownerSide = side;
   world.ball.ownerId = player.playerId;
   world.ball.x = state.x;

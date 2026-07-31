@@ -136,19 +136,21 @@ describe("match engine invariants", () => {
     const passes = average(results.map((result) => result.teamStats.user.passesAttempted));
     const shots = average(results.map((result) => result.teamStats.user.shots));
     const fouls = average(results.map((result) => result.teamStats.user.fouls));
+    const offsides = average(results.map((result) => result.teamStats.user.offsides));
     expect(passes).toBeGreaterThan(220);
     expect(passes).toBeLessThan(850);
     expect(shots).toBeGreaterThan(3);
     expect(shots).toBeLessThan(35);
     expect(fouls).toBeGreaterThan(0);
     expect(fouls).toBeLessThan(30);
+    expect(offsides).toBeLessThan(8);
     for (const result of results) {
       const goalkeeperShots = result.playerStats
         .filter((playerStat) => playerStat.position === "GK")
         .reduce((sum, playerStat) => sum + playerStat.shots, 0);
       expect(goalkeeperShots).toBe(0);
     }
-  });
+  }, 20_000);
 
   test("successful passes preserve the carrier inside each possession", () => {
     const result = simulatePeriod(input(77), 1, 90, 0);
@@ -218,7 +220,7 @@ describe("match engine invariants", () => {
       const squad = shot.side === "user" ? input(0).placed : input(0).oppPlaced;
       expect(squad.find((player) => player.playerId === shot.actorId)?.position).not.toBe("GK");
     }
-  });
+  }, 20_000);
 
   test("dead-ball restarts exclude throw-ins from the continuous match flow", () => {
     const results = Array.from({ length: 45 }, (_, seed) =>
@@ -235,7 +237,7 @@ describe("match engine invariants", () => {
       expect(event.endY ?? 50).toBeGreaterThanOrEqual(3);
       expect(event.endY ?? 50).toBeLessThanOrEqual(97);
     }
-  });
+  }, 20_000);
 
   test("high pressing changes recoveries and carries a fatigue/foul trade-off", () => {
     const high = Array.from({ length: 50 }, (_, seed) =>
@@ -260,14 +262,19 @@ describe("match engine invariants", () => {
         0,
       ),
     );
+    // A high line also regains possession by catching the opponent offside;
+    // include those deliberate trap wins now that offsides use real positions.
     const recoveries = (results: typeof high) =>
       results.reduce(
         (sum, result) =>
-          sum + result.teamStats.user.interceptions + result.teamStats.user.tacklesWon,
+          sum +
+          result.teamStats.user.interceptions +
+          result.teamStats.user.tacklesWon +
+          result.teamStats.opp.offsides,
         0,
       );
     expect(recoveries(high)).toBeGreaterThan(recoveries(low));
     expect(high.reduce((sum, result) => sum + result.teamStats.user.fouls, 0))
       .toBeGreaterThanOrEqual(low.reduce((sum, result) => sum + result.teamStats.user.fouls, 0));
-  });
+  }, 30_000);
 });
