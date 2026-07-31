@@ -421,8 +421,9 @@
   top: calc(100% + 7px);
   left: 0;
   right: 0;
+  max-height: 260px;
   padding: 6px;
-  overflow: hidden;
+  overflow-y: auto;
   border: 1px solid #b9cbb7;
   border-radius: 13px;
   background: rgba(255, 255, 255, .98);
@@ -946,7 +947,7 @@
 
 .board--prematch[data-workspace="tactics"] .board__sidebar {
   max-height: calc(100vh - 220px);
-  overflow: visible;
+  overflow: auto;
   background: #edf5e9;
 }
 
