@@ -56,6 +56,9 @@ interface Props {
   soundOn: boolean;
   primaryLabel: string;
   ready: boolean;
+  /** false while the arena overlay is showing: it owns the pitch and bench
+   *  then, and two copies would register duplicate drop targets. */
+  lineupInteractive?: boolean;
   pitchRef: RefObject<HTMLDivElement | null>;
   onBack: () => void;
   onSoundChange: (enabled: boolean) => void;
@@ -98,6 +101,7 @@ export function MatchBoardScreen({
   soundOn,
   primaryLabel,
   ready,
+  lineupInteractive = true,
   pitchRef,
   onBack,
   onSoundChange,
@@ -274,16 +278,18 @@ export function MatchBoardScreen({
                   </button>
                 </div>
               </div>
-              <Pitch
-                formation={formation}
-                slots={lineup.slots}
-                playersById={playersById}
-                conditions={conditions}
-                onSelectPlayer={onSelectPlayer}
-                positions={lineup.positions}
-                positionMode
-                pitchRef={pitchRef}
-              />
+              {lineupInteractive && (
+                <Pitch
+                  formation={formation}
+                  slots={lineup.slots}
+                  playersById={playersById}
+                  conditions={conditions}
+                  onSelectPlayer={onSelectPlayer}
+                  positions={lineup.positions}
+                  positionMode
+                  pitchRef={pitchRef}
+                />
+              )}
               <div className="pitch-tactic-caption pitch-tactic-caption--lineup">
                 <span>현재 포메이션</span>
                 <strong>{detectedFormation}</strong>
@@ -304,7 +310,6 @@ export function MatchBoardScreen({
               </header>
               <ArenaTacticsPanel
                 variant="prematch"
-                autoApply
                 userTeamName={team.team_name}
                 userCode={team.fifa_code}
                 formation={lineup.formation}
@@ -338,12 +343,14 @@ export function MatchBoardScreen({
             </button>
           </div>
           {rightPanel === "squad" ? (
-            <Bench
-              benchPlayers={benchPlayers}
-              conditions={conditions}
-              benchedOut={benchedOut}
-              onSelectPlayer={onSelectPlayer}
-            />
+            lineupInteractive && (
+              <Bench
+                benchPlayers={benchPlayers}
+                conditions={conditions}
+                benchedOut={benchedOut}
+                onSelectPlayer={onSelectPlayer}
+              />
+            )
           ) : opponent && opponentPlan ? (
             <OpponentAnalysisPanel
               opponent={opponent}

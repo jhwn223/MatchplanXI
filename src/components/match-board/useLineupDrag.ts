@@ -56,7 +56,9 @@ export function useLineupDrag({
     if (dragData.from !== BENCH_ZONE_ID && targetId !== BENCH_ZONE_ID) {
       const sourceSlot = formation.find((slot) => slot.id === dragData.from);
       const pitchRect = pitchRef.current?.getBoundingClientRect();
-      if (!sourceSlot || !pitchRect) return;
+      // The keeper stays on his line: only outfield positions are adjustable.
+      // He can still be dragged to the bench to be substituted.
+      if (!sourceSlot || sourceSlot.position === "GK" || !pitchRect) return;
       const current = lineup.positions?.[sourceSlot.id] ?? sourceSlot;
       onChangeLineup({
         ...lineup,

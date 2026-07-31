@@ -222,7 +222,9 @@ export function qualificationProbability(
   _groupLetter: string,
   played: PlayedMap,
   teamName: string,
-  trials = 400
+  // 400 trials left enough sampling noise that a strong side could draw 400
+  // qualifying trials in a row and be reported as certain.
+  trials = 1200
 ): number {
   const elo = eloOf(data);
   const ability = abilityByTeam(data);
@@ -261,7 +263,12 @@ export function qualificationProbability(
       qualifiedCount++;
     }
   }
-  return Math.round((qualifiedCount / trials) * 100);
+  // Group matches are still to be played, so neither outcome is settled. A
+  // top seed genuinely sits above 99% here (the 2026 format advances 32 of 48
+  // teams), but rounding that to a flat 100% reads as a guarantee the
+  // simulation cannot make.
+  const percent = Math.round((qualifiedCount / trials) * 100);
+  return Math.min(99, Math.max(1, percent));
 }
 
 const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];

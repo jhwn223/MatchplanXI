@@ -1,13 +1,24 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { LiveMatchSnapshot, PassType, PlayerMatchStats } from "../../data/matchSim";
-import type { FormationKey } from "../../data/formation";
-import type { ArenaSim } from "./types";
+import { FORMATION_KEYS, slotsOf, type FormationKey, type SlotPositions } from "../../data/formation";
+import type { Player } from "../../data/types";
+import { Bench } from "../Bench";
+import { Pitch } from "../Pitch";
+import { OpponentAnalysisPanel } from "../match-board/OpponentAnalysisPanel";
+import type { ArenaSim, ArenaSquadControls } from "./types";
 import { ArenaEventMap, type EventMapMode } from "./ArenaEventMap";
+import { ArenaLiveStats } from "./ArenaLiveStats";
 import { ArenaTacticsPanel } from "./ArenaTacticsPanel";
 import { ALL_PASS_TYPES, PASS_TYPE_META } from "./passMap";
 import { applyQuickTactic, type QuickTacticKey, type TeamTactics } from "./tactics";
 
-export type MatchCenterTab = "overview" | "ratings" | "analysis" | "tactics";
+export type MatchCenterTab =
+  | "overview"
+  | "ratings"
+  | "analysis"
+  | "tactics"
+  | "squad"
+  | "opponent";
 
 interface Props {
   activeTab: MatchCenterTab;
@@ -21,6 +32,11 @@ interface Props {
   formation: FormationKey;
   formationLabel?: string;
   tactics: TeamTactics;
+  slots: Record<string, number | null>;
+  positions?: SlotPositions;
+  playersById: Map<number, Player>;
+  opponentPlayers: Player[];
+  squadControls?: ArenaSquadControls;
   onApplyTactics: (tactics: TeamTactics) => void;
   onFormationChange?: (formation: FormationKey) => void;
   onClose: () => void;
@@ -38,6 +54,11 @@ export function ArenaMatchCenter({
   formation,
   formationLabel,
   tactics,
+  slots,
+  positions,
+  playersById,
+  opponentPlayers,
+  squadControls,
   onApplyTactics,
   onFormationChange,
   onClose,
@@ -54,6 +75,9 @@ export function ArenaMatchCenter({
             ["ratings", "선수 평점"],
             ["analysis", "경기 분석"],
             ["tactics", "전술"],
+            ...(squadControls
+              ? ([["squad", "스쿼드 · 교체"], ["opponent", "상대 분석"]] as const)
+              : []),
           ] as const).map(([key, label]) => (
             <button key={key} type="button" data-active={activeTab === key || undefined} onClick={() => onTabChange(key)}>
               {label}
@@ -71,7 +95,7 @@ export function ArenaMatchCenter({
           <div className="match-overview__content">
             <section className="match-stat-card">
               <h3>경기 흐름</h3>
-              <LiveStatRows live={live} userXg={sim.userXg ?? 0} oppXg={sim.oppXg ?? 0} />
+              <ArenaLiveStats live={live} userXg={sim.userXg ?? 0} oppXg={sim.oppXg ?? 0} />
             </section>
             <section className="match-mini-map">
               <div><h3>선수 포지셔닝</h3><span>{minute}분까지</span></div>
@@ -106,6 +130,75 @@ export function ArenaMatchCenter({
           minute={minute}
         />
       )}
+      {activeTab === "squad" && squadControls && (
+        <div className="arena-squad-board">
+          <section className="arena-squad-board__pitch">
+            <header>
+              <div>
+                <h3>선수 배치</h3>
+                <p>드래그로 위치를 조정하고, 벤치에서 끌어와 교체합니다. 다음 플레이부터 반영됩니다.</p>
+              </div>
+              <div className="arena-squad-board__meta">
+                {onFormationChange && (
+                  <select
+                    className="match-formation-select"
+                    value={formation}
+                    onChange={(event) => onFormationChange(event.target.value as FormationKey)}
+                    aria-label="경기 중 포메이션 변경"
+                  >
+                    {FORMATION_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+                  </select>
+                )}
+                <span>교체 {squadControls.subsUsed}/{squadControls.maxSubs}</span>
+                <button
+                  type="button"
+                  className="pitch-reset"
+                  onClick={squadControls.onResetPositions}
+                  title="기본 위치로 되돌리기"
+                >
+                  ↺
+                </button>
+              </div>
+            </header>
+            <Pitch
+              formation={slotsOf(formation)}
+              slots={slots}
+              playersById={playersById}
+              conditions={squadControls.conditions}
+              onSelectPlayer={squadControls.onSelectPlayer}
+              positions={positions}
+              positionMode
+              pitchRef={squadControls.pitchRef}
+            />
+          </section>
+          <Bench
+            benchPlayers={squadControls.benchPlayers}
+            conditions={squadControls.conditions}
+            benchedOut={squadControls.benchedOut}
+            onSelectPlayer={squadControls.onSelectPlayer}
+          />
+        </div>
+      )}
+
+      {activeTab === "opponent" && squadControls && (
+        squadControls.opponent && squadControls.opponentPlan ? (
+          <div className="arena-opponent-board">
+            <OpponentAnalysisPanel
+              opponent={squadControls.opponent}
+              players={opponentPlayers}
+              conditions={squadControls.opponentConditions}
+              plan={squadControls.opponentPlan}
+              matchups={squadControls.matchups}
+              onApplyMatchup={(patch) => onApplyTactics({ ...tactics, ...patch })}
+            />
+          </div>
+        ) : (
+          <div className="opponent-report opponent-report--empty">
+            상대 팀 분석 데이터를 불러올 수 없습니다.
+          </div>
+        )
+      )}
+
       {activeTab === "tactics" && (
         <ArenaTacticsPanel
           userTeamName={userTeamName}
@@ -114,39 +207,9 @@ export function ArenaMatchCenter({
           formationLabel={formationLabel}
           tactics={tactics}
           onApply={onApplyTactics}
-          onFormationChange={onFormationChange}
-          onCancel={onClose}
         />
       )}
     </section>
-  );
-}
-
-function LiveStatRows({ live, userXg, oppXg }: { live: LiveMatchSnapshot | null; userXg: number; oppXg: number }) {
-  const user = live?.teamStats.user;
-  const opp = live?.teamStats.opp;
-  const rows: Array<[string, number, number, string]> = [
-    ["점유율", user?.possession ?? 50, opp?.possession ?? 50, "%"],
-    ["슈팅", user?.shots ?? 0, opp?.shots ?? 0, ""],
-    ["유효 슈팅", user?.shotsOnTarget ?? 0, opp?.shotsOnTarget ?? 0, ""],
-    ["기대 득점", userXg, oppXg, ""],
-    ["패스 성공", user?.passSuccessRate ?? 0, opp?.passSuccessRate ?? 0, "%"],
-    ["볼 회수", (user?.tacklesWon ?? 0) + (user?.interceptions ?? 0), (opp?.tacklesWon ?? 0) + (opp?.interceptions ?? 0), ""],
-    ["파울", user?.fouls ?? 0, opp?.fouls ?? 0, ""],
-    ["경고", user?.yellowCards ?? 0, opp?.yellowCards ?? 0, ""],
-    ["코너킥", user?.corners ?? 0, opp?.corners ?? 0, ""],
-    ["오프사이드", user?.offsides ?? 0, opp?.offsides ?? 0, ""],
-  ];
-  return (
-    <div className="match-stat-rows">
-      {rows.map(([label, home, away, suffix]) => (
-        <div key={label}>
-          <strong>{Number.isInteger(home) ? home : home.toFixed(2)}{suffix}</strong>
-          <span>{label}</span>
-          <strong>{Number.isInteger(away) ? away : away.toFixed(2)}{suffix}</strong>
-        </div>
-      ))}
-    </div>
   );
 }
 

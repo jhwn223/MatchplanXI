@@ -166,7 +166,6 @@
 .arena-score__nums i { color: var(--border-strong); font-size: 20px; font-style: normal; }
 .arena-close { position: absolute; top: 12px; right: 14px; }
 .arena-live-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(250px, 1.15fr); border-bottom: 1px solid var(--border); }
-.arena-live-grid .arena-canvas-wrap { aspect-ratio: 16 / 9; }
 .arena-live-tactic {
   position: absolute;
   left: 18px;

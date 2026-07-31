@@ -1,5 +1,9 @@
+import type { RefObject } from "react";
+import type { ConditionBreakdown } from "../../data/conditionEngine";
 import type { FormationKey, SlotPositions } from "../../data/formation";
 import type { Leaderboard } from "../../data/leaderboard";
+import type { Team } from "../../data/types";
+import type { OpponentPlan, TacticalMatchup } from "../match-board/opponentPlan";
 import type {
   GoalEvent,
   HalfResult,
@@ -14,6 +18,27 @@ import type {
 import type { TacticStyleKey } from "../../data/tactics";
 import type { Player } from "../../data/types";
 import type { TeamTactics } from "./tactics";
+
+/**
+ * Everything the in-match squad and opponent tabs need. Grouped into one
+ * optional prop so the arena still works standalone (replays, tests) without
+ * a dozen extra parameters, and so the board can hand its own lineup state
+ * straight through.
+ */
+export interface ArenaSquadControls {
+  conditions: Map<number, ConditionBreakdown>;
+  benchPlayers: Player[];
+  benchedOut: Set<number>;
+  pitchRef: RefObject<HTMLDivElement | null>;
+  subsUsed: number;
+  maxSubs: number;
+  onSelectPlayer: (player: Player) => void;
+  onResetPositions: () => void;
+  opponent?: Team;
+  opponentConditions: Map<number, ConditionBreakdown>;
+  opponentPlan?: OpponentPlan | null;
+  matchups: TacticalMatchup[];
+}
 
 export interface ArenaSim {
   goals: GoalEvent[];
@@ -34,6 +59,14 @@ export interface ArenaSim {
 
 export interface MatchArenaProps {
   simInput: SimInput;
+  /**
+   * Events from the periods already played. Each period mounts its own arena,
+   * so the running booking list needs the earlier halves handed to it or it
+   * would restart empty after the interval.
+   */
+  priorEvents?: MatchEvent[];
+  /** Enables the in-match squad and opponent tabs when supplied. */
+  squadControls?: ArenaSquadControls;
   userTeamName: string;
   userCode: string;
   oppTeamName: string;

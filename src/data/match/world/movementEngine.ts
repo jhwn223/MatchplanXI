@@ -29,8 +29,15 @@ function ownGoalX(side: MatchSide) {
   return side === "user" ? 2 : 98;
 }
 
+/**
+ * Pitch coordinates never approach the range where Math.hypot's overflow
+ * guarding matters, and this is the hottest function in the simulation —
+ * roughly an eighth of a full match's cost on its own.
+ */
 function distance(a: WorldPoint, b: WorldPoint) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 function effectivePossessionSide(world: MatchWorld) {
@@ -101,15 +108,22 @@ function setDefensiveAssignment(
 }
 
 function assignDefensiveRoles(world: MatchWorld, side: MatchSide, tactics: TacticsBySide) {
+  // Assignments only refresh every 1.4s, but this runs on every tick, so the
+  // early-out must not allocate.
+  let outfieldCount = 0;
+  let allAssignmentsFresh = true;
+  let hasPresser = false;
+  for (const state of world.players[side].values()) {
+    if (state.player.position === "GK") continue;
+    outfieldCount++;
+    if (state.assignmentExpiresAt <= world.elapsedSeconds) allAssignmentsFresh = false;
+    if (state.defensiveRole === "presser") hasPresser = true;
+  }
+  if (outfieldCount && allAssignmentsFresh && hasPresser) return;
+
   const states = [...world.players[side].values()].filter(
     (state) => state.player.position !== "GK",
   );
-  if (
-    states.length &&
-    states.every((state) => state.assignmentExpiresAt > world.elapsedSeconds) &&
-    states.some((state) => state.defensiveRole === "presser")
-  ) return;
-
   const expiresAt = world.elapsedSeconds + 1.4;
   const opponentSide = otherSide(side);
   const ownerId = world.ball.ownerSide === opponentSide ? world.ball.ownerId ?? undefined : undefined;
@@ -167,14 +181,29 @@ function assignDefensiveRoles(world: MatchWorld, side: MatchSide, tactics: Tacti
   }
 }
 
+/** The two closest outfield teammates to the ball, without sorting the squad. */
 function supportIds(world: MatchWorld, side: MatchSide) {
   const ownerId = world.ball.ownerId;
   if (world.ball.ownerSide !== side || ownerId == null) return [];
-  return [...world.players[side].values()]
-    .filter((candidate) => candidate.player.position !== "GK" && candidate.player.playerId !== ownerId)
-    .sort((a, b) => distance(a, world.ball) - distance(b, world.ball))
-    .slice(0, 2)
-    .map((candidate) => candidate.player.playerId);
+  let firstId = -1;
+  let secondId = -1;
+  let firstDistance = Infinity;
+  let secondDistance = Infinity;
+  for (const candidate of world.players[side].values()) {
+    if (candidate.player.position === "GK" || candidate.player.playerId === ownerId) continue;
+    const gap = distance(candidate, world.ball);
+    if (gap < firstDistance) {
+      secondDistance = firstDistance;
+      secondId = firstId;
+      firstDistance = gap;
+      firstId = candidate.player.playerId;
+    } else if (gap < secondDistance) {
+      secondDistance = gap;
+      secondId = candidate.player.playerId;
+    }
+  }
+  if (firstId < 0) return [];
+  return secondId < 0 ? [firstId] : [firstId, secondId];
 }
 
 function targetForPlayer(
@@ -182,6 +211,7 @@ function targetForPlayer(
   state: WorldPlayerState,
   tactics: TacticsBySide,
   nearbySupportIds: readonly number[],
+  offsideLine: number,
 ): { point: WorldPoint; intent: WorldIntent } {
   const { side, player } = state;
   const dir = direction(side);
@@ -230,7 +260,6 @@ function targetForPlayer(
     let targetX = shape.x;
     const pulse = Math.sin(world.elapsedSeconds * 0.9 + player.playerId * 0.37);
     if (player.position === "FWD") {
-      const offsideLine = offsideLineFor(world, side);
       const timingError = pulse > 0.999
         ? 0.3 + (100 - player.positioning) / 90
         : -2.2;
@@ -315,19 +344,25 @@ function movePlayer(
 ) {
   const dx = target.x - state.x;
   const dy = target.y - state.y;
-  const remaining = Math.hypot(dx, dy);
+  const remaining = Math.sqrt(dx * dx + dy * dy);
   if (remaining < 0.01) {
     state.vx = 0;
     state.vy = 0;
     return;
   }
-  const performance = actionPerformanceFactor(
-    state.player,
-    minute,
-    input.elevation,
-    "movement",
-    tactics[state.side],
-  );
+  // Every input to this is fixed for the whole match minute, but it used to be
+  // recomputed for all 22 players on every tick.
+  if (state.movementFactorMinute !== minute) {
+    state.movementFactorMinute = minute;
+    state.movementFactor = actionPerformanceFactor(
+      state.player,
+      minute,
+      input.elevation,
+      "movement",
+      tactics[state.side],
+    );
+  }
+  const performance = state.movementFactor ?? 1;
   const pace = (state.player.pace * 0.62 + state.player.acceleration * 0.38) / 100;
   const intelligence = clamp((state.player.positioning + state.player.reactions) / 180, 0.65, 1.1);
   const maxSpeed = (2.5 + pace * 3.4) * performance * intelligence;
@@ -338,25 +373,50 @@ function movePlayer(
   state.y = clamp(state.y + (dy / remaining) * step, 2, 98);
 }
 
-function enforceSpacingAndLines(world: MatchWorld) {
-  const all = [...world.players.user.values(), ...world.players.opp.values()];
+/**
+ * Shape corrections are rate-limited by the tick length. Applying them as a
+ * fixed per-tick snap moved players faster than they can run whenever a
+ * correction target jumped (a possession change lifting the defensive line),
+ * which then showed up in the rendered picture as a teleport.
+ */
+const SEPARATION_RATE = 4;
+const LINE_CATCHUP_SPEED = 11;
+const MAX_CORRECTION_SPEED = 12;
+
+function approachBand(value: number, lower: number, upper: number, maxStep: number) {
+  if (value < lower) return Math.min(lower, value + maxStep);
+  if (value > upper) return Math.max(upper, value - maxStep);
+  return value;
+}
+
+function enforceSpacingAndLines(
+  world: MatchWorld,
+  seconds: number,
+  all: WorldPlayerState[],
+) {
   for (let first = 0; first < all.length; first++) {
     for (let second = first + 1; second < all.length; second++) {
       const a = all[first];
       const b = all[second];
       let dx = b.x - a.x;
       let dy = b.y - a.y;
-      let current = Math.hypot(dx, dy);
       const sameTeam = a.side === b.side;
       const sameLine = sameTeam && a.player.position === b.player.position;
       const minimum = sameLine ? 5.2 : sameTeam ? 3.7 : 0.85;
-      if (current >= minimum) continue;
+      // Most of the 231 pairs are far apart every tick, so reject on the
+      // squared distance and only pay for the square root on a real overlap.
+      const squared = dx * dx + dy * dy;
+      if (squared >= minimum * minimum) continue;
+      let current = Math.sqrt(squared);
       if (current <= 0.01) {
         dx = 0;
         dy = a.player.baseY <= b.player.baseY ? 1 : -1;
         current = 1;
       }
-      const push = (minimum - current) * (sameTeam ? 0.42 : 0.3);
+      const push = Math.min(
+        (minimum - current) * (sameTeam ? SEPARATION_RATE : SEPARATION_RATE * 0.7) * seconds,
+        MAX_CORRECTION_SPEED * seconds,
+      );
       let nx = dx / current;
       let ny = dy / current;
       if (sameLine && Math.abs(ny) < 0.45) {
@@ -369,6 +429,7 @@ function enforceSpacingAndLines(world: MatchWorld) {
       b.y = clamp(b.y + ny * push, 2, 98);
     }
   }
+  const lineStep = LINE_CATCHUP_SPEED * seconds;
   for (const side of ["user", "opp"] as MatchSide[]) {
     const defenders = [...world.players[side].values()].filter(
       (state) => state.player.position === "DEF",
@@ -376,15 +437,15 @@ function enforceSpacingAndLines(world: MatchWorld) {
     if (defenders.length) {
       const targetLineX = defenders.reduce((sum, state) => sum + state.target.x, 0) / defenders.length;
       for (const defender of defenders) {
-        defender.x = clamp(defender.x, targetLineX - 5.5, targetLineX + 5.5);
+        defender.x = approachBand(defender.x, targetLineX - 5.5, targetLineX + 5.5, lineStep);
       }
     }
     const keeper = [...world.players[side].values()].find(
       (state) => state.player.position === "GK",
     );
     if (keeper) {
-      keeper.x = clamp(keeper.x, side === "user" ? 2 : 84, side === "user" ? 16 : 98);
-      keeper.y = clamp(keeper.y, 35, 65);
+      keeper.x = approachBand(keeper.x, side === "user" ? 2 : 84, side === "user" ? 16 : 98, lineStep);
+      keeper.y = approachBand(keeper.y, 35, 65, lineStep);
     }
   }
 }
@@ -394,11 +455,16 @@ export function advanceWorld(
   input: SimInput,
   tactics: TacticsBySide,
   seconds: number,
-) {
   // Statistical world snapshots do not need animation-frame granularity.
   // Half-second tactical ticks retain movement continuity while keeping
-  // full-match simulation and calibration tests fast.
-  const tickLength = 0.5;
+  // full-match simulation and calibration tests fast; a caller stepping
+  // through a stoppage can ask for a coarser tick.
+  tickLength = 0.5,
+) {
+  // The squads cannot change while the world is being stepped, so the flat
+  // player list the spacing pass needs is built once per call.
+  const everyone = [...world.players.user.values(), ...world.players.opp.values()];
+  const sides = ["user", "opp"] as const;
   let remaining = clamp(seconds, 0, 12);
   while (remaining > 0.001) {
     const tick = Math.min(tickLength, remaining);
@@ -409,15 +475,21 @@ export function advanceWorld(
       user: supportIds(world, "user"),
       opp: supportIds(world, "opp"),
     };
-    for (const side of ["user", "opp"] as MatchSide[]) {
+    // The offside line only changes once per tick, but every forward used to
+    // recompute it on its own.
+    const offsideLines = {
+      user: offsideLineFor(world, "user"),
+      opp: offsideLineFor(world, "opp"),
+    };
+    for (const side of sides) {
       for (const state of world.players[side].values()) {
-        const next = targetForPlayer(world, state, tactics, supporters[side]);
+        const next = targetForPlayer(world, state, tactics, supporters[side], offsideLines[side]);
         state.target = next.point;
         state.intent = next.intent;
         movePlayer(state, next.point, tick, world.minute, input, tactics);
       }
     }
-    enforceSpacingAndLines(world);
+    enforceSpacingAndLines(world, tick, everyone);
     const owner =
       world.ball.ownerSide && world.ball.ownerId != null
         ? world.players[world.ball.ownerSide].get(world.ball.ownerId)

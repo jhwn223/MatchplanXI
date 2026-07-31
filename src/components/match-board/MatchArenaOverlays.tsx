@@ -5,6 +5,7 @@ import type { TeamMatch } from "../../data/tournament";
 import type { Player, Team } from "../../data/types";
 import type { FormationKey } from "../../data/formation";
 import { MatchArena, type ArenaSim } from "../MatchArena";
+import type { ArenaSquadControls } from "../match-arena/types";
 import type { TeamTactics } from "../match-arena/tactics";
 import type { Lineup, MatchPhase } from "./types";
 
@@ -24,6 +25,7 @@ interface Props {
   liveTactics: TeamTactics;
   opponentTactics?: TeamTactics;
   opponentFormation?: FormationKey;
+  squadControls: ArenaSquadControls;
   onTacticChange: (tactics: TeamTactics) => void;
   onOpponentTacticChange: (tactics: TeamTactics) => void;
   onFormationChange: (formation: FormationKey) => void;
@@ -51,6 +53,7 @@ export function MatchArenaOverlays({
   liveTactics,
   opponentTactics,
   opponentFormation,
+  squadControls,
   onTacticChange,
   onOpponentTacticChange,
   onFormationChange,
@@ -77,6 +80,7 @@ export function MatchArenaOverlays({
     initialTactics: liveTactics,
     initialOpponentTactics: opponentTactics,
     opponentFormation,
+    squadControls,
     onTacticChange,
     onOpponentTacticChange,
     onFormationChange,
@@ -105,6 +109,7 @@ export function MatchArenaOverlays({
           key="half2"
           {...shared}
           simInput={simInput}
+          priorEvents={firstHalf?.events}
           startMinute={45}
           endMinute={90}
           startScore={[firstHalf?.userGoals ?? 0, firstHalf?.oppGoals ?? 0]}
@@ -122,6 +127,7 @@ export function MatchArenaOverlays({
           key="extratime"
           {...shared}
           simInput={simInput}
+          priorEvents={regulation?.events}
           startMinute={90}
           endMinute={120}
           startScore={[regulation?.userGoals ?? 0, regulation?.oppGoals ?? 0]}

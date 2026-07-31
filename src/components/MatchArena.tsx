@@ -12,6 +12,7 @@ import {
 } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
 import { ArenaEventFeed } from "./match-arena/ArenaEventFeed";
+import { ArenaLiveStats } from "./match-arena/ArenaLiveStats";
 import { ArenaMatchCenter, type MatchCenterTab } from "./match-arena/ArenaMatchCenter";
 import { ArenaResultPanel } from "./match-arena/ArenaResultPanel";
 import { PenaltyTakerSelect, type PenaltyTakerCandidate } from "./match-arena/PenaltyTakerSelect";
@@ -36,8 +37,47 @@ import {
 
 export type { ArenaSim } from "./match-arena/types";
 
+function ScorerList({ scorers }: { scorers: { minute: number; name: string }[] }) {
+  if (!scorers.length) return null;
+  return (
+    <ul className="arena-scorers">
+      {scorers.map((scorer, index) => (
+        <li key={`${scorer.minute}-${scorer.name}-${index}`}>
+          <i aria-hidden="true">⚽</i>
+          <span>{scorer.name}</span>
+          <em>{scorer.minute}′</em>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function BookingList({
+  bookings,
+}: {
+  bookings: { minute: number; name: string; red: boolean }[];
+}) {
+  if (!bookings.length) return null;
+  return (
+    <ul className="arena-bookings">
+      {bookings.map((booking, index) => (
+        <li
+          key={`${booking.minute}-${booking.name}-${index}`}
+          data-red={booking.red || undefined}
+        >
+          <i aria-hidden="true" />
+          <span>{booking.name}</span>
+          <em>{booking.minute}′</em>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function MatchArena({
   simInput,
+  priorEvents,
+  squadControls,
   userTeamName,
   userCode,
   oppTeamName,
@@ -96,6 +136,7 @@ export function MatchArena({
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [activePanel, setActivePanel] = useState<MatchCenterTab | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<"stats" | "feed">("stats");
   const [teamTactics, setTeamTactics] = useState<TeamTactics>(initialTactics);
   const [opponentTactics, setOpponentTactics] = useState<TeamTactics>(initialOpponentTactics);
   const [hud, setHud] = useState({
@@ -282,10 +323,31 @@ export function MatchArena({
     setPaused(pausedBeforePanelRef.current);
   }
 
-  function applyTeamTactics(next: TeamTactics) {
-    updateTeamTactics(next);
-    closeMatchCenter();
+  function togglePause() {
+    setPaused((current) => {
+      const next = !current;
+      pausedRef.current = next;
+      return next;
+    });
   }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" || event.repeat) return;
+      // Only text entry keeps the space bar. Buttons are deliberately not
+      // excluded: clicking a speed or tab button leaves it focused, and
+      // skipping the shortcut there made the key look broken. Preventing the
+      // default keeps the focused button from also firing its click.
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+      if (activePanel != null || ended || pendingPenalties) return;
+      event.preventDefault();
+      togglePause();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activePanel, ended, pendingPenalties]);
+
 
   function penaltyTakerCandidates(): PenaltyTakerCandidate[] {
     return slotsOf(formation)
@@ -515,6 +577,26 @@ export function MatchArena({
     oppXg: observedOppXg,
   };
   const liveSnapshot = snapshotAtMinute(sim.liveSnapshots ?? [], hud.minute);
+  // Bookings are read from the card events rather than the running totals so
+  // each one carries the minute it happened, and the periods already played
+  // are prepended so the list keeps growing across the interval.
+  const timeline = [...(priorEvents ?? []), ...playedEvents];
+  const bookings = (side: "user" | "opp") =>
+    timeline
+      .filter(
+        (event) =>
+          event.side === side &&
+          (event.type === "yellowCard" || event.type === "redCard"),
+      )
+      .map((event) => ({
+        minute: event.minute,
+        name: event.actor,
+        red: event.type === "redCard",
+      }));
+  const scorers = (side: "user" | "opp") =>
+    timeline
+      .filter((event) => event.side === side && event.type === "goal")
+      .map((event) => ({ minute: event.minute, name: event.actor }));
   // 연장전(90~120분)은 한 화면 안에서 105분을 기준으로 연장 전반/후반 두 구간으로 나눠서 게이지를 채운다.
   const isExtraTime = endMinute > 90;
   const extraTimeHalf = isExtraTime && hud.minute >= 105;
@@ -536,6 +618,8 @@ export function MatchArena({
           <div className="arena-score__team">
             <small>HOME</small>
             <div><span style={{ background: userColor }}>{userCode}</span><strong>{userTeamName}</strong></div>
+            <ScorerList scorers={scorers("user")} />
+            <BookingList bookings={bookings("user")} />
           </div>
           <div className="arena-score__center">
             <span className="arena-score__clock">● {hud.minute}′ {endMinute <= 45 ? "전반전" : endMinute <= 90 ? "후반전" : extraTimeHalf ? "연장 후반" : "연장 전반"}</span>
@@ -544,6 +628,8 @@ export function MatchArena({
           <div className="arena-score__team arena-score__team--away">
             <small>AWAY</small>
             <div><strong>{oppTeamName}</strong><span>{oppCode}</span></div>
+            <ScorerList scorers={scorers("opp")} />
+            <BookingList bookings={bookings("opp")} />
           </div>
           <button type="button" className="arena-close" onClick={onClose}>
             ✕
@@ -571,7 +657,12 @@ export function MatchArena({
             formation={formation}
             formationLabel={formationLabel}
             tactics={teamTactics}
-            onApplyTactics={applyTeamTactics}
+            slots={slots}
+            positions={positions}
+            playersById={playersById}
+            opponentPlayers={opponentPlayers}
+            squadControls={squadControls}
+            onApplyTactics={updateTeamTactics}
             onFormationChange={onFormationChange}
             onClose={closeMatchCenter}
           />
@@ -620,13 +711,39 @@ export function MatchArena({
             </AnimatePresence>
           </div>
           <div className="arena-insights">
-            <ArenaEventFeed
-              events={playedEvents}
-              minute={hud.minute}
-              live={liveSnapshot}
-              opponentTacticChanges={opponentTacticChanges}
-              opponentTactics={opponentTactics}
-            />
+            {/* The inner box is taken out of flow on wide screens so the
+                sidebar cannot stretch the grid row past the pitch. */}
+            <div className="arena-insights__inner">
+            <div className="arena-insights__tabs" role="tablist">
+              {([["stats", "통계"], ["feed", "경기정보"]] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={sidebarTab === key}
+                  data-active={sidebarTab === key || undefined}
+                  onClick={() => setSidebarTab(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {sidebarTab === "stats" ? (
+              <div className="arena-live-stats">
+                <ArenaLiveStats
+                  live={liveSnapshot}
+                  userXg={observedUserXg}
+                  oppXg={observedOppXg}
+                />
+              </div>
+            ) : (
+              <ArenaEventFeed
+                events={playedEvents}
+                minute={hud.minute}
+                opponentTacticChanges={opponentTacticChanges}
+                opponentTactics={opponentTactics}
+              />
+            )}
             <TacticImpactPanel
               tactics={teamTactics}
               changedAt={tacticChangedAt}
@@ -637,6 +754,7 @@ export function MatchArena({
               simulatedThrough={simulatedThrough}
               segments={tacticSegments}
             />
+            </div>
           </div>
         </div>
 
@@ -647,10 +765,13 @@ export function MatchArena({
               {timelineTicks.map((tick, index) => <span key={index}>{tick}′</span>)}
             </div>
             <div className="arena-controls">
-            <button type="button" className="arena-ctrl" disabled={activePanel != null} onClick={() => { pausedRef.current = !paused; setPaused(!paused); }}>
-              {activePanel ? "분석 중 · 일시정지" : paused ? "▶ 재생" : "⏸ 일시정지"}
+            <button type="button" className="arena-ctrl" disabled={activePanel != null} onClick={togglePause}>
+              {activePanel ? "분석 중 · 일시정지" : paused ? "▶ 재생 (Space)" : "⏸ 일시정지 (Space)"}
             </button>
-            {[1, 2, 4].map((sp) => (
+            {/* 16x is a skip tier, not a viewing speed: the shortest pass
+                flight is under one frame there, and it only reaches a true
+                16x above ~46fps before the simulation accumulator clamps. */}
+            {[1, 2, 4, 16].map((sp) => (
               <button
                 key={sp}
                 type="button"
@@ -662,11 +783,9 @@ export function MatchArena({
                 {sp}배속
               </button>
             ))}
-            <button type="button" className="arena-ctrl arena-ctrl--section" data-active={activePanel === "overview" || undefined} onClick={() => openMatchCenter("overview")}>◉ 경기 개요</button>
-            <button type="button" className="arena-ctrl arena-ctrl--section" data-active={activePanel === "ratings" || undefined} onClick={() => openMatchCenter("ratings")}>★ 선수 평점</button>
-            <button type="button" className="arena-ctrl arena-ctrl--section" data-active={activePanel === "analysis" || undefined} onClick={() => openMatchCenter("analysis")}>▥ 경기 분석</button>
-            <button type="button" className="arena-ctrl arena-ctrl--section arena-ctrl--skip" data-active={activePanel === "tactics" || undefined} onClick={() => openMatchCenter("tactics")}>✎ 전술 변경</button>
-            <button type="button" className="arena-ctrl arena-ctrl--end" disabled={activePanel != null} onClick={() => { stateRef.current!.clock = endMinute; }}>경기 종료</button>
+            {/* One entry point: the match centre already carries tabs for
+                개요 · 평점 · 분석 · 스쿼드 · 상대 분석 alongside 전술. */}
+            <button type="button" className="arena-ctrl arena-ctrl--section arena-ctrl--skip" data-active={activePanel != null || undefined} onClick={() => openMatchCenter("tactics")}>✎ 전술 변경</button>
             </div>
           </div>
         ) : (

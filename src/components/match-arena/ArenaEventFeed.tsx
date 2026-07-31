@@ -1,4 +1,4 @@
-import type { LiveMatchSnapshot, MatchEvent } from "../../data/matchSim";
+import type { MatchEvent } from "../../data/matchSim";
 import type { OpponentTacticChange } from "../match-board/opponentPlan";
 import { describeTeamTactics, type TeamTactics } from "./tactics";
 
@@ -27,7 +27,6 @@ const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = 
 interface Props {
   events: MatchEvent[];
   minute: number;
-  live?: LiveMatchSnapshot | null;
   opponentTacticChanges?: OpponentTacticChange[];
   opponentTactics?: TeamTactics;
 }
@@ -35,40 +34,24 @@ interface Props {
 export function ArenaEventFeed({
   events,
   minute,
-  live,
   opponentTacticChanges = [],
   opponentTactics,
 }: Props) {
-  const elapsed = events.filter((event) => event.minute <= minute);
-  const visible = elapsed
+  // The whole history stays in the list and the list scrolls, so the panel
+  // keeps a fixed height however long the match runs.
+  const visible = events
     .filter(
       (event) =>
+        event.minute <= minute &&
         event.type !== "pass" &&
         event.type !== "shot" &&
         event.type !== "recovery" &&
         event.type !== "throwIn",
     )
-    .slice(-7)
     .reverse();
   const latestOpponentChange = opponentTacticChanges
     .filter((change) => change.minute <= minute)
     .at(-1);
-
-  let passRate = 0;
-  let xg = 0;
-  if (live) {
-    passRate = Math.round(live.teamStats.user.passSuccessRate);
-    xg = live.userXg;
-  } else {
-    const completedPasses = elapsed.filter((event) => event.side === "user" && event.type === "pass").length;
-    const lostPasses = elapsed.filter((event) => event.side === "opp" && event.type === "interception").length;
-    passRate = completedPasses + lostPasses
-      ? Math.round((completedPasses / (completedPasses + lostPasses)) * 100)
-      : 0;
-    xg = elapsed
-      .filter((event) => event.side === "user" && event.type === "shot")
-      .reduce((sum, event) => sum + (event.xg ?? 0), 0);
-  }
 
   return (
     <aside className="arena-events">
@@ -96,10 +79,6 @@ export function ArenaEventFeed({
             </p>
           </div>
         ))}
-      </div>
-      <div className="arena-events__stats">
-        <div><span>실시간 패스 성공</span><strong>{passRate || "–"}%</strong></div>
-        <div><span>실시간 xG</span><strong>{xg.toFixed(2)}</strong></div>
       </div>
     </aside>
   );

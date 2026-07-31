@@ -2,6 +2,7 @@ import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "r
 import {
   eventPlaybackClock,
   findEventDot,
+  heldPlaybackClock,
   prepareEventActor,
   projectMatchEvent,
 } from "./arenaEventProjector";
@@ -463,9 +464,12 @@ export function useArenaLoop({
         ? Math.min(proposedClock, Math.max(s.clock, nextPlayback + 0.65))
         : proposedClock;
       const hasPendingEvents = s.nextEvent < (currentSim.events?.length ?? 0);
-      if (proposedClock >= endMinute && (hasPendingEvents || ballBusy)) {
-        s.clock = Math.min(s.clock, endMinute - 0.01);
-      }
+      s.clock = heldPlaybackClock(
+        s.clock,
+        endMinute,
+        nextPlayback,
+        proposedClock >= endMinute && (hasPendingEvents || ballBusy),
+      );
       const reachedPeriodEnd =
         proposedClock >= endMinute && !hasPendingEvents && !ballBusy;
       if (reachedPeriodEnd) {

@@ -33,6 +33,23 @@ function giveBallTo(state: ArenaState, owner: number) {
   state.ball.scripted = false;
 }
 
+/**
+ * Playback runs the ball far slower than the compressed match clock so that
+ * each action stays visible. The rate below is what actually paces a replay:
+ * events are consumed one at a time and only while the ball is free, so the
+ * flight duration — not the match clock — decides how long a match takes.
+ *
+ * At the previous rate seven in ten flights sat on one of the two bounds, so
+ * a short pass and a long ball animated identically. Doubling the rate pulls
+ * most of them back between the bounds, restoring the sense of pass weight,
+ * and shortens a full match from about 11.7 to 7.5 minutes at 1x. The lower
+ * bound is still five frames at 60fps, which reads as movement rather than a
+ * jump.
+ */
+const BALL_PLAYBACK_RATE = 2;
+const MIN_FLIGHT_SECONDS = 0.08;
+const MAX_FLIGHT_SECONDS = 0.38;
+
 function startBallFlight(
   state: ArenaState,
   x: number,
@@ -54,7 +71,11 @@ function startBallFlight(
     owner,
     chaser,
     elapsed: 0,
-    duration: clamp(distance / speed, 0.14, 0.46),
+    duration: clamp(
+      distance / (speed * BALL_PLAYBACK_RATE),
+      MIN_FLIGHT_SECONDS,
+      MAX_FLIGHT_SECONDS,
+    ),
   };
   state.ball.scripted = true;
 }
@@ -103,6 +124,27 @@ export function eventPlaybackClock(events: MatchEvent[], index: number) {
     .slice(0, index + 1)
     .filter((candidate) => candidate.minute === event.minute).length;
   return event.minute - 1 + ordinal / (sameMinute.length + 1);
+}
+
+/**
+ * The visible clock must not pass the period end while the action log or the
+ * ball is still busy, but it always has to be able to reach the next event's
+ * playback time. Holding it strictly below the whistle starved any event the
+ * engine timestamped inside that last hundredth of a minute: the event could
+ * never be consumed, so it stayed pending, so the clock stayed held — the
+ * match froze a moment short of half time.
+ */
+export function heldPlaybackClock(
+  clock: number,
+  endMinute: number,
+  nextPlayback: number,
+  blocked: boolean,
+) {
+  if (!blocked) return clock;
+  const hold = Number.isFinite(nextPlayback)
+    ? Math.max(endMinute - 0.01, nextPlayback)
+    : endMinute - 0.01;
+  return Math.min(clock, hold);
 }
 
 export function prepareEventActor(state: ArenaState, event: MatchEvent) {

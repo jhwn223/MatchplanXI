@@ -120,7 +120,6 @@ export function simulatePeriodWithWorld(
   const rng = mulberry32((input.seed + seedOffset) >>> 0);
   const goals: GoalEvent[] = [];
   const events: MatchEvent[] = [];
-  const eventOrderByMinute = new Map<number, number>();
   let activePossessionId = "";
   let possessionBallPoint: { x: number; y: number } | null = null;
   const positionSamples: PositionSample[] = [];
@@ -132,10 +131,6 @@ export function simulatePeriodWithWorld(
   const playerStats = createPlayerStats(input);
   const snapshots = new Map<number, ReturnType<typeof createLiveSnapshot>>();
   const periodStartMinute = Math.max(0, lo - 1);
-  const duration = hi - lo + 1;
-  // A period can be simulated one live minute at a time. Keeping a large
-  // minimum here would multiply the number of possessions for short chunks.
-  const possessionCount = Math.max(1, Math.round(duration * 1.12));
   const userTactics = tacticsForSide(input, "user");
   const oppTactics = tacticsForSide(input, "opp");
   const tacticsBySide = { user: userTactics, opp: oppTactics };
@@ -161,6 +156,55 @@ export function simulatePeriodWithWorld(
     periodStartMinute,
     createLiveSnapshot(input, periodStartMinute, running, playerStats, goals, periodStartMinute)
   );
+
+  // One clock drives everything: `world.elapsedSeconds` is seconds since
+  // kickoff. Every action below consumes real match time, so the event log,
+  // the match minute and the world's own movement can never drift apart, and
+  // how often the ball changes hands becomes an outcome of play rather than a
+  // fixed possession count.
+  const periodEndSeconds = hi * 60;
+  if (world.elapsedSeconds < periodStartMinute * 60) {
+    world.elapsedSeconds = periodStartMinute * 60;
+  }
+  const currentMinute = () => clamp(Math.floor(world.elapsedSeconds / 60) + 1, lo, hi);
+  const currentTimestamp = () => clamp(world.elapsedSeconds / 60, lo - 1, hi - 0.001);
+  const advanceClock = (seconds: number) => {
+    // Time passing between two recorded events repositions players, not the
+    // ball: the event log has to stay one continuous ball path so the replay
+    // never has to teleport it. A carry that really does move the ball is
+    // recorded explicitly as a dribble event instead.
+    const ballX = world.ball.x;
+    const ballY = world.ball.y;
+    // Long stoppages only need players to walk back into shape, so they are
+    // stepped coarsely instead of at in-play resolution.
+    const tickLength = seconds > 6 ? 2 : 0.5;
+    let remaining = Math.max(0, seconds);
+    while (remaining > 0.001) {
+      const slice = Math.min(12, remaining);
+      advanceWorld(world, input, tacticsBySide, slice, tickLength);
+      remaining -= slice;
+    }
+    world.ball.x = ballX;
+    world.ball.y = ballY;
+  };
+  /** Ball travel plus the receiver's touch and the next decision. */
+  const passSeconds = (
+    side: MatchSide,
+    passer: PlacedPlayerLite,
+    receiver: PlacedPlayerLite,
+  ) => clamp(0.9 + worldDistance(world, side, passer, side, receiver) / 17, 1, 4);
+  const DEAD_BALL_SECONDS = {
+    goal: 52,
+    penaltyKick: 45,
+    corner: 30,
+    freeKick: 24,
+    offside: 24,
+    goalKick: 22,
+    save: 17,
+    turnover: 1.4,
+    tackle: 1.6,
+    shot: 1,
+  } as const;
 
   const eventCoordinate = (
     side: MatchSide,
@@ -226,7 +270,6 @@ export function simulatePeriodWithWorld(
   };
 
   const addEvent = (
-    minute: number,
     side: MatchSide,
     type: MatchEventType,
     actor: PlacedPlayerLite,
@@ -235,11 +278,9 @@ export function simulatePeriodWithWorld(
     xg?: number
   ) => {
     const coordinate = eventCoordinate(side, type, actor, target, success);
-    const order = eventOrderByMinute.get(minute) ?? 0;
-    eventOrderByMinute.set(minute, order + 1);
     events.push({
-      minute,
-      timestamp: minute - 1 + Math.min(0.94, 0.08 + order * 0.055),
+      minute: currentMinute(),
+      timestamp: currentTimestamp(),
       possessionId: activePossessionId,
       side,
       type,
@@ -259,8 +300,61 @@ export function simulatePeriodWithWorld(
     };
   };
 
+  /**
+   * Decides whether a foul is punished, for both foul sources. Cards used to
+   * be issued only from the dribble duel, which left the match on roughly a
+   * sixth of real football's booking rate.
+   *
+   * A player already on a yellow is dismissed for a second one; the direct
+   * red chance is kept low and independent so raising bookings does not drag
+   * sendings-off up with them.
+   */
+  const bookOffender = (
+    offendingSide: MatchSide,
+    offender: PlacedPlayerLite,
+    victim: PlacedPlayerLite,
+    tactics: SimTacticProfile,
+  ) => {
+    const stats = playerStat(playerStats, offendingSide, offender);
+    const directRedChance = clamp(
+      0.0016 + Math.max(0, tactics.tacklingBias) * 0.0011,
+      0.0016,
+      0.004,
+    );
+    if (rng() < directRedChance) {
+      running[offendingSide].redCards++;
+      if (stats) stats.redCards++;
+      addEvent(offendingSide, "redCard", offender, victim, false);
+      return;
+    }
+    const alreadyBooked = (stats?.yellowCards ?? 0) > 0;
+    const bookingChance =
+      clamp(
+        0.2 +
+          Math.max(0, tactics.tacklingBias) * 0.09 +
+          Math.max(0, tactics.pressBias) * 0.03 +
+          Math.max(0, offender.aggression - 72) / 320,
+        0.14,
+        0.42,
+      ) *
+      // A booked player pulls out of challenges he would otherwise make, so
+      // treating every foul alike produced far more second yellows than the
+      // real game sees.
+      (alreadyBooked ? 0.35 : 1);
+    if (rng() >= bookingChance) return;
+    if (stats && stats.yellowCards > 0) {
+      // Second caution: the referee sends him off rather than booking twice.
+      running[offendingSide].redCards++;
+      stats.redCards++;
+      addEvent(offendingSide, "redCard", offender, victim, false);
+      return;
+    }
+    running[offendingSide].yellowCards++;
+    if (stats) stats.yellowCards++;
+    addEvent(offendingSide, "yellowCard", offender, victim, false);
+  };
+
   const recordOffside = (
-    minute: number,
     side: MatchSide,
     receiver: PlacedPlayerLite,
     passer: PlacedPlayerLite,
@@ -268,22 +362,36 @@ export function simulatePeriodWithWorld(
     running[side].offsides++;
     const receiverStats = playerStat(playerStats, side, receiver);
     if (receiverStats) receiverStats.offsides++;
-    addEvent(minute, side, "offside", receiver, passer, false);
+    addEvent(side, "offside", receiver, passer, false);
+    advanceClock(DEAD_BALL_SECONDS.offside);
   };
 
   const resolveSetPiece = (
-    minute: number,
     side: MatchSide,
     kind: "corner" | "freeKick" | "penaltyKick",
     taker: PlacedPlayerLite,
     keeperPlayer: PlacedPlayerLite,
   ) => {
-    activePossessionId = `${minute}:restart:${events.length}`;
+    // Walking to the ball, forming a wall and waiting for the referee is a
+    // real part of the ninety minutes, so a restart costs the clock.
+    advanceClock(DEAD_BALL_SECONDS[kind]);
+    activePossessionId = `${currentMinute()}:restart:${events.length}`;
+    // The ball is physically placed on the corner arc or the penalty spot
+    // before it is struck, so the restart event and everything that follows
+    // read from there.
+    const attackingRight = side === "user";
+    if (kind === "corner") {
+      world.ball.x = attackingRight ? 98 : 2;
+      world.ball.y = world.ball.y < 50 ? 3 : 97;
+    } else if (kind === "penaltyKick") {
+      world.ball.x = attackingRight ? 89 : 11;
+      world.ball.y = 50;
+    }
     const sideTactics = side === "user" ? userTactics : oppTactics;
     const defendingSide = otherSide(side);
     const candidates = outfield(sidePlayers(input, side));
     if (kind === "corner") running[side].corners++;
-    addEvent(minute, side, kind, taker, keeperPlayer, true);
+    addEvent(side, kind, taker, keeperPlayer, true);
 
     const deliveryChance = kind === "penaltyKick"
       ? 1
@@ -318,7 +426,8 @@ export function simulatePeriodWithWorld(
     running[side].xg += shotXg;
     const shooterStats = playerStat(playerStats, side, shooter);
     if (shooterStats) shooterStats.shots++;
-    addEvent(minute, side, "shot", shooter, keeperPlayer, true, shotXg);
+    addEvent(side, "shot", shooter, keeperPlayer, true, shotXg);
+    advanceClock(DEAD_BALL_SECONDS.shot);
 
     const keeperSkill = (keeperPlayer.gkReflexes + keeperPlayer.gkPositioning + keeperPlayer.gkHandling) / 3;
     const goalChance = kind === "penaltyKick"
@@ -340,7 +449,7 @@ export function simulatePeriodWithWorld(
         if (stat) stat.goalsConceded++;
       }
       goals.push({
-        minute,
+        minute: currentMinute(),
         side,
         scorerId: shooter.playerId,
         scorer: shooter.name,
@@ -348,7 +457,6 @@ export function simulatePeriodWithWorld(
         assist: kind === "penaltyKick" ? undefined : taker.name,
       });
       addEvent(
-        minute,
         side,
         "goal",
         shooter,
@@ -356,6 +464,7 @@ export function simulatePeriodWithWorld(
         true,
         shotXg,
       );
+      advanceClock(DEAD_BALL_SECONDS.goal);
       return;
     }
     if (rng() < 0.55) {
@@ -364,19 +473,22 @@ export function simulatePeriodWithWorld(
       if (shooterStats) shooterStats.shotsOnTarget++;
       const keeperStats = playerStat(playerStats, defendingSide, keeperPlayer);
       if (keeperStats) keeperStats.saves++;
-      addEvent(minute, defendingSide, "save", keeperPlayer, shooter, true, shotXg);
+      addEvent(defendingSide, "save", keeperPlayer, shooter, true, shotXg);
+      advanceClock(DEAD_BALL_SECONDS.save);
     } else {
-      addEvent(minute, side, "miss", shooter, undefined, false, shotXg);
+      addEvent(side, "miss", shooter, undefined, false, shotXg);
+      advanceClock(DEAD_BALL_SECONDS.goalKick);
     }
   };
 
-  for (let possession = 0; possession < possessionCount; possession++) {
-    const minute = Math.min(hi, lo + Math.floor(((possession + rng()) / possessionCount) * duration));
+  let possessionIndex = 0;
+  while (world.elapsedSeconds < periodEndSeconds && possessionIndex < 12_000) {
+    const minute = currentMinute();
     if (world.minute !== minute) {
       samplesByMinute.set(world.minute, samplesFromWorld(world, world.minute));
       world.minute = minute;
     }
-    activePossessionId = `${minute}:${possession}`;
+    activePossessionId = `${minute}:${possessionIndex++}`;
     possessionBallPoint = null;
     const ownerSide = world.ball.ownerSide;
     const side: MatchSide = ownerSide ?? (
@@ -389,7 +501,9 @@ export function simulatePeriodWithWorld(
     const possessionPlayers = sidePlayers(input, side);
     const defenders = outfield(sidePlayers(input, defendingSide));
     const keeperPlayer = goalkeeper(sidePlayers(input, defendingSide));
-    if (!attackers.length || !defenders.length || !keeperPlayer) continue;
+    // Without a playable squad there is no action that could advance the
+    // clock, so stop rather than spin.
+    if (!attackers.length || !defenders.length || !keeperPlayer) break;
 
     const sideTactics = side === "user" ? userTactics : oppTactics;
     const defendingTactics = side === "user" ? oppTactics : userTactics;
@@ -405,8 +519,12 @@ export function simulatePeriodWithWorld(
       possessionPlayers,
       sidePlayers(input, defendingSide),
     );
+    // Real possessions are short: about three or four touches before the ball
+    // is either progressed into a chance or given away. The clock-driven loop
+    // now runs many more of them per match, so each one has to be brief for
+    // the season-long totals to stay in a football-shaped range.
     const routinePassCount = possessionPlayers.length > 1
-      ? Math.round(clamp(8 - directness * 1.6 - sideTactics.tempoBias * 1.1 + (rng() - 0.5) * 4, 3, 13))
+      ? Math.round(clamp(1.35 - directness * 0.7 - sideTactics.tempoBias * 0.5 + (rng() - 0.5) * 3.4, 0, 6))
       : 0;
     // A possession has one authoritative carrier. Previously every routine
     // pass picked a fresh random passer, so A→B could be followed by C→D
@@ -433,18 +551,11 @@ export function simulatePeriodWithWorld(
     );
     const possessionChanged = world.lastPossessionSide !== side;
     beginPossession(world, side, possessionCarrier);
-    // The first possession needs time to settle from kickoff coordinates.
-    // Subsequent chunks continue from their exact prior positions instead of
-    // replaying that five-second setup every simulated minute.
-    advanceWorld(
-      world,
-      input,
-      tacticsBySide,
-      isFreshWorld ? 5 : existingCarrier ? 0.75 : 1.5,
-    );
+    // The recovery is recorded where the ball was actually won, before the
+    // settling time below moves the winner. Recording it afterwards made the
+    // ball jump from the recovery point to wherever the carrier had run to.
     if (!existingCarrier || possessionChanged) {
       addEvent(
-        minute,
         side,
         "recovery",
         possessionCarrier,
@@ -452,6 +563,9 @@ export function simulatePeriodWithWorld(
         true,
       );
     }
+    // The first possession needs time to settle from kickoff coordinates.
+    // Afterwards this is the moment between winning the ball and playing it.
+    advanceClock(isFreshWorld ? 5 : existingCarrier ? 0.9 : 1.8);
     let possessionLost = false;
     for (let pass = 0; pass < routinePassCount; pass++) {
       const passer = possessionCarrier;
@@ -460,7 +574,7 @@ export function simulatePeriodWithWorld(
         (player) => {
           // Keep illegal receivers selectable so natural offside mistakes are
           // still possible, but strongly prefer a legal passing lane.
-          const offsideFit = isPlayerOffside(world, side, player) ? 0.06 : 1;
+          const offsideFit = isPlayerOffside(world, side, player) ? 0.13 : 1;
           return passOptionScore(world, side, passer, player, directness) * offsideFit;
         },
         rng
@@ -518,25 +632,24 @@ export function simulatePeriodWithWorld(
         0.98
       );
       const pressingFoulChance = clamp(
-        0.003 +
-          (defendingTactics.pressBias + 1) * 0.007 +
-          (defendingTactics.tacklingBias + 1) * 0.002 +
+        0.004 +
+          (defendingTactics.pressBias + 1) * 0.009 +
+          (defendingTactics.tacklingBias + 1) * 0.003 +
           Math.max(0, pressingDefender.aggression - 72) / 4000,
-        0.003,
-        0.024,
+        0.004,
+        0.032,
       );
       if (rng() < pressingFoulChance) {
         running[defendingSide].fouls++;
         const defenderStats = playerStat(playerStats, defendingSide, pressingDefender);
         if (defenderStats) defenderStats.foulsCommitted++;
-        addEvent(minute, defendingSide, "foul", pressingDefender, passer, false);
+        addEvent(defendingSide, "foul", pressingDefender, passer, false);
+        bookOffender(defendingSide, pressingDefender, passer, defendingTactics);
         const passerPoint = world.players[side].get(passer.playerId);
         const canonicalFoulX = side === "user"
           ? passerPoint?.x ?? 50
           : 100 - (passerPoint?.x ?? 50);
-        resolveSetPiece(
-          minute,
-          side,
+        resolveSetPiece(side,
           canonicalFoulX >= 82 ? "penaltyKick" : "freeKick",
           passer,
           keeperPlayer,
@@ -552,16 +665,18 @@ export function simulatePeriodWithWorld(
         passerStats.passesAttempted++;
       }
       if (isPlayerOffside(world, side, receiver)) {
-        recordOffside(minute, side, receiver, passer);
+        recordOffside(side, receiver, passer);
         possessionLost = true;
         break;
       }
+      const passCost = passSeconds(side, passer, receiver);
       if (rng() < routinePassChance) {
         running[side].passesCompleted++;
         if (passerStats) passerStats.passesCompleted++;
         const receiverStats = playerStat(playerStats, side, receiver);
         if (receiverStats) receiverStats.touches++;
-        addEvent(minute, side, "pass", passer, receiver, true);
+        addEvent(side, "pass", passer, receiver, true);
+        advanceClock(passCost);
         possessionCarrier = receiver;
       } else if (
         rng() <
@@ -576,12 +691,14 @@ export function simulatePeriodWithWorld(
         running[defendingSide].interceptions++;
         const defenderStats = playerStat(playerStats, defendingSide, pressingDefender);
         if (defenderStats) defenderStats.interceptions++;
-        addEvent(minute, side, "pass", passer, receiver, false);
-        addEvent(minute, defendingSide, "interception", pressingDefender, passer, true);
+        addEvent(side, "pass", passer, receiver, false);
+        addEvent(defendingSide, "interception", pressingDefender, passer, true);
+        advanceClock(DEAD_BALL_SECONDS.turnover);
         possessionLost = true;
         break;
       } else {
-        addEvent(minute, side, "pass", passer, receiver, false);
+        addEvent(side, "pass", passer, receiver, false);
+        advanceClock(passCost);
         possessionLost = true;
         break;
       }
@@ -591,7 +708,7 @@ export function simulatePeriodWithWorld(
     let carrier = possessionCarrier;
     let lastPasser: PlacedPlayerLite | undefined;
     let progress = 0;
-    const maxActions = Math.round(clamp(2 + Math.floor(rng() * 4) + sideTactics.tempoBias, 2, 6));
+    const maxActions = Math.round(clamp(1 + Math.floor(rng() * 3) + sideTactics.tempoBias * 0.6, 1, 4));
 
     for (let action = 0; action < maxActions; action++) {
       running[side].possessionTouches++;
@@ -645,53 +762,32 @@ export function simulatePeriodWithWorld(
         if (rng() < dribbleChance) {
           progress += 1.2;
           if (carrierStats) carrierStats.dribblesCompleted++;
-          addEvent(minute, side, "dribble", carrier, defender, true);
+          addEvent(side, "dribble", carrier, defender, true);
         } else {
           const defenderStats = playerStat(playerStats, defendingSide, defender);
           const foulChance = clamp(
-            0.045 +
+            0.06 +
               Math.max(0, defendingTactics.tacklingBias) * 0.055 +
               Math.max(0, defendingTactics.pressBias) * 0.035 +
               Math.max(0, defender.aggression - 65) / 900,
-            0.025,
-            0.16,
+            0.035,
+            0.18,
           );
           if (rng() < foulChance) {
             running[defendingSide].fouls++;
             if (defenderStats) defenderStats.foulsCommitted++;
-            addEvent(minute, defendingSide, "foul", defender, carrier, false);
-
-            const cardChance = clamp(
-              0.12 +
-                Math.max(0, defendingTactics.tacklingBias) * 0.11 +
-                Math.max(0, defender.aggression - 72) / 280,
-              0.08,
-              0.38,
-            );
-            if (rng() < cardChance) {
-              const red = rng() < 0.035 + Math.max(0, defendingTactics.tacklingBias) * 0.018;
-              if (red) {
-                running[defendingSide].redCards++;
-                if (defenderStats) defenderStats.redCards++;
-                addEvent(minute, defendingSide, "redCard", defender, carrier, false);
-              } else {
-                running[defendingSide].yellowCards++;
-                if (defenderStats) defenderStats.yellowCards++;
-                addEvent(minute, defendingSide, "yellowCard", defender, carrier, false);
-              }
-            }
+            addEvent(defendingSide, "foul", defender, carrier, false);
+            bookOffender(defendingSide, defender, carrier, defendingTactics);
             if (rng() < 0.018 + Math.max(0, defendingTactics.tacklingBias) * 0.01) {
               running[side].injuries++;
               if (carrierStats) carrierStats.injuries++;
-              addEvent(minute, side, "injury", carrier, defender, false);
+              addEvent(side, "injury", carrier, defender, false);
             }
             const foulPoint = possessionBallPoint as { x: number; y: number } | null;
             const foulX = side === "user"
               ? foulPoint?.x ?? tacticalHome(carrier, side, sideTactics).x
               : 100 - (foulPoint?.x ?? tacticalHome(carrier, side, sideTactics).x);
-            resolveSetPiece(
-              minute,
-              side,
+            resolveSetPiece(side,
               foulX >= 82 ? "penaltyKick" : "freeKick",
               carrier,
               keeperPlayer,
@@ -701,7 +797,8 @@ export function simulatePeriodWithWorld(
           running[defendingSide].tacklesWon++;
           running[defendingSide].possessionTouches++;
           if (defenderStats) defenderStats.tacklesWon++;
-          addEvent(minute, defendingSide, "tackle", defender, carrier, true);
+          addEvent(defendingSide, "tackle", defender, carrier, true);
+          advanceClock(DEAD_BALL_SECONDS.tackle);
           break;
         }
       } else {
@@ -726,7 +823,7 @@ export function simulatePeriodWithWorld(
             );
             const forwardFit = clamp(1 + forwardDistance * directness / 55, 0.45, 1.8);
             const distanceFit = 1 / (1 + Math.max(0, distance - (22 + directness * 8)) / 22);
-            const offsideFit = isPlayerOffside(world, side, player) ? 0.06 : 1;
+            const offsideFit = isPlayerOffside(world, side, player) ? 0.13 : 1;
             return forwardWeight *
               (0.45 + (player.positioning + player.pace + player.reactions) / 300) *
               forwardFit *
@@ -776,15 +873,17 @@ export function simulatePeriodWithWorld(
         running[side].passesAttempted++;
         if (carrierStats) carrierStats.passesAttempted++;
         if (isPlayerOffside(world, side, receiver)) {
-          recordOffside(minute, side, receiver, carrier);
+          recordOffside(side, receiver, carrier);
           break;
         }
+        const passCost = passSeconds(side, carrier, receiver);
         if (rng() < passChance) {
           running[side].passesCompleted++;
           if (carrierStats) carrierStats.passesCompleted++;
           const baseProgress = receiver.position === "FWD" ? 1.05 : receiver.position === "MID" ? 0.72 : 0.38;
           progress += baseProgress * clamp(1 + directness * 0.2 + counterEdge * 0.08, 0.72, 1.35);
-          addEvent(minute, side, "pass", carrier, receiver, true);
+          addEvent(side, "pass", carrier, receiver, true);
+          advanceClock(passCost);
           lastPasser = carrier;
           carrier = receiver;
         } else {
@@ -792,8 +891,9 @@ export function simulatePeriodWithWorld(
           running[defendingSide].possessionTouches++;
           const defenderStats = playerStat(playerStats, defendingSide, defender);
           if (defenderStats) defenderStats.interceptions++;
-          addEvent(minute, side, "pass", carrier, receiver, false);
-          addEvent(minute, defendingSide, "interception", defender, carrier, true);
+          addEvent(side, "pass", carrier, receiver, false);
+          addEvent(defendingSide, "interception", defender, carrier, true);
+          advanceClock(DEAD_BALL_SECONDS.turnover);
           break;
         }
       }
@@ -805,7 +905,7 @@ export function simulatePeriodWithWorld(
         sideTactics.tempoBias * 0.016 +
         sideTactics.shootingBias * 0.055 +
         matchupEdge * 0.24;
-      const roleShotChance = carrier.position === "FWD" ? 0.3 : carrier.position === "MID" ? 0.16 : 0.06;
+      const roleShotChance = carrier.position === "FWD" ? 0.11 : carrier.position === "MID" ? 0.05 : 0.015;
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
       // The final touch has to reach the edge of the penalty area before a
@@ -814,10 +914,10 @@ export function simulatePeriodWithWorld(
       const targetShotX = 78;
       const shootNow =
         carrier.position !== "GK" &&
-        canonicalShotX >= 56 &&
+        canonicalShotX >= 66 &&
         (
           rng() < roleShotChance + progress * 0.045 + tacticShotBias ||
-          (action === maxActions - 1 && rng() < 0.36)
+          (action === maxActions - 1 && rng() < 0.08)
         );
       if (!shootNow) continue;
 
@@ -825,13 +925,16 @@ export function simulatePeriodWithWorld(
       // still short of the box, add visible ball-carrying actions first. The
       // 2D projector makes the carrier run these coordinates instead of
       // teleporting the player or the ball to the shooting point.
+      // Only a possession that is already close can carry into a shooting
+      // position. Allowing a long chain of carries here let almost any
+      // midfield possession manufacture a chance.
       let approachX = canonicalShotX;
-      for (let carry = 0; carry < 7 && approachX < targetShotX; carry++) {
+      for (let carry = 0; carry < 3 && approachX < targetShotX; carry++) {
         if (carrierStats) {
           carrierStats.dribblesAttempted++;
           carrierStats.dribblesCompleted++;
         }
-        addEvent(minute, side, "dribble", carrier, undefined, true);
+        addEvent(side, "dribble", carrier, undefined, true);
         const carriedPoint = possessionBallPoint as { x: number; y: number } | null;
         approachX = side === "user"
           ? carriedPoint?.x ?? approachX
@@ -872,7 +975,8 @@ export function simulatePeriodWithWorld(
       const recordBigChanceMiss = () => {
         if (shotXg >= 0.18 && shooterStats) shooterStats.bigChancesMissed++;
       };
-      addEvent(minute, side, "shot", carrier, keeperPlayer, true, shotXg);
+      addEvent(side, "shot", carrier, keeperPlayer, true, shotXg);
+      advanceClock(DEAD_BALL_SECONDS.shot);
 
       const shootingTechnique = skill(carrier, minute, input.elevation, [
         [carrier.shooting, 0.22],
@@ -896,7 +1000,7 @@ export function simulatePeriodWithWorld(
         [keeperPlayer.reactions, 0.1],
       ], "goalkeeping", defendingTactics) * defendingWorkRate;
       const finishingMultiplier = clamp(0.84 + (shootingTechnique - 60) / 160, 0.68, 1.28);
-      const keeperMultiplier = clamp(1.04 - (keeperQuality - 65) / 260, 0.76, 1.16);
+      const keeperMultiplier = clamp(0.85 - (keeperQuality - 65) / 260, 0.62, 0.98);
       const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier, 0.01, 0.72);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
@@ -915,14 +1019,15 @@ export function simulatePeriodWithWorld(
           if (defenderStats) defenderStats.goalsConceded++;
         }
         goals.push({
-          minute,
+          minute: currentMinute(),
           side,
           scorerId: carrier.playerId,
           scorer: carrier.name,
           assistId: assist ? lastPasser?.playerId : undefined,
           assist,
         });
-        addEvent(minute, side, "goal", carrier, assist ? lastPasser : undefined, true, shotXg);
+        addEvent(side, "goal", carrier, assist ? lastPasser : undefined, true, shotXg);
+        advanceClock(DEAD_BALL_SECONDS.goal);
         break;
       }
 
@@ -939,9 +1044,11 @@ export function simulatePeriodWithWorld(
         const markerStats = playerStat(playerStats, defendingSide, marker);
         if (markerStats) markerStats.blocks++;
         recordBigChanceMiss();
-        addEvent(minute, defendingSide, "block", marker, carrier, true, shotXg);
-        if (rng() < 0.34) {
-          resolveSetPiece(minute, side, "corner", lastPasser ?? carrier, keeperPlayer);
+        addEvent(defendingSide, "block", marker, carrier, true, shotXg);
+        if (rng() < 0.55) {
+          resolveSetPiece(side, "corner", lastPasser ?? carrier, keeperPlayer);
+        } else {
+          advanceClock(DEAD_BALL_SECONDS.turnover);
         }
         break;
       }
@@ -952,9 +1059,11 @@ export function simulatePeriodWithWorld(
       );
       if (rng() >= onTargetChance) {
         recordBigChanceMiss();
-        addEvent(minute, side, "miss", carrier, undefined, false, shotXg);
-        if (rng() < 0.05) {
-          resolveSetPiece(minute, side, "corner", lastPasser ?? carrier, keeperPlayer);
+        addEvent(side, "miss", carrier, undefined, false, shotXg);
+        if (rng() < 0.18) {
+          resolveSetPiece(side, "corner", lastPasser ?? carrier, keeperPlayer);
+        } else {
+          advanceClock(DEAD_BALL_SECONDS.goalKick);
         }
         break;
       }
@@ -964,13 +1073,19 @@ export function simulatePeriodWithWorld(
       const keeperStats = playerStat(playerStats, defendingSide, keeperPlayer);
       if (keeperStats) keeperStats.saves++;
       recordBigChanceMiss();
-      addEvent(minute, defendingSide, "save", keeperPlayer, carrier, true, shotXg);
-      if (rng() < 0.2) {
-        resolveSetPiece(minute, side, "corner", lastPasser ?? carrier, keeperPlayer);
+      addEvent(defendingSide, "save", keeperPlayer, carrier, true, shotXg);
+      if (rng() < 0.42) {
+        resolveSetPiece(side, "corner", lastPasser ?? carrier, keeperPlayer);
+      } else {
+        advanceClock(DEAD_BALL_SECONDS.save);
       }
       break;
     }
-    snapshots.set(minute, createLiveSnapshot(input, minute, running, playerStats, goals, periodStartMinute));
+    const snapshotMinute = currentMinute();
+    snapshots.set(
+      snapshotMinute,
+      createLiveSnapshot(input, snapshotMinute, running, playerStats, goals, periodStartMinute),
+    );
   }
 
   samplesByMinute.set(world.minute, samplesFromWorld(world, world.minute));
@@ -984,7 +1099,9 @@ export function simulatePeriodWithWorld(
     lastSamples = samples;
   }
   goals.sort((a, b) => a.minute - b.minute);
-  events.sort((a, b) => a.minute - b.minute);
+  events.sort(
+    (a, b) => (a.timestamp ?? a.minute - 1) - (b.timestamp ?? b.minute - 1),
+  );
   snapshots.set(hi, createLiveSnapshot(input, hi, running, playerStats, goals, periodStartMinute));
   return {
     result: {

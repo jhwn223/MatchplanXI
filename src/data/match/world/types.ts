@@ -40,6 +40,13 @@ export interface WorldPlayerState extends WorldPoint {
   markingTargetId?: number;
   pressingTargetId?: number;
   assignmentExpiresAt: number;
+  /**
+   * Movement performance only depends on the match minute, so it is computed
+   * once per minute per player instead of on every tick. `movementFactorMinute`
+   * is the minute `movementFactor` was derived for.
+   */
+  movementFactorMinute?: number;
+  movementFactor?: number;
 }
 
 export interface WorldBallState extends WorldPoint {
