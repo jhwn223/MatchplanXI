@@ -10,9 +10,9 @@ interface Props {
   tacticStyleKey: TacticStyleKey | null;
   onSelectTacticStyle?: (key: TacticStyleKey) => void;
   showStyles?: boolean;
-  /** true once kickoff has happened: auto-fill could add unlimited new
-   *  faces, bypassing the substitution cap, so it's disabled after that —
-   *  only the (capped) manual bench drag and formation reshuffling remain. */
+  /** true once kickoff has happened. Auto-fill still works then, but it only
+   *  draws on the players already involved plus the remaining substitution
+   *  allowance, so it cannot exceed the cap. */
   subsLocked?: boolean;
 }
 
@@ -35,7 +35,7 @@ export function TacticsPanel({
   showStyles = true,
   subsLocked = false,
 }: Props) {
-  const lockedTitle = "킥오프 이후에는 자동 배치를 쓸 수 없습니다 — 벤치에서 직접 교체하세요";
+  const lockedTitle = "남은 교체 인원 안에서 최적 조합을 배치합니다";
   const formationMeta = FORMATIONS[selectedFormation];
   const recommended = recommendedStylesFor(selectedFormation);
 
@@ -59,7 +59,6 @@ export function TacticsPanel({
         <button
           type="button"
           className="autofill-btn"
-          disabled={subsLocked}
           onClick={onAutoFill}
           title={subsLocked ? lockedTitle : undefined}
         >

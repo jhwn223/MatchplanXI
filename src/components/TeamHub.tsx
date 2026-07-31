@@ -8,7 +8,12 @@ import {
   type PlayedMap,
   type TeamMatch,
 } from "../data/tournament";
-import { groupStandingsHub, qualificationProbability } from "../data/tournamentEngine";
+import {
+  allGroupStandingsFull,
+  getQualifiers,
+  groupStandingsHub,
+  qualificationProbability,
+} from "../data/tournamentEngine";
 import { AppTopbar } from "./AppTopbar";
 
 interface Props {
@@ -44,7 +49,17 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
   const groupComplete = groupPlayedCount === groupMatches.length;
   const nextFixtureIndex = groupMatches.findIndex((m) => !played[m.match.match_id]);
   const pos = finishingPosition(standings, team.team_name);
-  const qualified = groupComplete && pos <= 2;
+  // The 2026 format also advances the eight best third-placed teams, so
+  // finishing third is not elimination. Judging it here with `pos <= 2` told
+  // third-placed sides they were out while the bracket still fielded them.
+  const qualified = useMemo(
+    () =>
+      groupComplete &&
+      getQualifiers(data, allGroupStandingsFull(data, played)).some(
+        (entry) => entry.name === team.team_name,
+      ),
+    [data, played, team.team_name, groupComplete],
+  );
   const advanceProbability = useMemo(
     () => qualificationProbability(data, team.group_letter, played, team.team_name),
     [data, team.group_letter, team.team_name, played]
@@ -125,10 +140,10 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
               ))}
             </tbody>
           </table>
-          <p className="hub__hint">상위 2팀이 토너먼트 진출 · 내가 아직 안 치른 내 경기만 순위에서 제외됩니다</p>
+          <p className="hub__hint">각 조 1·2위와 3위 중 상위 8팀이 32강 진출 · 내가 아직 안 치른 내 경기만 순위에서 제외됩니다</p>
           <div className="qualification-card">
             <span>32강 진출 확률</span>
-            <div><strong>{advanceProbability}%</strong><em>{pos <= 2 ? "진출권" : "추격 필요"}</em></div>
+            <div><strong>{advanceProbability}%</strong><em>{pos <= 2 ? "진출권" : pos === 3 ? "3위 와일드카드 경쟁" : "추격 필요"}</em></div>
             <div className="qualification-card__track"><i style={{ width: `${advanceProbability}%` }} /></div>
             <p>
               {groupComplete

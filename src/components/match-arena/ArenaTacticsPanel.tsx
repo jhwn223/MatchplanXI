@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { FORMATION_KEYS, type FormationKey } from "../../data/formation";
+import { slotsOf, type FormationKey } from "../../data/formation";
+import { tacticalCoordinate } from "../Pitch";
 import {
   applyQuickTactic,
-  DEFAULT_TEAM_TACTICS,
   QUICK_TACTICS,
   type QuickTacticKey,
   type TeamTactics,
@@ -17,10 +17,7 @@ interface Props {
   formationLabel?: string;
   tactics: TeamTactics;
   onApply: (tactics: TeamTactics) => void;
-  onCancel?: () => void;
-  onFormationChange?: (formation: FormationKey) => void;
   variant?: "match" | "prematch";
-  autoApply?: boolean;
 }
 
 const OPTIONS = {
@@ -53,10 +50,7 @@ export function ArenaTacticsPanel({
   formationLabel,
   tactics,
   onApply,
-  onCancel,
-  onFormationChange,
   variant = "match",
-  autoApply = false,
 }: Props) {
   const [draft, setDraft] = useState<TeamTactics>(tactics);
   const [tab, setTab] = useState<TacticsTab>("quick");
@@ -66,10 +60,12 @@ export function ArenaTacticsPanel({
     setDraft(tactics);
   }, [tactics]);
 
+  // Every change applies straight away — there is no draft to confirm, so the
+  // panel carries no cancel/reset/apply footer.
   function commit(next: TeamTactics, quick: QuickTacticKey | null = null) {
     setDraft(next);
     setSelectedQuick(quick);
-    if (autoApply) onApply(next);
+    onApply(next);
   }
 
   const patch = <K extends keyof TeamTactics>(key: K, value: TeamTactics[K]) =>
@@ -81,19 +77,10 @@ export function ArenaTacticsPanel({
         <div>
           <span>{userCode}</span>
           <strong>{userTeamName}</strong>
-          {onFormationChange ? (
-            <select
-              className="match-formation-select"
-              value={formation}
-              onChange={(event) => onFormationChange(event.target.value as FormationKey)}
-              aria-label="경기 중 포메이션 변경"
-            >
-              {FORMATION_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
-            </select>
-          ) : <small>{formationLabel ?? formation}</small>}
+          {/* Formation lives with the lineup, on the squad tab. */}
+          <small>{formationLabel ?? formation}</small>
         </div>
-        <TacticShape tactics={draft} />
-        <p className="match-formation-help">포메이션 변경은 다음 플레이부터 2D 움직임과 시뮬레이션에 반영됩니다.</p>
+        <TacticShape formation={formation} tactics={draft} />
       </div>}
 
       <div className="match-tactics-editor__body">
@@ -128,8 +115,8 @@ export function ArenaTacticsPanel({
                 ))}
               </div>
               <p>
-                빠른 지시는 여러 세부 설정을 한 번에 변경합니다.
-                {autoApply ? " 경기 시작 전 계획에 즉시 저장됩니다." : " 적용 버튼을 누른 다음 생성되는 플레이부터 반영됩니다."}
+                빠른 지시는 여러 세부 설정을 한 번에 변경합니다. 선택 즉시 저장되며,
+                경기 중에는 다음 플레이부터 반영됩니다.
               </p>
             </div>
           )}
@@ -181,13 +168,6 @@ export function ArenaTacticsPanel({
         </div>
       </div>
 
-      {!autoApply && (
-        <footer className="match-tactics-actions">
-          {onCancel && <button type="button" className="sim-btn sim-btn--ghost" onClick={onCancel}>취소</button>}
-          <button type="button" className="sim-btn sim-btn--ghost" onClick={() => commit(DEFAULT_TEAM_TACTICS)}>초기화</button>
-          <button type="button" className="sim-btn sim-btn--accent" onClick={() => onApply(draft)}>전술 적용</button>
-        </footer>
-      )}
     </section>
   );
 }
@@ -284,16 +264,34 @@ function TacticToggle({ label, checked, onChange }: { label: string; checked: bo
   );
 }
 
-function TacticShape({ tactics }: { tactics: TeamTactics }) {
-  const push = tactics.mentality === "attacking" ? 8 : tactics.mentality === "positive" ? 4 : tactics.mentality === "defensive" ? -7 : 0;
-  const widthScale = tactics.width === "narrow" ? 0.66 : tactics.width === "wide" ? 1.18 : 1;
-  const points = [[13, 50], [30, 18], [30, 40], [30, 62], [30, 82], [53, 28], [53, 52], [53, 75], [76, 20], [76, 50], [76, 80]];
+/**
+ * Drawn from the selected formation's slots rather than a fixed set of points,
+ * so switching formation mid-match actually redraws the shape. The pitch runs
+ * left-to-right here while slot coordinates are top-down, hence the swap.
+ */
+function TacticShape({
+  formation,
+  tactics,
+}: {
+  formation: FormationKey;
+  tactics: TeamTactics;
+}) {
   return (
     <svg className="tactic-shape" viewBox="0 0 100 100" role="img" aria-label="현재 전술 형태">
       <rect x="2" y="2" width="96" height="96" rx="4" />
       <line x1="50" y1="2" x2="50" y2="98" />
       <circle cx="50" cy="50" r="12" />
-      {points.map(([x, y], index) => <circle key={index} cx={index === 0 ? x : Math.max(7, Math.min(93, x + push))} cy={50 + (y - 50) * widthScale} r="3.2" />)}
+      {slotsOf(formation).map((slot) => {
+        const coordinate = tacticalCoordinate(slot, slot, tactics);
+        return (
+          <circle
+            key={slot.id}
+            cx={Math.max(7, Math.min(93, 100 - coordinate.y))}
+            cy={Math.max(7, Math.min(93, coordinate.x))}
+            r="3.2"
+          />
+        );
+      })}
     </svg>
   );
 }

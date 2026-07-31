@@ -60,6 +60,119 @@
   flex: 1;
   border-left: 0;
 }
+/* The pitch keeps its 105:68 box, so the sidebar must not be able to stretch
+   the grid row. Taking its contents out of flow leaves the row sized by the
+   pitch alone and makes the panels scroll inside it instead. */
+.arena-insights { position: relative; min-height: 0; overflow: hidden; }
+.arena-insights__inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.arena-insights__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.arena-insights__tabs button {
+  padding: 12px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.arena-insights__tabs button[data-active] {
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.arena-live-stats {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+/* Four entries stay visible and the rest of the match history scrolls, so the
+   panel never grows as events accumulate. */
+.arena-insights .arena-events__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 236px;
+  overflow-y: auto;
+}
+/* Goals sit directly under the team name in full strength; cautions go below
+   them, dimmer and separated by a rule, so the two never read as one list. */
+.arena-scorers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.arena-score__team--away .arena-scorers { justify-content: flex-end; }
+.arena-scorers li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+.arena-scorers i { font-style: normal; font-size: 10px; }
+.arena-scorers em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--accent);
+}
+.arena-bookings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 6px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px dashed var(--border);
+  list-style: none;
+}
+.arena-score__team--away .arena-bookings { justify-content: flex-end; }
+.arena-bookings li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.arena-bookings i {
+  width: 7px;
+  height: 10px;
+  border-radius: 1px;
+  background: #f2c94c;
+  flex: 0 0 auto;
+}
+.arena-bookings em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  opacity: .75;
+}
+.arena-bookings li[data-red] i { background: var(--danger); }
+.arena-insights .tactic-impact {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+@media (max-width: 900px) {
+  /* Stacked layout: the sidebar owns its own row again, so it goes back into
+     normal flow rather than collapsing to nothing. */
+  .arena-insights { position: static; overflow: visible; }
+  .arena-insights__inner { position: static; }
+  .arena-insights .arena-events__list { max-height: none; }
+}
 .tactic-impact {
   padding: 13px 14px;
   border-top: 1px solid var(--border);
@@ -233,12 +346,27 @@
 .arena-ctrl:disabled { cursor: not-allowed; opacity: .55; }
 
 /* ============ In-match management center ============ */
+/* The panel is capped so the score header and playback controls stay visible;
+   each tab scrolls inside it rather than running off the bottom of the modal. */
 .match-center {
-  min-height: 540px;
+  min-height: min(540px, 72vh);
+  max-height: 72vh;
   display: flex;
   flex-direction: column;
   background: #f3f7f0;
   border-bottom: 1px solid var(--border);
+}
+.match-center__header { flex: 0 0 auto; }
+.match-center > .match-overview,
+.match-center > .player-ratings-board,
+.match-center > .match-analysis-board,
+.match-center > .match-tactics-editor,
+.match-center > .arena-squad-board,
+.match-center > .arena-opponent-board,
+.match-center > .opponent-report {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 .match-center__header {
   min-height: 62px;
@@ -608,6 +736,55 @@
 .match-tactics-editor { position: relative; }
 .match-tactics-actions .sim-btn { min-width: 100px; min-height: 38px; }
 .arena-ctrl--section { font-size: 11px; }
+.arena-squad-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: 18px;
+  padding: 16px 22px 20px;
+  min-height: 0;
+}
+.arena-squad-board__pitch {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* The pitch is a portrait 68:100 box that fills its column by default, which
+   made it far taller than the modal. Sizing it by height instead keeps the
+   whole lineup on screen and lets the width follow the aspect ratio. */
+.arena-squad-board .pitch {
+  width: auto;
+  height: min(52vh, 460px);
+  margin: 0 auto;
+}
+/* The bench clips its overflow on the board layout, so the full squad list
+   needs its own scroll here rather than being cut off. */
+.arena-squad-board .bench {
+  min-height: 0;
+  max-height: min(58vh, 520px);
+  overflow-y: auto;
+}
+.arena-squad-board__pitch > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+.arena-squad-board__pitch h3 { margin: 0 0 3px; font-size: 14px; }
+.arena-squad-board__pitch p { margin: 0; color: var(--text-dim); font-size: 11px; }
+.arena-squad-board__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+.arena-opponent-board { padding: 20px 22px 26px; overflow-y: auto; min-height: 0; }
+@media (max-width: 900px) {
+  .arena-squad-board { grid-template-columns: 1fr; }
+}
 .arena-team-tactics {
   position: relative;
   padding: 18px 20px 20px;

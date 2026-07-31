@@ -300,6 +300,60 @@ export function simulatePeriodWithWorld(
     };
   };
 
+  /**
+   * Decides whether a foul is punished, for both foul sources. Cards used to
+   * be issued only from the dribble duel, which left the match on roughly a
+   * sixth of real football's booking rate.
+   *
+   * A player already on a yellow is dismissed for a second one; the direct
+   * red chance is kept low and independent so raising bookings does not drag
+   * sendings-off up with them.
+   */
+  const bookOffender = (
+    offendingSide: MatchSide,
+    offender: PlacedPlayerLite,
+    victim: PlacedPlayerLite,
+    tactics: SimTacticProfile,
+  ) => {
+    const stats = playerStat(playerStats, offendingSide, offender);
+    const directRedChance = clamp(
+      0.0016 + Math.max(0, tactics.tacklingBias) * 0.0011,
+      0.0016,
+      0.004,
+    );
+    if (rng() < directRedChance) {
+      running[offendingSide].redCards++;
+      if (stats) stats.redCards++;
+      addEvent(offendingSide, "redCard", offender, victim, false);
+      return;
+    }
+    const alreadyBooked = (stats?.yellowCards ?? 0) > 0;
+    const bookingChance =
+      clamp(
+        0.2 +
+          Math.max(0, tactics.tacklingBias) * 0.09 +
+          Math.max(0, tactics.pressBias) * 0.03 +
+          Math.max(0, offender.aggression - 72) / 320,
+        0.14,
+        0.42,
+      ) *
+      // A booked player pulls out of challenges he would otherwise make, so
+      // treating every foul alike produced far more second yellows than the
+      // real game sees.
+      (alreadyBooked ? 0.35 : 1);
+    if (rng() >= bookingChance) return;
+    if (stats && stats.yellowCards > 0) {
+      // Second caution: the referee sends him off rather than booking twice.
+      running[offendingSide].redCards++;
+      stats.redCards++;
+      addEvent(offendingSide, "redCard", offender, victim, false);
+      return;
+    }
+    running[offendingSide].yellowCards++;
+    if (stats) stats.yellowCards++;
+    addEvent(offendingSide, "yellowCard", offender, victim, false);
+  };
+
   const recordOffside = (
     side: MatchSide,
     receiver: PlacedPlayerLite,
@@ -590,6 +644,7 @@ export function simulatePeriodWithWorld(
         const defenderStats = playerStat(playerStats, defendingSide, pressingDefender);
         if (defenderStats) defenderStats.foulsCommitted++;
         addEvent(defendingSide, "foul", pressingDefender, passer, false);
+        bookOffender(defendingSide, pressingDefender, passer, defendingTactics);
         const passerPoint = world.players[side].get(passer.playerId);
         const canonicalFoulX = side === "user"
           ? passerPoint?.x ?? 50
@@ -722,26 +777,7 @@ export function simulatePeriodWithWorld(
             running[defendingSide].fouls++;
             if (defenderStats) defenderStats.foulsCommitted++;
             addEvent(defendingSide, "foul", defender, carrier, false);
-
-            const cardChance = clamp(
-              0.12 +
-                Math.max(0, defendingTactics.tacklingBias) * 0.11 +
-                Math.max(0, defender.aggression - 72) / 280,
-              0.08,
-              0.38,
-            );
-            if (rng() < cardChance) {
-              const red = rng() < 0.035 + Math.max(0, defendingTactics.tacklingBias) * 0.018;
-              if (red) {
-                running[defendingSide].redCards++;
-                if (defenderStats) defenderStats.redCards++;
-                addEvent(defendingSide, "redCard", defender, carrier, false);
-              } else {
-                running[defendingSide].yellowCards++;
-                if (defenderStats) defenderStats.yellowCards++;
-                addEvent(defendingSide, "yellowCard", defender, carrier, false);
-              }
-            }
+            bookOffender(defendingSide, defender, carrier, defendingTactics);
             if (rng() < 0.018 + Math.max(0, defendingTactics.tacklingBias) * 0.01) {
               running[side].injuries++;
               if (carrierStats) carrierStats.injuries++;

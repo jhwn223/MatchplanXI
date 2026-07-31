@@ -68,8 +68,10 @@ export function MatchBoard({
   const [regSim, setRegSim] = useState<SimResult | null>(null);
   const [finalSim, setFinalSim] = useState<SimResult | null>(null);
   const [activeSimInput, setActiveSimInput] = useState<SimInput | null>(null);
-  const preMatchTactics = lineup.teamTactics ?? DEFAULT_TEAM_TACTICS;
-  const [liveTactics, setLiveTactics] = useState<TeamTactics>(preMatchTactics);
+  // Single source of truth. A separate `liveTactics` state used to shadow this
+  // one, and the half-time screen only wrote to the lineup, so tactics set at
+  // the interval never reached the second half.
+  const teamTactics = lineup.teamTactics ?? DEFAULT_TEAM_TACTICS;
   const [liveOpponentTactics, setLiveOpponentTactics] = useState<TeamTactics>(
     DEFAULT_TEAM_TACTICS
   );
@@ -181,8 +183,8 @@ export function MatchBoard({
     [opponentConditions, opponentPlan, opponentSquad]
   );
   const matchups = useMemo(
-    () => opponentPlan ? tacticalMatchups(opponentPlan, preMatchTactics, activeMatch.elevation) : [],
-    [activeMatch.elevation, opponentPlan, preMatchTactics]
+    () => opponentPlan ? tacticalMatchups(opponentPlan, teamTactics, activeMatch.elevation) : [],
+    [activeMatch.elevation, opponentPlan, teamTactics]
   );
   const isKnockout = match.stage_name !== "Group Stage";
   const tiedAfterRegulation = regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
@@ -229,9 +231,38 @@ export function MatchBoard({
   function autoFill() {
     onChangeLineup({
       ...lineup,
-      slots: autoFillBestXI(lineup.formation, squad, conditions),
+      slots: autoFillBestXI(lineup.formation, autoFillPool(), conditions),
       presetKey: null,
     });
+  }
+
+  /**
+   * Before kickoff the whole squad is eligible. Afterwards auto-fill would
+   * otherwise bring on unlimited new faces, so the pool is capped at the
+   * players already involved plus as many bench players as there are
+   * substitutions left. Picking eleven from that pool can never exceed the
+   * substitution allowance, and players already taken off cannot return.
+   */
+  function autoFillPool(): Player[] {
+    if (!startingXI) return squad;
+    const onPitch = new Set(
+      Object.values(lineup.slots).filter((id): id is number => id != null),
+    );
+    const involved = squad.filter(
+      (player) =>
+        !benchedOut.has(player.player_id) &&
+        (startingXI.has(player.player_id) || onPitch.has(player.player_id)),
+    );
+    const bench = squad
+      .filter(
+        (player) =>
+          !benchedOut.has(player.player_id) &&
+          !startingXI.has(player.player_id) &&
+          !onPitch.has(player.player_id),
+      )
+      .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))
+      .slice(0, subsRemaining);
+    return [...involved, ...bench];
   }
 
   function changePreMatchTactics(next: TeamTactics) {
@@ -272,7 +303,7 @@ export function MatchBoard({
       opponent,
       effectiveAttackBias,
       isKnockout,
-      teamTactics: preMatchTactics,
+      teamTactics,
     });
   }
 
@@ -285,13 +316,11 @@ export function MatchBoard({
     setFinalSim(null);
     setStartingXI(new Set(placedIds));
     setBenchedOut(new Set());
-    setLiveTactics(preMatchTactics);
     setLiveOpponentTactics(opponentPlan?.tactics ?? DEFAULT_TEAM_TACTICS);
     setPhase("half1");
   }
 
   function changeLiveTactics(next: TeamTactics) {
-    setLiveTactics(next);
     onChangeLineup({ ...lineup, tacticStyleKey: null, teamTactics: next });
   }
 
@@ -377,6 +406,24 @@ export function MatchBoard({
 
   const activePlayer = activeDragId != null ? playersById.get(activeDragId) : null;
   const ready = placedIds.size === 11;
+  // The arena overlay owns the pitch and bench while it is open. Rendering the
+  // board's copies at the same time would register duplicate drop targets in
+  // the shared DndContext, and they are hidden behind the modal anyway.
+  const arenaOpen = phase === "half1" || phase === "half2" || phase === "extratime";
+  const squadControls = {
+    conditions,
+    benchPlayers,
+    benchedOut,
+    pitchRef,
+    subsUsed,
+    maxSubs,
+    onSelectPlayer: setSelectedPlayer,
+    onResetPositions: () => onChangeLineup({ ...lineup, positions: {} }),
+    opponent,
+    opponentConditions,
+    opponentPlan,
+    matchups,
+  };
   const primaryAction = phase === "halftime" ? startSecondHalf : phase === "etbreak" ? startExtraTime : kickoff;
   const primaryLabel = !ready
     ? `선발 ${placedIds.size}/11 배치 필요`
@@ -396,7 +443,7 @@ export function MatchBoard({
         formation={formation}
         detectedFormation={detectedFormation}
         effectiveAttackBias={effectiveAttackBias}
-        teamTactics={preMatchTactics}
+        teamTactics={teamTactics}
         onTacticsChange={changePreMatchTactics}
         opponent={opponent}
         opponentPlayers={opponentEleven}
@@ -419,6 +466,7 @@ export function MatchBoard({
         soundOn={soundOn}
         primaryLabel={primaryLabel}
         ready={ready}
+        lineupInteractive={!arenaOpen}
         pitchRef={pitchRef}
         onBack={onBack}
         onSoundChange={setSoundOn}
@@ -455,9 +503,10 @@ export function MatchBoard({
         playersById={playersById}
         opponentPlayers={opponentEleven}
         leaderboard={leaderboard}
-        liveTactics={liveTactics}
+        liveTactics={teamTactics}
         opponentTactics={liveOpponentTactics}
         opponentFormation={opponentPlan?.formation}
+        squadControls={squadControls}
         onTacticChange={changeLiveTactics}
         onOpponentTacticChange={setLiveOpponentTactics}
         onFormationChange={selectFormation}
