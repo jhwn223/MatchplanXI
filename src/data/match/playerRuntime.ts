@@ -1,29 +1,122 @@
 import { clamp } from "./random";
-import type { MatchSide, PlacedPlayerLite, SimInput } from "./types";
+import type {
+  MatchSide,
+  PlacedPlayerLite,
+  SimInput,
+  SimTacticProfile,
+} from "./types";
+
+export type ActionKind =
+  | "generic"
+  | "movement"
+  | "technical"
+  | "decision"
+  | "duel"
+  | "goalkeeping";
+
+export interface FatigueBreakdown {
+  condition: number;
+  baseLoss: number;
+  staminaLoss: number;
+  altitudeLoss: number;
+  tacticalLoss: number;
+  totalLoss: number;
+}
+
+const NO_TACTICAL_LOAD: Pick<
+  SimTacticProfile,
+  "pressBias" | "tempoBias" | "attackBias" | "tacklingBias"
+> = {
+  pressBias: 0,
+  tempoBias: 0,
+  attackBias: 0,
+  tacklingBias: 0,
+};
 
 /** Condition, stamina, altitude and playing out of position alter every individual action. */
-export function performanceFactor(player: PlacedPlayerLite, minute: number, elevation: number): number {
-  const condition = currentCondition(player, minute, elevation);
-  const conditionFactor = 0.6 + condition / 185;
+export function performanceFactor(
+  player: PlacedPlayerLite,
+  minute: number,
+  elevation: number,
+  tactics?: SimTacticProfile,
+): number {
+  return actionPerformanceFactor(player, minute, elevation, "generic", tactics);
+}
+
+export function actionPerformanceFactor(
+  player: PlacedPlayerLite,
+  minute: number,
+  elevation: number,
+  action: ActionKind,
+  tactics?: SimTacticProfile,
+): number {
+  const condition = currentCondition(player, minute, elevation, tactics);
+  const conditionFactor =
+    action === "movement"
+      ? 0.7 + condition / 245
+      : action === "duel"
+        ? 0.72 + condition / 255
+        : action === "technical"
+          ? 0.8 + condition / 340
+          : action === "decision"
+            ? 0.78 + condition / 310
+            : action === "goalkeeping"
+              ? 0.82 + condition / 365
+              : 0.75 + condition / 280;
   const positionFit = player.naturalPosition === player.position ? 1 : 0.88;
   return clamp(conditionFactor * positionFit, 0.62, 1.12);
 }
 
-export function currentCondition(player: PlacedPlayerLite, minute: number, elevation: number): number {
+export function fatigueBreakdown(
+  player: PlacedPlayerLite,
+  minute: number,
+  elevation: number,
+  tactics?: SimTacticProfile,
+): FatigueBreakdown {
   const elapsed = clamp(minute, 0, 120);
-  const staminaLoad = clamp((100 - player.stamina) / 60, 0, 1);
-  const altitudeLoad = clamp((elevation - 800) / 4000, 0, 0.45);
-  const fatigueLoss = elapsed * (0.08 + staminaLoad * 0.14 + altitudeLoad * 0.1);
-  return Math.round(clamp(player.condition - fatigueLoss, 5, 100));
+  const load = tactics ?? NO_TACTICAL_LOAD;
+  const baseLoss = elapsed * 0.075;
+  const staminaLoss = elapsed * clamp((100 - player.stamina) / 1_000, 0.004, 0.065);
+  const altitudeLoss =
+    elapsed * clamp((elevation - 800) / 45_000, 0, 0.075);
+  const tacticalIntensity =
+    Math.max(0, load.pressBias) * 0.5 +
+    Math.max(0, load.tempoBias) * 0.32 +
+    Math.max(0, load.attackBias) * 0.1 +
+    Math.max(0, load.tacklingBias) * 0.08;
+  const staminaResistance = clamp((player.stamina - 55) / 90, 0, 0.5);
+  const tacticalLoss =
+    elapsed * tacticalIntensity * 0.075 * (1 - staminaResistance);
+  const totalLoss = baseLoss + staminaLoss + altitudeLoss + tacticalLoss;
+  return {
+    condition: Math.round(clamp(player.condition - totalLoss, 5, 100)),
+    baseLoss,
+    staminaLoss,
+    altitudeLoss,
+    tacticalLoss,
+    totalLoss,
+  };
+}
+
+export function currentCondition(
+  player: PlacedPlayerLite,
+  minute: number,
+  elevation: number,
+  tactics?: SimTacticProfile,
+): number {
+  return fatigueBreakdown(player, minute, elevation, tactics).condition;
 }
 
 export function skill(
   player: PlacedPlayerLite,
   minute: number,
   elevation: number,
-  parts: Array<[number, number]>
+  parts: Array<[number, number]>,
+  action: ActionKind = "generic",
+  tactics?: SimTacticProfile,
 ): number {
-  return parts.reduce((sum, [value, weight]) => sum + value * weight, 0) * performanceFactor(player, minute, elevation);
+  return parts.reduce((sum, [value, weight]) => sum + value * weight, 0) *
+    actionPerformanceFactor(player, minute, elevation, action, tactics);
 }
 
 export function sidePlayers(input: SimInput, side: MatchSide): PlacedPlayerLite[] {

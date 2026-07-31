@@ -4,11 +4,22 @@ import { clamp, mulberry32, weightedPick } from "./random";
 import { emptyRunningStats, finalizeTeamStatsPair, type RunningStats } from "./stats";
 import { tacticalWorkRate, tacticsForSide } from "./tactics";
 import {
-  passLanePressure,
-  samplePlayerPositions,
-  tacticalDistance,
   tacticalHome,
 } from "./spatial";
+import { createMatchWorld } from "./world/createWorld";
+import {
+  coordinateFromWorld,
+  samplesFromWorld,
+} from "./world/eventBridge";
+import {
+  advanceWorld,
+  beginPossession,
+} from "./world/movementEngine";
+import {
+  passOptionScore,
+  worldDistance,
+  worldPassLanePressure,
+} from "./world/perception";
 import type {
   GoalEvent,
   HalfResult,
@@ -100,6 +111,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   let activePossessionId = "";
   let possessionBallPoint: { x: number; y: number } | null = null;
   const positionSamples: PositionSample[] = [];
+  const samplesByMinute = new Map<number, PositionSample[]>();
   const running: Record<MatchSide, RunningStats> = {
     user: emptyRunningStats(),
     opp: emptyRunningStats(),
@@ -113,12 +125,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   const possessionCount = Math.max(1, Math.round(duration * 1.12));
   const userTactics = tacticsForSide(input, "user");
   const oppTactics = tacticsForSide(input, "opp");
-  for (let minute = lo; minute <= hi; minute++) {
-    positionSamples.push(
-      ...samplePlayerPositions(minute, "user", input.placed, userTactics),
-      ...samplePlayerPositions(minute, "opp", input.oppPlaced, oppTactics),
-    );
-  }
+  const tacticsBySide = { user: userTactics, opp: oppTactics };
+  let world = createMatchWorld(input, lo, tacticsBySide);
   const eloEdge = (input.userElo - input.oppElo) / 600;
   const creativityEdge = (input.userAbility.creativity - input.oppAbility.creativity) / 120;
   const tacticalPossessionEdge =
@@ -140,99 +148,21 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
   );
 
   const eventCoordinate = (
-    minute: number,
     side: MatchSide,
     type: MatchEventType,
     actor: PlacedPlayerLite,
-    target?: PlacedPlayerLite
-  ) => {
-    const source = `${input.seed}:${minute}:${type}:${actor.playerId}:${target?.playerId ?? ""}:${events.length}`;
-    let hash = 2166136261;
-    for (let index = 0; index < source.length; index++) {
-      hash = Math.imul(hash ^ source.charCodeAt(index), 16777619);
-    }
-    const unit = (shift: number) => ((hash >>> shift) & 255) / 255;
-    const sideTactics = side === "user" ? userTactics : oppTactics;
-    const direction = side === "user" ? 1 : -1;
-    const role = actor.position;
-    const actorHome = tacticalHome(actor, side, sideTactics);
-    const targetHome = target ? tacticalHome(target, side, sideTactics) : actorHome;
-    const isShot = type === "shot" || type === "goal" || type === "miss";
-    const isStationary =
-      type === "interception" ||
-      type === "recovery" ||
-      type === "tackle" ||
-      type === "save" ||
-      type === "block" ||
-      type === "foul" ||
-      type === "yellowCard" ||
-      type === "redCard" ||
-      type === "offside" ||
-      type === "corner" ||
-      type === "freeKick" ||
-      type === "throwIn" ||
-      type === "penaltyKick" ||
-      type === "injury";
-    const shotBase = role === "DEF" ? 67 : role === "MID" ? 73 : 80;
-    const shotX = side === "user"
-      ? shotBase + unit(0) * 13
-      : 100 - shotBase - unit(0) * 13;
-    const generatedX =
-      type === "corner"
-        ? side === "user" ? 98 : 2
-        : type === "penaltyKick"
-          ? side === "user" ? 87 : 13
-          : isShot
-            ? shotX
-            : clamp(actorHome.x + (unit(0) - 0.5) * (role === "GK" ? 2 : 8), 1, 99);
-    const generatedY =
-      type === "corner"
-        ? unit(8) < 0.5 ? 3 : 97
-        : type === "throwIn"
-          ? (possessionBallPoint?.y ?? actorHome.y) <= 50 ? 3 : 97
-          : type === "penaltyKick"
-            ? 50
-            : clamp(actorHome.y + (unit(8) - 0.5) * (role === "GK" ? 3 : 9), 3, 97);
-    const forceRestartPoint =
-      type === "corner" || type === "penaltyKick";
-    const x = forceRestartPoint
-      ? generatedX
-      : possessionBallPoint?.x ?? generatedX;
-    const y =
-      type === "corner" || type === "throwIn" || type === "penaltyKick"
-        ? generatedY
-        : possessionBallPoint?.y ?? generatedY;
-    const targetX = clamp(targetHome.x + (unit(16) - 0.5) * 7, 1, 99);
-    const targetY = clamp(targetHome.y + (unit(24) - 0.5) * 7, 3, 97);
-    const rawPassDistance = Math.hypot(targetX - x, targetY - y);
-    const passReach = clamp(
-      20 + unit(24) * 32 + sideTactics.directnessBias * 11,
-      10,
-      58
-    );
-    const passScale = rawPassDistance > 0 ? Math.min(1, passReach / rawPassDistance) : 1;
-    const passEndX = clamp(x + (targetX - x) * passScale, 1, 99);
-    const passEndY = clamp(y + (targetY - y) * passScale, 3, 97);
-    const travel = type === "dribble" ? 7 : isShot ? 100 : 3;
-    return {
-      x,
-      y,
-      endX:
-        type === "pass"
-          ? passEndX
-          : isStationary
-            ? x
-            : clamp(x + direction * travel, 1, 99),
-      endY:
-        type === "pass"
-          ? passEndY
-          : isStationary
-            ? y
-            : isShot
-              ? 50 + (unit(16) - 0.5) * 18
-              : clamp(y + (unit(16) - 0.5) * 24, 3, 97),
-    };
-  };
+    target: PlacedPlayerLite | undefined,
+    success: boolean,
+  ) => coordinateFromWorld(
+    world,
+    input,
+    tacticsBySide,
+    side,
+    type,
+    actor,
+    target,
+    success,
+  );
 
   const classifyPass = (
     side: MatchSide,
@@ -289,7 +219,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     success: boolean,
     xg?: number
   ) => {
-    const coordinate = eventCoordinate(minute, side, type, actor, target);
+    const coordinate = eventCoordinate(side, type, actor, target, success);
     const order = eventOrderByMinute.get(minute) ?? 0;
     eventOrderByMinute.set(minute, order + 1);
     events.push({
@@ -312,6 +242,7 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       x: coordinate.endX,
       y: coordinate.endY,
     };
+    samplesByMinute.set(minute, samplesFromWorld(world, minute));
   };
 
   const resolveSetPiece = (
@@ -415,6 +346,10 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
 
   for (let possession = 0; possession < possessionCount; possession++) {
     const minute = Math.min(hi, lo + Math.floor(((possession + rng()) / possessionCount) * duration));
+    if (world.minute !== minute) {
+      samplesByMinute.set(world.minute, samplesFromWorld(world, world.minute));
+      world = createMatchWorld(input, minute, tacticsBySide);
+    }
     activePossessionId = `${minute}:${possession}`;
     possessionBallPoint = null;
     const side: MatchSide = rng() < userPossessionChance ? "user" : "opp";
@@ -453,6 +388,8 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         (0.55 + player.ballControl / 110),
       rng,
     );
+    beginPossession(world, side, possessionCarrier);
+    advanceWorld(world, input, tacticsBySide, 1.6);
     addEvent(
       minute,
       side,
@@ -467,26 +404,19 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
       const receiver = weightedPick(
         possessionPlayers.filter((player) => player.playerId !== passer.playerId),
         (player) => {
-          const distance = tacticalDistance(
-            passer, side, sideTactics,
-            player, side, sideTactics,
-          );
-          const idealDistance = directness > 0.35 ? 30 : directness < -0.35 ? 15 : 22;
-          const distanceFit = 1 / (1 + Math.abs(distance - idealDistance) / 15);
-          const roleWeight =
-            player.position === "GK" ? 0.25 :
-              player.position === "MID" ? 2.4 :
-                player.position === "DEF" ? 1.8 : 1.25;
-          return roleWeight * distanceFit;
+          return passOptionScore(world, side, passer, player, directness);
         },
         rng
       );
       const pressingDefender = weightedPick(
         defenders,
         (player) => {
-          const distance = tacticalDistance(
-            player, defendingSide, defendingTactics,
-            passer, side, sideTactics,
+          const distance = worldDistance(
+            world,
+            defendingSide,
+            player,
+            side,
+            passer,
           );
           return (
             0.5 + (player.interceptions + player.aggression + player.reactions) / 240
@@ -500,26 +430,24 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         [passer.vision, 0.14],
         [passer.ballControl, 0.12],
         [passer.composure, 0.08],
-      ]) * sideWorkRate;
+      ], "technical", sideTactics) * sideWorkRate;
       const pressureQuality = skill(pressingDefender, minute, input.elevation, [
         [pressingDefender.interceptions, 0.38],
         [pressingDefender.defensiveAwareness, 0.28],
         [pressingDefender.reactions, 0.2],
         [pressingDefender.aggression, 0.14],
-      ]) * defendingWorkRate * (
+      ], "decision", defendingTactics) * defendingWorkRate * (
         1 +
         defendingTactics.pressBias * 0.055 +
         defendingTactics.defensiveLineBias * 0.025 +
         defendingTactics.tacklingBias * 0.02
       );
-      const laneRisk = passLanePressure(
+      const laneRisk = worldPassLanePressure(
+        world,
+        side,
         passer,
         receiver,
-        side,
-        sideTactics,
         defenders,
-        defendingSide,
-        defendingTactics,
       );
       const routinePassChance = clamp(
         0.9 +
@@ -582,9 +510,12 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         defenders,
         (player) => {
           const roleWeight = player.position === "DEF" ? 2.8 : player.position === "MID" ? 1.8 : 0.7;
-          const distance = tacticalDistance(
-            player, defendingSide, defendingTactics,
-            carrier, side, sideTactics,
+          const distance = worldDistance(
+            world,
+            defendingSide,
+            player,
+            side,
+            carrier,
           );
           return roleWeight *
             (0.45 + (player.defensiveAwareness + player.aggression) / 200) *
@@ -599,14 +530,14 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         [carrier.agility, 0.18],
         [carrier.pace, 0.14],
         [carrier.composure, 0.1],
-      ]) * sideWorkRate;
+      ], "technical", sideTactics) * sideWorkRate;
       const defenderTackle = skill(defender, minute, input.elevation, [
         [defender.standingTackle, 0.3],
         [defender.defensiveAwareness, 0.24],
         [defender.strength, 0.17],
         [defender.interceptions, 0.17],
         [defender.reactions, 0.12],
-      ]) * defendingWorkRate * (
+      ], "duel", defendingTactics) * defendingWorkRate * (
         1 +
         defendingTactics.pressBias * 0.045 +
         defendingTactics.tacklingBias * 0.06 +
@@ -688,8 +619,12 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           receivers,
           (player) => {
             const forwardWeight = player.position === "FWD" ? 2.8 : player.position === "MID" ? 2 : 0.75;
-            const carrierHome = tacticalHome(carrier, side, sideTactics);
-            const receiverHome = tacticalHome(player, side, sideTactics);
+            const carrierHome =
+              world.players[side].get(carrier.playerId) ??
+              tacticalHome(carrier, side, sideTactics);
+            const receiverHome =
+              world.players[side].get(player.playerId) ??
+              tacticalHome(player, side, sideTactics);
             const forwardDistance = side === "user"
               ? receiverHome.x - carrierHome.x
               : carrierHome.x - receiverHome.x;
@@ -713,27 +648,25 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
           [carrier.composure, 0.14],
           [carrier.ballControl, 0.1],
           [carrier.longPassing, 0.06],
-        ]) * sideWorkRate;
+        ], "technical", sideTactics) * sideWorkRate;
         const interceptionQuality = skill(defender, minute, input.elevation, [
           [defender.interceptions, 0.32],
           [defender.defensiveAwareness, 0.27],
           [defender.reactions, 0.17],
           [defender.aggression, 0.12],
           [defender.pace, 0.12],
-        ]) * defendingWorkRate * (
+        ], "decision", defendingTactics) * defendingWorkRate * (
           1 +
           defendingTactics.pressBias * 0.05 +
           defendingTactics.defensiveLineBias * 0.03 +
           defendingTactics.tacklingBias * 0.018
         );
-        const laneRisk = passLanePressure(
+        const laneRisk = worldPassLanePressure(
+          world,
+          side,
           carrier,
           receiver,
-          side,
-          sideTactics,
           defenders,
-          defendingSide,
-          defendingTactics,
         );
         const passChance = clamp(
           0.72 +
@@ -863,21 +796,21 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
         [carrier.shotPower, 0.13],
         [carrier.composure, 0.2],
         [carrier.positioning, 0.15],
-      ]) * sideWorkRate;
+      ], "technical", sideTactics) * sideWorkRate;
       const blockQuality = skill(marker, minute, input.elevation, [
         [marker.defending, 0.22],
         [marker.defensiveAwareness, 0.28],
         [marker.standingTackle, 0.2],
         [marker.reactions, 0.16],
         [marker.aggression, 0.14],
-      ]) * defendingWorkRate;
+      ], "duel", defendingTactics) * defendingWorkRate;
       const keeperQuality = skill(keeperPlayer, minute, input.elevation, [
         [keeperPlayer.gkReflexes, 0.3],
         [keeperPlayer.gkDiving, 0.25],
         [keeperPlayer.gkPositioning, 0.22],
         [keeperPlayer.gkHandling, 0.13],
         [keeperPlayer.reactions, 0.1],
-      ]) * defendingWorkRate;
+      ], "goalkeeping", defendingTactics) * defendingWorkRate;
       const finishingMultiplier = clamp(0.84 + (shootingTechnique - 60) / 160, 0.68, 1.28);
       const keeperMultiplier = clamp(1.04 - (keeperQuality - 65) / 260, 0.76, 1.16);
       const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier, 0.01, 0.72);
@@ -956,6 +889,12 @@ export function simulatePeriod(input: SimInput, lo: number, hi: number, seedOffs
     snapshots.set(minute, createLiveSnapshot(input, minute, running, playerStats, goals, periodStartMinute));
   }
 
+  samplesByMinute.set(world.minute, samplesFromWorld(world, world.minute));
+  for (let minute = lo; minute <= hi; minute++) {
+    const samples = samplesByMinute.get(minute) ??
+      samplesFromWorld(createMatchWorld(input, minute, tacticsBySide), minute);
+    positionSamples.push(...samples);
+  }
   goals.sort((a, b) => a.minute - b.minute);
   events.sort((a, b) => a.minute - b.minute);
   snapshots.set(hi, createLiveSnapshot(input, hi, running, playerStats, goals, periodStartMinute));
