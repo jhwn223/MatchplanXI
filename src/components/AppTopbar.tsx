@@ -17,7 +17,7 @@ export function AppTopbar({ active, teamCode, onBrandClick }: Props) {
   const brand = (
     <>
       <span className="app-topbar__mark" aria-hidden="true">▲</span>
-      <span>ALTITUDE TACTICS</span>
+      <span>Matchplan XI</span>
     </>
   );
 

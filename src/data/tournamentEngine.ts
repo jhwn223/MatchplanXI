@@ -752,8 +752,11 @@ export interface TournamentLeader {
   cleanSheets: number;
 }
 
-/** how often each position gets picked as a goal scorer / assist provider */
-const SCORER_WEIGHT: Record<Position, number> = { GK: 0.02, DEF: 0.12, MID: 0.32, FWD: 0.54 };
+/** how often each position gets picked as a goal scorer / assist provider,
+ *  within the starting XI (see `attributeMatchGoals`) — weighted toward
+ *  forwards so a real Golden-Boot-style leader emerges, matching how
+ *  concentrated tournament scoring actually is in the real World Cup. */
+const SCORER_WEIGHT: Record<Position, number> = { GK: 0.01, DEF: 0.06, MID: 0.22, FWD: 0.7 };
 const ASSIST_BONUS = 0.15;
 
 function pickWeighted(rng: () => number, players: Player[], weightFor: (p: Player) => number): Player | null {
@@ -846,13 +849,18 @@ function attributeMatchGoals(
   awayGoals: number
 ) {
   const rng = mulberry32(seed);
+  // Goals/assists are attributed within the starting XI, not the full squad —
+  // bench players barely feature, and spreading credit across ~26 players
+  // diluted every team's top scorer to 2-3 goals for an entire tournament run
+  // instead of a real Golden-Boot-range total.
   const score = (teamName: string, teamCode: string, squad: Player[], goals: number) => {
+    const xi = selectBestEleven(squad);
     for (let i = 0; i < goals; i++) {
-      const scorer = pickWeighted(rng, squad, scorerWeight);
+      const scorer = pickWeighted(rng, xi, scorerWeight);
       if (!scorer) continue;
       bumpLeader(map, scorer, teamName, teamCode, "goals");
       if (rng() < 0.68) {
-        const pool = squad.filter((p) => p.player_id !== scorer.player_id);
+        const pool = xi.filter((p) => p.player_id !== scorer.player_id);
         const assister = pickWeighted(rng, pool, (p) => scorerWeight(p) + ASSIST_BONUS);
         if (assister) bumpLeader(map, assister, teamName, teamCode, "assists");
       }
