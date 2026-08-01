@@ -43,7 +43,6 @@ import { MatchBoardScreen } from "./match-board/MatchBoardScreen";
 import {
   applyAltitudeAdaptation,
   buildOpponentPlan,
-  tacticalMatchups,
 } from "./match-board/opponentPlan";
 import { buildMatchSimInput } from "./match-board/simInput";
 import { useLineupDrag } from "./match-board/useLineupDrag";
@@ -147,12 +146,13 @@ export function MatchBoard({
         ? buildOpponentPlan({
             team: opponent,
             squad: opponentSquad,
+            referencePlayers: data.players,
             elevation: activeMatch.elevation,
             isHome: !activeMatch.isHome,
             seed: activeMatch.match.match_id,
           })
         : null,
-    [activeMatch.elevation, activeMatch.isHome, activeMatch.match.match_id, opponent, opponentSquad]
+    [activeMatch.elevation, activeMatch.isHome, activeMatch.match.match_id, data.players, opponent, opponentSquad]
   );
   const opponentConditions = useMemo(
     () => applyAltitudeAdaptation(rawOpponentConditions, opponentPlan?.altitudeAdaptation ?? 0),
@@ -207,10 +207,6 @@ export function MatchBoard({
         .filter((player): player is Player => player != null);
     },
     [opponentConditions, opponentPlan, opponentSquad]
-  );
-  const matchups = useMemo(
-    () => opponentPlan ? tacticalMatchups(opponentPlan, teamTactics, activeMatch.elevation) : [],
-    [activeMatch.elevation, opponentPlan, teamTactics]
   );
   const isKnockout = match.stage_name !== "Group Stage";
   const tiedAfterRegulation = regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
@@ -457,7 +453,6 @@ export function MatchBoard({
     opponent,
     opponentConditions,
     opponentPlan,
-    matchups,
   };
   const primaryAction = phase === "halftime" ? startSecondHalf : phase === "etbreak" ? startExtraTime : kickoff;
   const primaryLabel = !ready
@@ -489,7 +484,6 @@ export function MatchBoard({
         opponentPlayers={opponentEleven}
         opponentConditions={opponentConditions}
         opponentPlan={opponentPlan}
-        matchups={matchups}
         teamIndex={teamIndex}
         conditions={conditions}
         playersById={playersById}

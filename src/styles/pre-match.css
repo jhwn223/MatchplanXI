@@ -2074,6 +2074,12 @@
   gap: 8px;
 }
 
+.opponent-report__scout-basis {
+  grid-column: 1 / -1;
+  color: #738071;
+  font-size: 9px;
+}
+
 .opponent-report__scout > div {
   padding: 11px;
   border-radius: 12px;
@@ -2090,81 +2096,6 @@
   color: #4f5d4e;
   font-size: 9px;
   line-height: 1.55;
-}
-
-.matchup-list {
-  display: grid;
-  gap: 8px;
-}
-
-.matchup-card {
-  position: relative;
-  overflow: hidden;
-  padding: 12px;
-  border: 1px solid #d2ddd0;
-  border-radius: 13px;
-  background: #fff;
-  box-shadow: 0 5px 15px rgba(37, 72, 42, .05);
-}
-
-.matchup-card::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  background: #90a18c;
-  content: "";
-}
-
-.matchup-card[data-status="effective"]::before {
-  background: #11a148;
-}
-
-.matchup-card[data-status="warning"]::before {
-  background: #e69d22;
-}
-
-.matchup-card > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.matchup-card > div span {
-  color: #789075;
-  font-size: 8px;
-  font-weight: 900;
-}
-
-.matchup-card > div strong {
-  font-size: 11px;
-}
-
-.matchup-card p,
-.matchup-card small {
-  display: block;
-  margin: 7px 0 0;
-  color: #667064;
-  font-size: 9px;
-  line-height: 1.45;
-}
-
-.matchup-card small {
-  color: #245d31;
-  font-weight: 750;
-}
-
-.matchup-card button {
-  width: 100%;
-  min-height: 34px;
-  margin-top: 10px;
-  border: 0;
-  border-radius: 9px;
-  background: #087333;
-  color: #fff;
-  font: inherit;
-  font-size: 9px;
-  font-weight: 850;
-  cursor: pointer;
 }
 
 /* Interval columns use the same viewport as the pre-match workspace.

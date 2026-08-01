@@ -3,7 +3,7 @@ import type { ConditionBreakdown } from "../../data/conditionEngine";
 import type { FormationKey, SlotPositions } from "../../data/formation";
 import type { Leaderboard } from "../../data/leaderboard";
 import type { Team } from "../../data/types";
-import type { OpponentPlan, TacticalMatchup } from "../match-board/opponentPlan";
+import type { OpponentPlan } from "../match-board/opponentPlan";
 import type {
   GoalEvent,
   HalfResult,
@@ -38,7 +38,6 @@ export interface ArenaSquadControls {
   opponent?: Team;
   opponentConditions: Map<number, ConditionBreakdown>;
   opponentPlan?: OpponentPlan | null;
-  matchups: TacticalMatchup[];
 }
 
 export interface ArenaSim {

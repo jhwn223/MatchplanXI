@@ -27,15 +27,6 @@ export interface OpponentPlan {
   slowCenterBacks: boolean;
 }
 
-export interface TacticalMatchup {
-  id: string;
-  title: string;
-  detail: string;
-  recommendation: string;
-  status: "effective" | "warning" | "neutral";
-  patch: Partial<TeamTactics>;
-}
-
 export interface OpponentTacticChange {
   minute: number;
   title: string;
@@ -46,9 +37,30 @@ export interface OpponentTacticChange {
 interface BuildOpponentPlanOptions {
   team: Team;
   squad: Player[];
+  referencePlayers?: Player[];
   elevation: number;
   isHome: boolean;
   seed: number;
+}
+
+interface TeamScoutMetrics {
+  pace: number;
+  passing: number;
+  defending: number;
+  physical: number;
+  crossing: number;
+  finishing: number;
+  stamina: number;
+  centerBackPace: number;
+  aerialAttack: number;
+  aerialDefense: number;
+}
+
+type ScoutMetric = keyof TeamScoutMetrics;
+
+interface ScoutClaim {
+  metric: ScoutMetric;
+  label: string;
 }
 
 function average(values: number[], fallback = 70) {
@@ -64,6 +76,98 @@ function abilityAverage(players: Player[], key: keyof NonNullable<Player["abilit
   );
 }
 
+function percentileRank(values: number[], target: number) {
+  if (!values.length) return 0.5;
+  const lower = values.filter((value) => value < target).length;
+  const equal = values.filter((value) => value === target).length;
+  return (lower + equal * 0.5) / values.length;
+}
+
+function validHeights(players: Player[]) {
+  return players
+    .map((player) => player.height_cm)
+    .filter((height) => Number.isFinite(height) && height >= 150 && height <= 220);
+}
+
+function aerialScore(player: Player, referenceHeights: number[]) {
+  const ability = player.ability;
+  const heightPercentile = Number.isFinite(player.height_cm)
+    ? percentileRank(referenceHeights, player.height_cm) * 100
+    : 50;
+  return (
+    heightPercentile * 0.3 +
+    (ability?.jumping ?? 70) * 0.3 +
+    (ability?.headingAccuracy ?? 70) * 0.3 +
+    (ability?.strength ?? ability?.physical ?? 70) * 0.1
+  );
+}
+
+function bestAverage(values: number[], count: number, fallback = 70) {
+  return average([...values].sort((a, b) => b - a).slice(0, count), fallback);
+}
+
+function scoutMetricsFor(squad: Player[], referenceHeights: number[]): TeamScoutMetrics {
+  const defenders = squad.filter((player) => player.position === "DEF");
+  const midfielders = squad.filter((player) => player.position === "MID");
+  const forwards = squad.filter((player) => player.position === "FWD");
+  const outfield = squad.filter((player) => player.position !== "GK");
+  const centerBackCandidates = [...defenders]
+    .sort((a, b) => (b.ability?.defending ?? 0) - (a.ability?.defending ?? 0))
+    .slice(0, 3);
+
+  return {
+    pace: abilityAverage(squad, "pace"),
+    passing: abilityAverage(midfielders, "passing"),
+    defending: abilityAverage(defenders, "defending"),
+    physical: abilityAverage(squad, "physical"),
+    crossing: abilityAverage([...defenders, ...midfielders], "crossing"),
+    finishing: abilityAverage(forwards, "finishing"),
+    stamina: abilityAverage(squad, "stamina"),
+    centerBackPace: average(
+      centerBackCandidates.map((player) => player.ability?.pace ?? 65),
+      65,
+    ),
+    // 공격 제공권에는 장신 공격수뿐 아니라 세트피스에 가담하는 수비수도 포함한다.
+    aerialAttack: bestAverage(
+      outfield.map((player) => aerialScore(player, referenceHeights)),
+      5,
+    ),
+    aerialDefense: bestAverage(
+      defenders.map((player) => aerialScore(player, referenceHeights)),
+      4,
+    ),
+  };
+}
+
+function groupSquads(players: Player[]) {
+  const groups = new Map<number, Player[]>();
+  players.forEach((player) => {
+    const squad = groups.get(player.team_id) ?? [];
+    squad.push(player);
+    groups.set(player.team_id, squad);
+  });
+  return [...groups.values()].filter((squad) => squad.length > 0);
+}
+
+function claimsAtPercentile(
+  metrics: TeamScoutMetrics,
+  references: TeamScoutMetrics[],
+  claims: ScoutClaim[],
+  side: "strength" | "weakness",
+) {
+  return claims
+    .map((claim) => ({
+      ...claim,
+      percentile: percentileRank(
+        references.map((reference) => reference[claim.metric]),
+        metrics[claim.metric],
+      ),
+    }))
+    .filter(({ percentile }) => side === "strength" ? percentile >= 0.75 : percentile <= 0.25)
+    .sort((a, b) => side === "strength" ? b.percentile - a.percentile : a.percentile - b.percentile)
+    .map(({ label }) => label);
+}
+
 function altitudeAdaptationFor(team: Team, elevation: number, isHome: boolean) {
   if (elevation < 1000) return 0;
   const knownAltitudeTeams = ["Mexico", "Ecuador", "Bolivia", "Colombia", "Peru"];
@@ -77,28 +181,25 @@ function altitudeAdaptationFor(team: Team, elevation: number, isHome: boolean) {
 export function buildOpponentPlan({
   team,
   squad,
+  referencePlayers = squad,
   elevation,
   isHome,
   seed,
 }: BuildOpponentPlanOptions): OpponentPlan {
-  const defenders = squad.filter((player) => player.position === "DEF");
-  const midfielders = squad.filter((player) => player.position === "MID");
-  const forwards = squad.filter((player) => player.position === "FWD");
-  const pace = abilityAverage(squad, "pace");
-  const passing = abilityAverage(midfielders, "passing");
-  const defending = abilityAverage(defenders, "defending");
-  const physical = abilityAverage(squad, "physical");
-  const crossing = abilityAverage([...defenders, ...midfielders], "crossing");
-  const finishing = abilityAverage(forwards, "finishing");
-  const centerBackPace = average(
-    defenders
-      .sort((a, b) => (b.ability?.defending ?? 0) - (a.ability?.defending ?? 0))
-      .slice(0, 3)
-      .map((player) => player.ability?.pace ?? 65),
-    65
+  const referenceHeights = validHeights(referencePlayers);
+  const metrics = scoutMetricsFor(squad, referenceHeights);
+  const referenceMetrics = groupSquads(referencePlayers).map((referenceSquad) =>
+    scoutMetricsFor(referenceSquad, referenceHeights)
   );
+  const { pace, passing, defending, physical, finishing, centerBackPace } = metrics;
   const profile = buildTeamAbilityProfile(squad);
-  const slowCenterBacks = centerBackPace < 68;
+  const centerBackPacePercentile = percentileRank(
+    referenceMetrics.map((reference) => reference.centerBackPace),
+    centerBackPace,
+  );
+  const slowCenterBacks = referenceMetrics.length >= 4
+    ? centerBackPacePercentile <= 0.25
+    : centerBackPace < 68;
   const altitudeAdaptation = altitudeAdaptationFor(team, elevation, isHome);
 
   let formation: FormationKey = "4-3-3";
@@ -127,22 +228,31 @@ export function buildOpponentPlan({
     identity = "빠른 침투와 직접 공격";
   }
 
-  const strengths: string[] = [];
-  const weaknesses: string[] = [];
-  if (pace >= 73) strengths.push("빠른 공격 전환과 침투 속도");
-  if (passing >= 73) strengths.push("중원의 패스와 점유 능력");
-  if (defending >= 73) strengths.push("수비 대인 대응과 박스 보호");
-  if (physical >= 74) strengths.push("압박 지속력과 몸싸움");
-  if (crossing >= 72) strengths.push("측면 크로스와 오버래핑");
-  if (altitudeAdaptation >= 15) strengths.push("고지대 환경 적응력");
-  if (strengths.length < 2) strengths.push("조직적인 기본 대형 유지");
-
-  if (slowCenterBacks) weaknesses.push("센터백의 뒷공간 대응 속도");
-  if (profile.stamina < 70) weaknesses.push("후반 체력과 압박 유지력");
-  if (passing < 68) weaknesses.push("강한 압박을 받을 때 빌드업 안정성");
-  if (finishing < 69) weaknesses.push("기회 대비 마무리 효율");
-  if (defending < 69) weaknesses.push("박스 앞 중앙 수비 간격");
-  if (weaknesses.length < 2) weaknesses.push("공격적으로 전진한 뒤 생기는 전환 공간");
+  const strengthClaims: ScoutClaim[] = [
+    { metric: "pace", label: "빠른 공격 전환과 침투 속도" },
+    { metric: "passing", label: "중원의 패스와 점유 능력" },
+    { metric: "defending", label: "수비 대인 대응과 박스 보호" },
+    { metric: "physical", label: "압박 지속력과 몸싸움" },
+    { metric: "crossing", label: "측면 크로스와 오버래핑" },
+    { metric: "finishing", label: "공격진의 마무리 효율" },
+    { metric: "stamina", label: "후반까지 유지되는 활동량과 압박" },
+    { metric: "aerialAttack", label: "높은 타깃과 제공권을 활용한 세트피스 위협" },
+    { metric: "aerialDefense", label: "수비진의 제공권과 높은 크로스 대응" },
+  ];
+  const weaknessClaims: ScoutClaim[] = [
+    { metric: "centerBackPace", label: "센터백의 뒷공간 대응 속도" },
+    { metric: "stamina", label: "후반 체력과 압박 유지력" },
+    { metric: "passing", label: "강한 압박을 받을 때 빌드업 안정성" },
+    { metric: "finishing", label: "기회 대비 마무리 효율" },
+    { metric: "defending", label: "박스 앞 중앙 수비 간격" },
+    { metric: "aerialAttack", label: "높은 크로스와 공중볼 공격 위력 부족" },
+    { metric: "aerialDefense", label: "세트피스와 높은 크로스 수비 취약" },
+  ];
+  const strengths = claimsAtPercentile(metrics, referenceMetrics, strengthClaims, "strength");
+  const weaknesses = claimsAtPercentile(metrics, referenceMetrics, weaknessClaims, "weakness");
+  if (altitudeAdaptation >= 15) strengths.unshift("고지대 환경 적응력");
+  if (!strengths.length) strengths.push("데이터상 두드러지는 단일 강점 없음");
+  if (!weaknesses.length) weaknesses.push("데이터상 두드러지는 단일 약점 없음");
 
   const observedFormation = getObservedFormation(team.fifa_code);
   if (observedFormation) {
@@ -163,8 +273,8 @@ export function buildOpponentPlan({
     tactics,
     identity,
     altitudeAdaptation,
-    strengths: strengths.slice(0, 3),
-    weaknesses: weaknesses.slice(0, 3),
+    strengths: strengths.slice(0, 5),
+    weaknesses: weaknesses.slice(0, 5),
     slowCenterBacks,
   };
 }
@@ -184,84 +294,6 @@ export function applyAltitudeAdaptation(
       },
     ])
   );
-}
-
-export function tacticalMatchups(
-  opponent: OpponentPlan,
-  user: TeamTactics,
-  elevation: number
-): TacticalMatchup[] {
-  const matchups: TacticalMatchup[] = [];
-  const highPress =
-    opponent.tactics.pressing === "high" ||
-    opponent.tactics.defenseStyle === "constantPress" ||
-    opponent.tactics.defenseStyle === "lossPress";
-  if (highPress) {
-    const effective = user.passingStyle === "direct" || user.passingStyle === "long";
-    matchups.push({
-      id: "beat-press",
-      title: "상대의 강한 압박",
-      detail: "첫 압박선을 짧은 패스로만 통과하면 위험 지역에서 공을 잃을 가능성이 높습니다.",
-      recommendation: "직접 패스와 빠른 전진으로 압박 뒤 공간을 노리세요.",
-      status: effective ? "effective" : "warning",
-      patch: { passingStyle: "direct", buildUpPlay: "fastBuildUp", tempo: "fast" },
-    });
-  }
-
-  const lowBlock =
-    opponent.tactics.defensiveLine === "low" ||
-    opponent.tactics.defenseStyle === "dropBack" ||
-    opponent.tactics.mentality === "defensive";
-  if (lowBlock) {
-    const effective = user.width === "wide" && user.widePlay !== "mixed";
-    matchups.push({
-      id: "stretch-block",
-      title: "상대의 낮은 수비 블록",
-      detail: "중앙 공간이 좁아 정면 침투만 반복하면 슈팅 각도를 만들기 어렵습니다.",
-      recommendation: "폭을 넓히고 오버래핑과 크로스로 수비 간격을 벌리세요.",
-      status: effective ? "effective" : "warning",
-      patch: { width: "wide", widePlay: "overlap", fullbackRole: "overlap", attackFocus: "balanced" },
-    });
-  }
-
-  if (opponent.slowCenterBacks) {
-    const effective =
-      user.chanceCreation === "forwardRuns" &&
-      user.strikerRole === "poacher" &&
-      user.tempo === "fast";
-    matchups.push({
-      id: "attack-slow-cb",
-      title: "느린 센터백 조합",
-      detail: "상대 센터백은 전진 수비 뒤 돌아서는 상황에서 속도 약점이 드러납니다.",
-      recommendation: "빠른 템포와 전방 침투, 침투형 공격수 역할이 유효합니다.",
-      status: effective ? "effective" : "neutral",
-      patch: { chanceCreation: "forwardRuns", strikerRole: "poacher", tempo: "fast" },
-    });
-  }
-
-  if (elevation >= 1500 && opponent.altitudeAdaptation >= 15) {
-    const effective = user.workRate === "conserve" || user.tempo === "slow";
-    matchups.push({
-      id: "altitude-management",
-      title: "상대의 높은 고지대 적응력",
-      detail: "상대보다 체력 저하가 빠르게 올 수 있어 후반 전술 대응 여지를 남겨야 합니다.",
-      recommendation: "전반 활동량과 템포를 관리하고 후반에 압박 강도를 높이세요.",
-      status: effective ? "effective" : "warning",
-      patch: { workRate: "conserve", tempo: "slow", pressing: "standard" },
-    });
-  }
-
-  if (!matchups.length) {
-    matchups.push({
-      id: "balanced-scout",
-      title: "뚜렷한 단일 약점 없음",
-      detail: "상대는 균형적인 구조를 유지하므로 경기 초반 점유율과 슈팅 위치를 확인해야 합니다.",
-      recommendation: "균형 전술로 시작한 뒤 15분 데이터에 따라 대응하세요.",
-      status: "neutral",
-      patch: {},
-    });
-  }
-  return matchups;
 }
 
 interface OpponentDecisionOptions {
