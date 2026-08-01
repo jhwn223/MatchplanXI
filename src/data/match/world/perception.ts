@@ -106,6 +106,124 @@ export function offsideLineFor(world: MatchWorld, attackingSide: MatchSide) {
     : Math.min(world.ball.x, secondDeepest);
 }
 
+/**
+ * How many outfield defenders are home in their own third.
+ *
+ * This is the quantity real defending is built on, and the engine had no
+ * notion of it: every duel was resolved against a single picked opponent, so
+ * fielding no defenders at all cost a side nothing. A crowded box is why
+ * camping strikers in it creates nothing, and an empty one is why a side that
+ * leaves nobody home concedes whenever the ball arrives.
+ */
+export function defensiveThirdCover(world: MatchWorld, defendingSide: MatchSide) {
+  const goalX = defendingSide === "user" ? 0 : 100;
+  let count = 0;
+  for (const state of world.players[defendingSide].values()) {
+    if (state.player.position === "GK") continue;
+    if (Math.abs(state.x - goalX) <= 33) count++;
+  }
+  return count;
+}
+
+/**
+ * Outfield bodies each side has within `radius` of a point on the pitch.
+ *
+ * Football is decided by numbers around the ball far more than by any single
+ * duel, and this is the quantity the engine was missing: every contest was
+ * resolved one-against-one with a defender picked by weight, so a side that
+ * left an entire line of the pitch unmanned was never actually outnumbered
+ * there. Counting bodies is what makes an empty midfield cost possession.
+ */
+export function localNumbers(
+  world: MatchWorld,
+  side: MatchSide,
+  x: number,
+  y: number,
+  radius: number,
+): { own: number; opponents: number } {
+  const opponentSide = side === "user" ? "opp" : "user";
+  const limit = radius * radius;
+  let own = 0;
+  let opponents = 0;
+  for (const state of world.players[side].values()) {
+    if (state.player.position === "GK") continue;
+    const dx = state.x - x;
+    const dy = state.y - y;
+    if (dx * dx + dy * dy <= limit) own++;
+  }
+  for (const state of world.players[opponentSide].values()) {
+    if (state.player.position === "GK") continue;
+    const dx = state.x - x;
+    const dy = state.y - y;
+    if (dx * dx + dy * dy <= limit) opponents++;
+  }
+  return { own, opponents };
+}
+
+/**
+ * How badly the side in possession is outnumbered around the ball. Negative
+ * when it has the extra bodies.
+ */
+export function localPressure(
+  world: MatchWorld,
+  side: MatchSide,
+  x: number,
+  y: number,
+  radius = 20,
+) {
+  const { own, opponents } = localNumbers(world, side, x, y, radius);
+  return clamp((opponents - own) / 3, -1, 1.8);
+}
+
+/**
+ * How far up the pitch a side holds its last line, measured from its own goal.
+ *
+ * Deliberately independent of the ball: `offsideLineFor` clamps to the ball
+ * because that is how the offside law works, but it means that once the ball
+ * is played forward the "line" reads as the ball's position rather than the
+ * defence's. Judging how exposed a defence is needs the defenders alone.
+ */
+export function defensiveLineHeight(world: MatchWorld, defendingSide: MatchSide) {
+  const defendsRight = defendingSide === "opp";
+  let deepest = defendsRight ? -Infinity : Infinity;
+  let secondDeepest = deepest;
+  let count = 0;
+  for (const state of world.players[defendingSide].values()) {
+    count++;
+    if (defendsRight ? state.x > deepest : state.x < deepest) {
+      secondDeepest = deepest;
+      deepest = state.x;
+    } else if (defendsRight ? state.x > secondDeepest : state.x < secondDeepest) {
+      secondDeepest = state.x;
+    }
+  }
+  if (count < 2) return 50;
+  return defendsRight ? 100 - secondDeepest : secondDeepest;
+}
+
+/**
+ * How far beyond the last defender a receiver stands; negative when onside.
+ *
+ * The engine models players by where their shape puts them, not by runs they
+ * time, so a side that pushes its whole team upfield leaves the opposition
+ * forwards permanently and hopelessly "offside" — a static artefact rather
+ * than an offence. The margin is what lets the caller tell a genuine run being
+ * timed against the last man from a forward standing in acres of space who
+ * would simply have stepped back onside.
+ */
+export function offsideMargin(
+  world: MatchWorld,
+  attackingSide: MatchSide,
+  receiver: PlacedPlayerLite,
+): number {
+  const state = worldPlayer(world, attackingSide, receiver);
+  if (!state) return -100;
+  const line = offsideLineFor(world, attackingSide);
+  return attackingSide === "user"
+    ? state.x - Math.max(line, world.ball.x)
+    : Math.min(line, world.ball.x) - state.x;
+}
+
 export function isPlayerOffside(
   world: MatchWorld,
   attackingSide: MatchSide,
@@ -174,7 +292,12 @@ export function passOptionScore(
   const idealDistance = directness > 0.35 ? 30 : directness < -0.35 ? 14 : 21;
   const distanceFit = 1 / (1 + Math.abs(distance - idealDistance) / 13);
   const space = clamp(nearestOpponentDistance(world, side, receiver) / 12, 0.25, 1.4);
-  const forwardFit = clamp(1 + forwardDistance * directness / 50, 0.4, 1.9);
+  // Every side wants to play forwards; directness only says how insistently.
+  // Scaling purely by `directness` left a balanced team with no forward intent
+  // at all — square and backward balls scored exactly the same as a ball
+  // played up the pitch — and a short-passing side actively preferred to
+  // retreat.
+  const forwardFit = clamp(1 + forwardDistance * (0.5 + directness) / 50, 0.4, 1.9);
   const roleWeight =
     receiver.position === "GK" ? 0.18 :
       receiver.position === "MID" ? 2.2 :

@@ -79,6 +79,7 @@ export interface MatchArenaProps {
   positions?: SlotPositions;
   playersById: Map<number, Player>;
   opponentPlayers: Player[];
+  opponentBench: Player[];
   leaderboard: Leaderboard;
   startMinute?: number;
   endMinute?: number;

@@ -12,7 +12,6 @@ import { AppTopbar } from "../AppTopbar";
 import { Bench } from "../Bench";
 import { Pitch, tacticalCoordinate } from "../Pitch";
 import { TacticsPanel } from "../TacticsPanel";
-import { TeamFlag } from "../TeamFlag";
 import {
   ArenaTacticsPanel,
   TacticItemBoxSelect,
@@ -33,6 +32,7 @@ interface Props {
   team: Team;
   opponent?: Team;
   opponentPlayers: Player[];
+  opponentBench: Player[];
   opponentConditions: Map<number, ConditionBreakdown>;
   opponentPlan: OpponentPlan | null;
   activeMatch: TeamMatch;
@@ -78,6 +78,7 @@ export function MatchBoardScreen({
   team,
   opponent,
   opponentPlayers,
+  opponentBench,
   opponentConditions,
   opponentPlan,
   activeMatch,
@@ -236,16 +237,6 @@ export function MatchBoardScreen({
             />
           ) : (
             <div className="prematch-tactic-summary">
-              <div className="prematch-tactic-summary__team">
-                <span>
-                  <TeamFlag fifaCode={team.fifa_code} className="prematch-tactic-summary__flag" />
-                  <small>{team.fifa_code}</small>
-                </span>
-                <div>
-                  <small>MY TEAM</small>
-                  <strong>{team.team_name}</strong>
-                </div>
-              </div>
               <TacticItemBoxSelect
                 label="포메이션"
                 value={lineup.formation}
@@ -384,6 +375,8 @@ export function MatchBoardScreen({
             <OpponentAnalysisPanel
               opponent={opponent}
               players={opponentPlayers}
+              bench={opponentBench}
+              onSelectPlayer={onSelectPlayer}
               conditions={opponentConditions}
               plan={opponentPlan}
             />

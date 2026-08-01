@@ -28,12 +28,31 @@
 .board--prematch .board__sidebar,
 .board--prematch .board__bench {
   min-width: 0;
+  min-height: 0;
   position: relative;
   top: auto;
-  max-height: calc(100vh - 220px);
   overflow: auto;
   scrollbar-width: thin;
   background: #f7faf3;
+}
+
+/* One height budget for the whole workspace: the board fills the viewport and
+   each of the three columns scrolls inside its own share of it. The rails used
+   to be capped at a guessed `100vh - 220px` independently of the middle column,
+   so whenever the middle grew taller they stopped short and left a band of page
+   background under them. */
+@media (min-width: 1101px) {
+  .board--prematch {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .board--prematch .board__body { min-height: 0; }
+
+  .board--prematch .board__pitch {
+    min-height: 0;
+    overflow: auto;
+  }
 }
 
 .board--prematch .board__sidebar {
@@ -623,7 +642,9 @@
   width: min(100%, 620px);
   margin: 0 auto;
   max-height: calc(100vh - 340px);
-  min-height: 600px;
+  /* Low enough that the column's height budget wins on shorter screens: a
+     hard 600px floor made the middle column scroll inside itself there. */
+  min-height: 460px;
   aspect-ratio: 68 / 100;
   border: 4px solid rgba(255, 255, 255, .6);
   border-radius: 32px;
@@ -953,36 +974,31 @@
   grid-template-columns: var(--prematch-rail) minmax(640px, 1fr) var(--prematch-rail);
 }
 
+/* The pitch preview absorbs whatever height is left over, so this rail never
+   needs a scrollbar — which also lets the formation dropdown escape the panel
+   instead of being trapped in a scroll container. */
 .board--prematch[data-workspace="tactics"] .board__sidebar {
-  max-height: calc(100vh - 220px);
-  overflow: auto;
+  overflow: visible;
   background: #edf5e9;
 }
 
 .prematch-tactic-summary {
+  flex: 1;
+  min-height: 0;
   padding: 22px 20px;
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
-.prematch-tactic-summary__team {
-  display: flex;
-  align-items: center;
-  gap: 11px;
+.prematch-tactic-summary > .prematch-mini-pitch {
+  flex: 1 1 auto;
+  min-height: 120px;
+  aspect-ratio: auto;
 }
 
-.prematch-tactic-summary__team > span {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: #087333;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 950;
-  box-shadow: 0 7px 16px rgba(8, 115, 51, .2);
+.prematch-tactic-summary__copy {
+  flex: 0 0 auto;
 }
 
 /* Halftime is a decision workspace, not a second result screen. */
@@ -1222,13 +1238,7 @@
   background: #075f2b !important;
 }
 
-.board--prematch[data-phase="halftime"] .board__sidebar,
-.board--prematch[data-phase="halftime"] .board__bench {
-  max-height: calc(100vh - 310px);
-}
-
 .board--prematch[data-phase="halftime"] .board__sidebar {
-  max-height: none;
   overflow: visible;
 }
 
@@ -1392,13 +1402,11 @@
 .halftime-review > .match-analysis-board > section {
   overflow: auto;
 }
-.prematch-tactic-summary__team > span small,
 .opponent-report__header > span small {
   color: inherit;
   font-size: 8px;
   line-height: 1;
 }
-.prematch-tactic-summary__flag,
 .opponent-report__flag,
 .match-tactics-editor__flag {
   width: 29px;
@@ -1408,27 +1416,11 @@
   border-radius: 4px;
 }
 
-.prematch-tactic-summary__team div {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.prematch-tactic-summary__team small,
 .prematch-tactic-summary__copy > span {
   color: #697668;
   font-size: 8px;
   font-weight: 850;
   letter-spacing: .08em;
-}
-
-.prematch-tactic-summary__team strong {
-  overflow: hidden;
-  color: #17221a;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .prematch-mini-pitch {
@@ -1550,8 +1542,6 @@
 }
 
 .board--prematch[data-workspace="tactics"] .board__pitch {
-  max-height: calc(100vh - 220px);
-  overflow: auto;
   padding: 22px 24px 30px;
   background: #f5f8f2;
 }
@@ -1836,83 +1826,48 @@
 }
 
 .opponent-report__shape {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  gap: 9px;
+  margin-top: 13px;
   padding: 10px;
   border: 1px solid #d4dfd1;
   border-radius: 13px;
   background: #fff;
 }
 
-.opponent-mini-pitch {
-  position: relative;
-  overflow: hidden;
-  min-height: 158px;
-  border: 2px solid #a9c9ae;
-  border-radius: 10px;
-  background:
-    linear-gradient(90deg, transparent 49.5%, rgba(255,255,255,.25) 49.5%, rgba(255,255,255,.25) 50.5%, transparent 50.5%),
-    repeating-linear-gradient(90deg, #dceddc 0, #dceddc 22px, #e5f1e3 22px, #e5f1e3 44px);
+/* The opposition XI reuses the lineup board's pitch and player cards outright,
+   so both squads read identically. The scouting rail is roughly a third of the
+   board's width, so the slots are scaled rather than restyled. */
+.opponent-report .pitch.pitch--compact {
+  width: 100%;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  border-width: 2px;
+  border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(20, 48, 26, .16);
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, .055) 0,
+      rgba(255, 255, 255, .055) 10%,
+      rgba(0, 0, 0, .035) 10%,
+      rgba(0, 0, 0, .035) 20%
+    ),
+    linear-gradient(180deg, #3f7249 0%, #315f3b 100%);
 }
 
-.opponent-mini-pitch__halfway {
-  position: absolute;
-  inset: 50% 0 auto;
-  border-top: 1px solid #a9c9ae;
+.pitch--compact .pitch-slot {
+  transform: translate(-50%, -50%) scale(.72);
 }
 
-.opponent-mini-pitch__circle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 30px;
-  height: 30px;
-  border: 1px solid #a9c9ae;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
+/* Narrowed so a back five still clears its neighbours once scaled. */
+.pitch--compact .player-card--slot {
+  width: 68px;
+  cursor: pointer;
 }
 
-.opponent-mini-pitch__box {
-  position: absolute;
-  left: 30%;
-  width: 40%;
-  height: 18%;
-  border: 1px solid #a9c9ae;
-}
-
-.opponent-mini-pitch__box--top {
-  top: -1px;
-}
-
-.opponent-mini-pitch__box--bottom {
-  bottom: -1px;
-}
-
-.opponent-mini-pitch > span {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  background: #1b7a38;
-  box-shadow: 0 1px 4px rgba(18, 70, 30, .3);
-  transform: translate(-50%, -50%);
-}
-
-.opponent-mini-pitch > span[data-position="GK"] {
-  background: #d99b24;
-}
-
-.opponent-mini-pitch > strong {
-  position: absolute;
-  right: 5px;
-  bottom: 4px;
-  padding: 3px 5px;
-  border-radius: 5px;
-  background: rgba(21, 59, 29, .82);
-  color: #fff;
-  font-size: 8px;
+.pitch--compact .player-card--slot .player-card__name,
+.pitch--compact .player-card--slot .player-card__sub {
+  max-width: 68px;
 }
 
 .opponent-tactic-facts h3 {
@@ -1923,7 +1878,8 @@
 
 .opponent-tactic-facts dl {
   display: grid;
-  gap: 5px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 14px;
   margin: 0;
 }
 
@@ -2008,64 +1964,41 @@
   gap: 6px;
 }
 
-.opponent-player {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 45px 24px;
+.opponent-report__section > h3 > b {
+  margin-left: 4px;
+  color: #7a8578;
+  font-weight: 800;
+}
+
+.opponent-bench-group + .opponent-bench-group {
+  margin-top: 11px;
+}
+
+.opponent-bench-group h4 {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 52px;
-  padding: 7px 8px;
-  border: 1px solid #dce4d8;
-  border-radius: 11px;
-  background: #fff;
-}
-
-.opponent-player__photo {
-  width: 34px;
-  height: 34px;
-  border: 2px solid #b7d8b8;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.opponent-player span,
-.opponent-player strong,
-.opponent-player small {
-  display: block;
-  min-width: 0;
-}
-
-.opponent-player strong {
-  overflow: hidden;
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.opponent-player small {
-  margin-top: 2px;
-  color: #7b8578;
-  font-size: 8px;
-}
-
-.opponent-player i {
-  overflow: hidden;
-  height: 5px;
-  border-radius: 999px;
-  background: #e4e9e1;
-}
-
-.opponent-player i b {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-}
-
-.opponent-player em {
-  font-size: 10px;
-  font-style: normal;
+  gap: 5px;
+  margin: 0 0 5px;
+  color: #4a5a4d;
+  font-size: 9px;
   font-weight: 900;
-  text-align: right;
+  letter-spacing: .04em;
+}
+
+.opponent-bench-group h4 span {
+  min-width: 15px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: #e2eddf;
+  color: #35603f;
+  font-size: 8px;
+  text-align: center;
+}
+
+.opponent-bench-empty {
+  margin: 0;
+  color: #7a8578;
+  font-size: 9px;
 }
 
 .opponent-report__scout {

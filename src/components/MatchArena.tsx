@@ -170,6 +170,7 @@ export function MatchArena({
   positions,
   playersById,
   opponentPlayers,
+  opponentBench,
   leaderboard,
   startMinute = 0,
   endMinute = 90,
@@ -819,6 +820,7 @@ export function MatchArena({
             positions={positions}
             playersById={playersById}
             opponentPlayers={opponentPlayers}
+            opponentBench={opponentBench}
             squadControls={squadControls}
             onApplyTactics={updateTeamTactics}
             onFormationChange={onFormationChange}
