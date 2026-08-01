@@ -155,7 +155,7 @@ export function Bracket({ data, team, played, koResults, tournamentSeed, leaderb
               <div className="bracket-col__matches">
                 <BracketConnectors count={round.length} attach="right" />
                 {round.map((m) => (
-                  <MatchCell key={m.id} m={m} teamName={team.team_name} />
+                  <MatchCell key={m.id} m={m} teamName={team.team_name} isCurrent={m.id === nextMatch?.id} />
                 ))}
               </div>
             </div>
@@ -163,7 +163,14 @@ export function Bracket({ data, team, played, koResults, tournamentSeed, leaderb
           <div className="bracket-col bracket-col--final" key="final">
             <div className="bracket-col__title">{KO_ROUND_KO[4]}</div>
             <div className="bracket-col__matches bracket-col__matches--final">
-              {finalMatch && <MatchCell key={finalMatch.id} m={finalMatch} teamName={team.team_name} />}
+              {finalMatch && (
+                <MatchCell
+                  key={finalMatch.id}
+                  m={finalMatch}
+                  teamName={team.team_name}
+                  isCurrent={finalMatch.id === nextMatch?.id}
+                />
+              )}
             </div>
           </div>
           {rightHalf.map((round, ri) => (
@@ -172,7 +179,7 @@ export function Bracket({ data, team, played, koResults, tournamentSeed, leaderb
               <div className="bracket-col__matches">
                 <BracketConnectors count={round.length} attach="left" />
                 {round.map((m) => (
-                  <MatchCell key={m.id} m={m} teamName={team.team_name} />
+                  <MatchCell key={m.id} m={m} teamName={team.team_name} isCurrent={m.id === nextMatch?.id} />
                 ))}
               </div>
             </div>
@@ -180,7 +187,12 @@ export function Bracket({ data, team, played, koResults, tournamentSeed, leaderb
         </div>
         {thirdPlaceMatch && (
           <div className="bracket-bronze">
-            <MatchCell key={thirdPlaceMatch.id} m={thirdPlaceMatch} teamName={team.team_name} />
+            <MatchCell
+              key={thirdPlaceMatch.id}
+              m={thirdPlaceMatch}
+              teamName={team.team_name}
+              isCurrent={thirdPlaceMatch.id === nextMatch?.id}
+            />
           </div>
         )}
       </div>
@@ -452,13 +464,27 @@ function AwardAvatar({ playerId, name }: { playerId: number; name: string }) {
   );
 }
 
-function MatchCell({ m, teamName }: { m: KOMatch; teamName: string }) {
+function MatchCell({
+  m,
+  teamName,
+  isCurrent,
+}: {
+  m: KOMatch;
+  teamName: string;
+  isCurrent?: boolean;
+}) {
   const aWin = m.winner && m.a && m.winner.name === m.a.name;
   const bWin = m.winner && m.b && m.winner.name === m.b.name;
   const aMe = m.a?.name === teamName;
   const bMe = m.b?.name === teamName;
   return (
-    <div className="ko-cell" data-user={m.isUser || undefined} data-pending={m.a && m.b && !m.played ? true : undefined}>
+    <div
+      className="ko-cell"
+      data-user={m.isUser || undefined}
+      data-current={isCurrent || undefined}
+      data-pending={m.a && m.b && !m.played ? true : undefined}
+    >
+      {isCurrent && <span className="ko-current-tag">▶ 내 경기</span>}
       {m.placement === "third" && <span className="ko-placement">3위 결정전</span>}
       <div className="ko-row" data-win={aWin || undefined} data-me={aMe || undefined}>
         <span className="ko-team">
