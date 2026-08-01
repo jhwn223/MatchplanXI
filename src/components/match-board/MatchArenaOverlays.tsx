@@ -21,6 +21,7 @@ interface Props {
   detectedFormation: string;
   playersById: Map<number, Player>;
   opponentPlayers: Player[];
+  opponentBench: Player[];
   leaderboard: Leaderboard;
   liveTactics: TeamTactics;
   opponentTactics?: TeamTactics;
@@ -57,6 +58,7 @@ export function MatchArenaOverlays({
   detectedFormation,
   playersById,
   opponentPlayers,
+  opponentBench,
   leaderboard,
   liveTactics,
   opponentTactics,
@@ -87,6 +89,7 @@ export function MatchArenaOverlays({
     positions: lineup.positions,
     playersById,
     opponentPlayers,
+    opponentBench,
     leaderboard,
     initialTactics: liveTactics,
     initialOpponentTactics: opponentTactics,

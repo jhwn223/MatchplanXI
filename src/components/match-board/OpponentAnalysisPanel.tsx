@@ -1,22 +1,35 @@
-import { conditionColor, type ConditionBreakdown } from "../../data/conditionEngine";
+import type { ConditionBreakdown } from "../../data/conditionEngine";
 import { slotsOf, type FormationKey } from "../../data/formation";
 import type { Player, Team } from "../../data/types";
-import { PlayerPhoto } from "../player-photo/PlayerPhoto";
+import { PlayerCardVisual } from "../PlayerCardVisual";
 import { TeamFlag } from "../TeamFlag";
 import type { OpponentPlan } from "./opponentPlan";
 
 interface Props {
   opponent: Team;
+  /** The expected starting XI, ordered by the plan formation's slots. */
   players: Player[];
+  /** Everyone in the opposition squad who is not in that XI. */
+  bench: Player[];
   conditions: Map<number, ConditionBreakdown>;
   plan: OpponentPlan;
+  onSelectPlayer?: (player: Player) => void;
 }
+
+const BENCH_GROUPS = [
+  ["GK", "골키퍼"],
+  ["DEF", "수비수"],
+  ["MID", "미드필더"],
+  ["FWD", "공격수"],
+] as const;
 
 export function OpponentAnalysisPanel({
   opponent,
   players,
+  bench,
   conditions,
   plan,
+  onSelectPlayer,
 }: Props) {
   const averageCondition = players.length
     ? Math.round(
@@ -54,8 +67,17 @@ export function OpponentAnalysisPanel({
         </div>
       </div>
 
+      <section className="opponent-report__section">
+        <h3>예상 선발 라인업</h3>
+        <OpponentLineupPitch
+          formation={plan.formation}
+          players={players}
+          conditions={conditions}
+          onSelectPlayer={onSelectPlayer}
+        />
+      </section>
+
       <section className="opponent-report__shape">
-        <OpponentFormationPreview formation={plan.formation} />
         <div className="opponent-tactic-facts">
           <h3>예상 상대 전술</h3>
           <dl>
@@ -79,24 +101,33 @@ export function OpponentAnalysisPanel({
       )}
 
       <section className="opponent-report__section">
-        <h3>예상 선발 컨디션</h3>
-        <div className="opponent-lineup-list">
-          {players.map((player) => {
-            const condition = Math.round(conditions.get(player.player_id)?.score ?? 70);
-            const color = conditionColor(condition);
+        <h3>상대 교체 명단 <b>{bench.length}명</b></h3>
+        {bench.length === 0 ? (
+          <p className="opponent-bench-empty">교체 가능한 선수가 없습니다.</p>
+        ) : (
+          BENCH_GROUPS.map(([position, label]) => {
+            const group = bench
+              .filter((player) => player.position === position)
+              .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0));
+            if (group.length === 0) return null;
             return (
-              <div key={player.player_id} className="opponent-player">
-                <PlayerPhoto player={player} className="opponent-player__photo" />
-                <span>
-                  <strong>{player.player_name}</strong>
-                  <small>{player.position} · OVR {player.ability?.overall ?? "–"}</small>
-                </span>
-                <i><b style={{ width: `${condition}%`, background: color }} /></i>
-                <em style={{ color }}>{condition}</em>
+              <div key={position} className="opponent-bench-group">
+                <h4>{label} <span>{group.length}</span></h4>
+                <div className="opponent-lineup-list">
+                  {group.map((player) => (
+                    <PlayerCardVisual
+                      key={player.player_id}
+                      player={player}
+                      condition={conditions.get(player.player_id)}
+                      variant="bench"
+                      onSelect={onSelectPlayer}
+                    />
+                  ))}
+                </div>
               </div>
             );
-          })}
-        </div>
+          })
+        )}
       </section>
 
       <section className="opponent-report__section opponent-report__scout">
@@ -143,22 +174,53 @@ function tacticLabel(
   return labels[type][value] ?? value;
 }
 
-function OpponentFormationPreview({ formation }: { formation: FormationKey }) {
+/**
+ * The opposition XI on the same pitch, with the same cards, as the user's own
+ * lineup board — only scaled to the width of the scouting rail. `players` is
+ * built by walking `slotsOf(plan.formation)` in order, so the index is what
+ * pairs a player with the position he is expected to fill.
+ */
+function OpponentLineupPitch({
+  formation,
+  players,
+  conditions,
+  onSelectPlayer,
+}: {
+  formation: FormationKey;
+  players: Player[];
+  conditions: Map<number, ConditionBreakdown>;
+  onSelectPlayer?: (player: Player) => void;
+}) {
   return (
-    <div className="opponent-mini-pitch" aria-label={`상대 포메이션 ${formation}`}>
-      <div className="opponent-mini-pitch__halfway" />
-      <div className="opponent-mini-pitch__circle" />
-      <div className="opponent-mini-pitch__box opponent-mini-pitch__box--top" />
-      <div className="opponent-mini-pitch__box opponent-mini-pitch__box--bottom" />
-      {slotsOf(formation).map((slot) => (
-        <span
-          key={slot.id}
-          data-position={slot.position}
-          style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
-          title={slot.label}
-        />
-      ))}
-      <strong>{formation}</strong>
+    <div className="pitch pitch--compact" aria-label={`상대 예상 선발 ${formation}`}>
+      <div className="pitch__markings">
+        <div className="pitch__center-circle" />
+        <div className="pitch__center-line" />
+        <div className="pitch__box pitch__box--top" />
+        <div className="pitch__box pitch__box--bottom" />
+      </div>
+      {slotsOf(formation).map((slot, index) => {
+        const player = players[index];
+        return (
+          <div
+            key={slot.id}
+            className="pitch-slot"
+            style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+            data-filled={player ? true : undefined}
+          >
+            {player ? (
+              <PlayerCardVisual
+                player={player}
+                condition={conditions.get(player.player_id)}
+                variant="slot"
+                onSelect={onSelectPlayer}
+              />
+            ) : (
+              <div className="pitch-slot__placeholder">{slot.label}</div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

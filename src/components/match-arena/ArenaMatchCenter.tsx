@@ -37,6 +37,7 @@ interface Props {
   positions?: SlotPositions;
   playersById: Map<number, Player>;
   opponentPlayers: Player[];
+  opponentBench: Player[];
   squadControls?: ArenaSquadControls;
   onApplyTactics: (tactics: TeamTactics) => void;
   onFormationChange?: (formation: FormationKey) => void;
@@ -60,6 +61,7 @@ export function ArenaMatchCenter({
   positions,
   playersById,
   opponentPlayers,
+  opponentBench,
   squadControls,
   onApplyTactics,
   onFormationChange,
@@ -213,6 +215,8 @@ export function ArenaMatchCenter({
             <OpponentAnalysisPanel
               opponent={squadControls.opponent}
               players={opponentPlayers}
+              bench={opponentBench}
+              onSelectPlayer={squadControls.onSelectPlayer}
               conditions={squadControls.opponentConditions}
               plan={squadControls.opponentPlan}
             />

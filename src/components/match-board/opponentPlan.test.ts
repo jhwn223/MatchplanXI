@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import fc26Ratings from "../../data/fc26PlayerRatings.json";
 import type { Player, PlayerAbility, Position, Team } from "../../data/types";
-import { buildOpponentPlan } from "./opponentPlan";
+import { DEFAULT_TEAM_TACTICS } from "../match-arena/tactics";
+import { buildOpponentPlan, decideOpponentTacticChange } from "./opponentPlan";
 
 const baseAbility = Object.values(fc26Ratings)[0] as PlayerAbility;
 
@@ -107,5 +108,50 @@ describe("opponent scouting report", () => {
       expect(plan.strengths.length).toBeLessThanOrEqual(5);
       expect(plan.weaknesses.length).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+describe("opponent in-match decisions", () => {
+  test("can chase early when the score deficit is already large", () => {
+    const decision = decideOpponentTacticChange({
+      minute: 40,
+      userGoals: 3,
+      oppGoals: 1,
+      current: DEFAULT_TEAM_TACTICS,
+      userTactics: DEFAULT_TEAM_TACTICS,
+      live: null,
+    });
+
+    expect(decision?.tactics.mentality).toBe("attacking");
+    expect(decision?.tactics.shooting).toBe("onSight");
+  });
+
+  test("raises threat without going all-out for a one-goal deficit at 60 minutes", () => {
+    const decision = decideOpponentTacticChange({
+      minute: 60,
+      userGoals: 1,
+      oppGoals: 0,
+      current: DEFAULT_TEAM_TACTICS,
+      userTactics: DEFAULT_TEAM_TACTICS,
+      live: null,
+    });
+
+    expect(decision?.tactics.mentality).toBe("positive");
+    expect(decision?.tactics.shooting).toBe("balanced");
+    expect(decision?.tactics.defensiveLine).toBe("standard");
+  });
+
+  test("uses an all-out chase for a one-goal deficit late on", () => {
+    const decision = decideOpponentTacticChange({
+      minute: 80,
+      userGoals: 1,
+      oppGoals: 0,
+      current: DEFAULT_TEAM_TACTICS,
+      userTactics: DEFAULT_TEAM_TACTICS,
+      live: null,
+    });
+
+    expect(decision?.tactics.mentality).toBe("attacking");
+    expect(decision?.tactics.shooting).toBe("onSight");
   });
 });

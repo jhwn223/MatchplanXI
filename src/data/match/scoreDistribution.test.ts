@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  applyQuickTactic,
   DEFAULT_TEAM_TACTICS,
   simProfileFromTeamTactics,
 } from "../../components/match-arena/tactics";
@@ -23,6 +24,20 @@ function sample(profile: SimTacticProfile, count: number): PeriodResult[] {
 function averageGoals(results: PeriodResult[]) {
   return results.reduce(
     (total, result) => total + result.userGoals + result.oppGoals,
+    0,
+  ) / results.length;
+}
+
+function averageShots(results: PeriodResult[]) {
+  return results.reduce(
+    (total, result) => total + result.teamStats.user.shots + result.teamStats.opp.shots,
+    0,
+  ) / results.length;
+}
+
+function averageXg(results: PeriodResult[]) {
+  return results.reduce(
+    (total, result) => total + result.userXg + result.oppXg,
     0,
   ) / results.length;
 }
@@ -61,7 +76,36 @@ describe("score distribution from the tactics shown in the UI", () => {
     const aggressiveResults = sample(aggressive, 24);
 
     expect(averageGoals(aggressiveResults))
-      .toBeGreaterThan(averageGoals(balancedResults) + 0.35);
-    expect(averageGoals(aggressiveResults)).toBeLessThanOrEqual(5.5);
+      .toBeGreaterThan(averageGoals(balancedResults) + 0.2);
+    expect(averageXg(aggressiveResults))
+      .toBeGreaterThan(averageXg(balancedResults));
+    expect(averageGoals(aggressiveResults)).toBeLessThanOrEqual(4.5);
+  });
+
+  test("an emergency chase raises pressure without making shootouts routine", () => {
+    const balanced = simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS);
+    const chase = simProfileFromTeamTactics(
+      applyQuickTactic(DEFAULT_TEAM_TACTICS, "chaseGoal"),
+    );
+    const results = Array.from({ length: 32 }, (_, index) =>
+      simulatePeriod(
+        testInput((index + 1) * 181_081, 74, 74, balanced, chase),
+        1,
+        90,
+        0,
+      ),
+    );
+    const sevenPlus = results.filter(
+      (result) => result.userGoals + result.oppGoals >= 7,
+    );
+
+    expect(averageGoals(results)).toBeLessThanOrEqual(3.8);
+    expect(averageShots(results)).toBeGreaterThanOrEqual(20);
+    expect(
+      results.reduce((sum, result) => sum + result.teamStats.opp.shots, 0) / results.length,
+    ).toBeGreaterThan(
+      results.reduce((sum, result) => sum + result.teamStats.user.shots, 0) / results.length,
+    );
+    expect(sevenPlus.length).toBeLessThanOrEqual(3);
   });
 });

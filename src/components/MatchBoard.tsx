@@ -234,6 +234,10 @@ export function MatchBoard({
     },
     [opponentConditions, opponentPlan, opponentSquad]
   );
+  const opponentBench = useMemo(() => {
+    const starters = new Set(opponentEleven.map((player) => player.player_id));
+    return opponentSquad.filter((player) => !starters.has(player.player_id));
+  }, [opponentEleven, opponentSquad]);
   const isKnockout = match.stage_name !== "Group Stage";
   const tiedAfterRegulation = regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
   const maxSubs = tiedAfterRegulation || phase === "etbreak" || phase === "extratime" ? MAX_SUBS_ET : MAX_SUBS;
@@ -526,6 +530,7 @@ export function MatchBoard({
         onTacticsChange={changePreMatchTactics}
         opponent={opponent}
         opponentPlayers={opponentEleven}
+        opponentBench={opponentBench}
         opponentConditions={opponentConditions}
         opponentPlan={opponentPlan}
         teamIndex={teamIndex}
@@ -581,6 +586,7 @@ export function MatchBoard({
         detectedFormation={detectedFormation}
         playersById={playersById}
         opponentPlayers={opponentEleven}
+        opponentBench={opponentBench}
         leaderboard={leaderboard}
         liveTactics={teamTactics}
         opponentTactics={liveOpponentTactics}
@@ -609,7 +615,12 @@ export function MatchBoard({
       {selectedPlayer && (
         <PlayerStatsModal
           player={selectedPlayer}
-          condition={conditions.get(selectedPlayer.player_id)}
+          /* The same modal serves both squads, so fall back to the opposition
+             map when the pick came from the scouting panel. */
+          condition={
+            conditions.get(selectedPlayer.player_id) ??
+            opponentConditions.get(selectedPlayer.player_id)
+          }
           onClose={() => setSelectedPlayer(null)}
         />
       )}

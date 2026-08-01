@@ -196,6 +196,42 @@ function altitudeAdaptationFor(team: Team, elevation: number, isHome: boolean) {
   return Math.min(24, nameBonus + confederationBonus + homeBonus);
 }
 
+/**
+ * A sustainable high press. The quick-command preset is deliberately an
+ * emergency, high-risk instruction and was too extreme to use as a team's
+ * normal identity for an entire match.
+ */
+function opponentHighPress(base: TeamTactics): TeamTactics {
+  return {
+    ...base,
+    mentality: "positive",
+    tempo: "balanced",
+    workRate: "intense",
+    defenseStyle: "lossPress",
+    defensiveLine: "high",
+    lineOfEngagement: "high",
+    pressing: "high",
+    tackling: "balanced",
+    depth: 7,
+  };
+}
+
+/** Raise attacking threat without immediately abandoning defensive balance. */
+function opponentIncreaseThreat(base: TeamTactics): TeamTactics {
+  return {
+    ...base,
+    mentality: "positive",
+    tempo: "fast",
+    passingStyle: "direct",
+    buildUpPlay: "fastBuildUp",
+    chanceCreation: "directPassing",
+    shooting: "balanced",
+    defensiveLine: "standard",
+    pressing: "standard",
+    workRate: "balanced",
+  };
+}
+
 export function buildOpponentPlan({
   team,
   squad,
@@ -230,7 +266,7 @@ export function buildOpponentPlan({
     identity = "낮은 블록과 역습";
   } else if (physical >= 74 && team.elo_rating >= 1700) {
     formation = seed % 2 === 0 ? "4-3-3" : "4-2-3-1";
-    tactics = applyQuickTactic(DEFAULT_TEAM_TACTICS, "highPress");
+    tactics = opponentHighPress(DEFAULT_TEAM_TACTICS);
     identity = "강한 전방 압박";
   } else if (passing >= 73) {
     formation = "4-2-3-1";
@@ -239,7 +275,7 @@ export function buildOpponentPlan({
   } else if (pace >= 73 || finishing >= 74) {
     formation = seed % 2 === 0 ? "4-3-3" : "4-4-2";
     tactics = {
-      ...applyQuickTactic(DEFAULT_TEAM_TACTICS, "attacking"),
+      ...opponentIncreaseThreat(DEFAULT_TEAM_TACTICS),
       passingStyle: "direct",
       chanceCreation: "forwardRuns",
     };
@@ -343,12 +379,25 @@ export function decideOpponentTacticChange({
 }: OpponentDecisionOptions): OpponentTacticChange | null {
   if (minute < 20 || minute % 10 !== 0) return null;
 
-  if (minute >= 60 && oppGoals < userGoals) {
+  const deficit = userGoals - oppGoals;
+  const mustChaseEarly =
+    (deficit >= 3 && minute >= 30) ||
+    (deficit >= 2 && minute >= 40);
+
+  if ((mustChaseEarly || minute >= 75) && deficit > 0) {
     return {
       minute,
       title: "상대가 득점 총력 전술로 전환",
       detail: "공격 숫자와 템포를 높이고 수비 라인을 전진시켰습니다.",
       tactics: applyQuickTactic(current, "chaseGoal"),
+    };
+  }
+  if (minute >= 60 && deficit > 0) {
+    return {
+      minute,
+      title: "상대가 공격 비중을 높임",
+      detail: "동점을 노리되 수비 균형을 완전히 버리지는 않고 전개 속도와 전진 패스를 높입니다.",
+      tactics: opponentIncreaseThreat(current),
     };
   }
   if (minute >= 70 && oppGoals > userGoals) {
@@ -368,12 +417,7 @@ export function decideOpponentTacticChange({
           minute,
           title: "상대가 후반 공격 전개를 빠르게 조정",
           detail: "전반의 기회 열세를 만회하기 위해 직접 패스와 전방 침투 비중을 높였습니다.",
-          tactics: {
-            ...applyQuickTactic(current, "attacking"),
-            passingStyle: "direct",
-            buildUpPlay: "fastBuildUp",
-            chanceCreation: "forwardRuns",
-          },
+          tactics: opponentIncreaseThreat(current),
         }
       : {
           minute,
@@ -390,7 +434,7 @@ export function decideOpponentTacticChange({
       minute,
       title: "상대가 압박 강도를 높임",
       detail: "우리의 점유를 끊기 위해 전방 압박과 활동량을 높였습니다.",
-      tactics: applyQuickTactic(current, "highPress"),
+      tactics: opponentHighPress(current),
     };
   }
   if (userTactics.pressing === "high" || userTactics.defenseStyle === "constantPress") {
