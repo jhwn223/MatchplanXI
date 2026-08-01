@@ -8,6 +8,7 @@ import {
 import type { HalfResult, SimResult } from "../../data/matchSim";
 import { stageLabelKo, type TeamMatch } from "../../data/tournament";
 import type { Player, Team } from "../../data/types";
+import type { PlayerRole } from "../../data/playerRoles";
 import { AppTopbar } from "../AppTopbar";
 import { Bench } from "../Bench";
 import { Pitch, tacticalCoordinate } from "../Pitch";
@@ -15,6 +16,7 @@ import { TacticsPanel } from "../TacticsPanel";
 import {
   ArenaTacticsPanel,
   TacticItemBoxSelect,
+  type TacticsTab,
 } from "../match-arena/ArenaTacticsPanel";
 import { MatchAnalysis } from "../match-arena/ArenaMatchCenter";
 import { ArenaLiveStats } from "../match-arena/ArenaLiveStats";
@@ -43,6 +45,7 @@ interface Props {
   effectiveAttackBias: number;
   teamTactics: TeamTactics;
   onTacticsChange: (tactics: TeamTactics) => void;
+  onRoleChange: (slotId: string, role: PlayerRole) => void;
   teamIndex: number | null;
   conditions: Map<number, ConditionBreakdown>;
   playersById: Map<number, Player>;
@@ -89,6 +92,7 @@ export function MatchBoardScreen({
   effectiveAttackBias,
   teamTactics,
   onTacticsChange,
+  onRoleChange,
   teamIndex,
   conditions,
   playersById,
@@ -118,6 +122,7 @@ export function MatchBoardScreen({
   onSelectPlayer,
 }: Props) {
   const [workspaceMode, setWorkspaceMode] = useState<"lineup" | "tactics">("lineup");
+  const [tacticsInitialTab, setTacticsInitialTab] = useState<TacticsTab>("quick");
   const [rightPanel, setRightPanel] = useState<"squad" | "opponent">("squad");
   const [halftimeReview, setHalftimeReview] = useState<"stats" | "analysis" | null>(null);
   const match = activeMatch.match;
@@ -130,6 +135,12 @@ export function MatchBoardScreen({
 
   function updateTactics(next: TeamTactics) {
     onTacticsChange(next);
+  }
+
+  function autoFillAndAssignRoles() {
+    onAutoFill();
+    setTacticsInitialTab("roles");
+    setWorkspaceMode("tactics");
   }
 
   return (
@@ -219,7 +230,10 @@ export function MatchBoardScreen({
               role="tab"
               aria-selected={workspaceMode === "tactics"}
               data-active={workspaceMode === "tactics" || undefined}
-              onClick={() => setWorkspaceMode("tactics")}
+              onClick={() => {
+                setTacticsInitialTab("quick");
+                setWorkspaceMode("tactics");
+              }}
             >
               팀 전술
             </button>
@@ -230,7 +244,7 @@ export function MatchBoardScreen({
               detectedFormation={detectedFormation}
               attackBias={effectiveAttackBias}
               onSelectFormation={onSelectFormation}
-              onAutoFill={onAutoFill}
+              onAutoFill={autoFillAndAssignRoles}
               tacticStyleKey={null}
               showStyles={false}
               subsLocked={startingXI != null}
@@ -321,6 +335,11 @@ export function MatchBoardScreen({
                 formation={lineup.formation}
                 tactics={teamTactics}
                 formationLabel={detectedFormation}
+                slots={lineup.slots}
+                playersById={playersById}
+                slotRoles={lineup.slotRoles}
+                onRoleChange={onRoleChange}
+                initialTab={tacticsInitialTab}
                 onApply={updateTactics}
               />
             </section>

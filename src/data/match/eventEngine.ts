@@ -43,6 +43,7 @@ import type {
   SimTacticProfile,
 } from "./types";
 import type { MatchWorld } from "./world/types";
+import { roleDefinition } from "../playerRoles";
 
 export interface PeriodSimulation {
   result: HalfResult;
@@ -968,7 +969,8 @@ export function simulatePeriodWithWorld(
       const defender = weightedPick(
         defenders,
         (player) => {
-          const roleWeight = player.position === "DEF" ? 2.8 : player.position === "MID" ? 1.8 : 0.7;
+          const roleWeight = (player.position === "DEF" ? 2.8 : player.position === "MID" ? 1.8 : 0.7) *
+            roleDefinition(player.tacticalRole).pressWeight;
           const distance = worldDistance(
             world,
             defendingSide,
@@ -1072,7 +1074,8 @@ export function simulatePeriodWithWorld(
         const receiver = weightedPick(
           receivers,
           (player) => {
-            const forwardWeight = player.position === "FWD" ? 2.8 : player.position === "MID" ? 2 : 0.75;
+            const forwardWeight = (player.position === "FWD" ? 2.8 : player.position === "MID" ? 2 : 0.75) *
+              roleDefinition(player.tacticalRole).receiveWeight;
             const carrierHome =
               world.players[side].get(carrier.playerId) ??
               tacticalHome(carrier, side, sideTactics);
@@ -1209,7 +1212,9 @@ export function simulatePeriodWithWorld(
       // A possession reaching the final third is not automatically a shot.
       // These rates keep a normal match near 24-28 combined attempts while
       // preserving the relative effect of roles and attacking instructions.
-      const roleShotChance = carrier.position === "FWD" ? 0.088 : carrier.position === "MID" ? 0.052 : 0.019;
+      const roleShotChance =
+        (carrier.position === "FWD" ? 0.088 : carrier.position === "MID" ? 0.052 : 0.019) *
+        roleDefinition(carrier.tacticalRole).shotIntent;
       // Whether the defence is actually there. A packed box is why standing
       // strikers in it produces nothing, and an empty one is why a side that
       // keeps nobody home concedes every time the ball arrives. Without this

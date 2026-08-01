@@ -17,6 +17,7 @@ import type {
   TeamStats,
 } from "../../data/matchSim";
 import type { TacticStyleKey } from "../../data/tactics";
+import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
 import type { Player } from "../../data/types";
 import type { TeamTactics } from "./tactics";
 
@@ -77,6 +78,7 @@ export interface MatchArenaProps {
   tacticStyleKey?: TacticStyleKey | null;
   slots: Record<string, number | null>;
   positions?: SlotPositions;
+  slotRoles?: SlotRoleAssignments;
   playersById: Map<number, Player>;
   opponentPlayers: Player[];
   opponentBench: Player[];
@@ -92,6 +94,7 @@ export interface MatchArenaProps {
   initialOpponentTactics?: TeamTactics;
   opponentFormation?: FormationKey;
   onTacticChange?: (tactics: TeamTactics) => void;
+  onRoleChange?: (slotId: string, role: PlayerRole) => void;
   onOpponentTacticChange?: (tactics: TeamTactics) => void;
   onFormationChange?: (formation: FormationKey) => void;
   onPlayerDismissed?: (side: MatchSide, playerId: number) => void;

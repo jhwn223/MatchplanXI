@@ -51,5 +51,18 @@ describe("runtime fatigue", () => {
     );
     expect(movement).toBeLessThan(goalkeeping);
   });
-});
 
+  test("high-workload roles spend more condition over the same minutes", () => {
+    const base = testPlayer(1, 1, 9, 78);
+    const poacher = fatigueBreakdown({ ...base, tacticalRole: "poacher" }, 90, 400, testTactics());
+    const pressingForward = fatigueBreakdown(
+      { ...base, tacticalRole: "pressingForward" },
+      90,
+      400,
+      testTactics(),
+    );
+
+    expect(pressingForward.condition).toBeLessThan(poacher.condition);
+    expect(pressingForward.roleLoss).toBeGreaterThan(poacher.roleLoss);
+  });
+});
