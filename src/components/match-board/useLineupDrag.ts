@@ -106,6 +106,15 @@ export function useLineupDrag({
     if (!targetId || targetId === dragData.from || benchedOut.has(dragData.playerId)) return;
     if (targetId === BENCH_ZONE_ID) {
       if (dragData.from !== BENCH_ZONE_ID) {
+        // Once the match has kicked off this permanently benches the player
+        // (see the previousOccupant branch below for why) — confirm first so
+        // a stray drag can't burn a substitution by accident.
+        if (startingXI) {
+          const confirmed = window.confirm(
+            `${player.player_name} 선수를 교체하시겠습니까?\n한번 교체하면 되돌릴 수 없습니다.`
+          );
+          if (!confirmed) return;
+        }
         onChangeLineup({ ...lineup, slots: { ...lineup.slots, [dragData.from]: null }, presetKey: null });
         if (startingXI) setBenchedOut((previous) => new Set(previous).add(dragData.playerId));
       }
@@ -123,6 +132,18 @@ export function useLineupDrag({
       const nextPlaced = new Set(Object.values(next).filter((id): id is number => id != null));
       if (nextPlaced.size > maxOnPitch) return;
       if ([...nextPlaced].filter((id) => !startingXI.has(id)).length > maxSubs) return;
+    }
+
+    // A real substitution (bench player replacing a starter, post-kickoff) is
+    // irreversible — benchedOut only ever grows, by design, matching real
+    // substitution rules. Confirm before it's locked in, since the drag
+    // target can be misjudged and there's no way to undo it afterwards.
+    if (startingXI && dragData.from === BENCH_ZONE_ID && previousOccupant != null) {
+      const outgoing = playersById.get(previousOccupant);
+      const confirmed = window.confirm(
+        `${outgoing?.player_name ?? "선수"}을(를) 빼고 ${player.player_name} 선수를 투입하시겠습니까?\n한번 교체하면 되돌릴 수 없습니다.`
+      );
+      if (!confirmed) return;
     }
 
     onChangeLineup({ ...lineup, slots: next, presetKey: null });

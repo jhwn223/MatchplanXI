@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
+  closestCenter,
   pointerWithin,
-  rectIntersection,
   type CollisionDetection,
 } from "@dnd-kit/core";
 import {
@@ -62,14 +62,18 @@ import { disciplineFromEvents } from "./playerDiscipline";
  * sideways swapped him with whoever stood there.
  *
  * Bringing a player on from the bench stays forgiving: that gesture aims at a
- * slot rather than at a coordinate, so it falls back to rectangles when the
- * cursor lands just outside one.
+ * slot rather than at a coordinate, so it falls back to the geometrically
+ * nearest slot when the cursor lands just outside one. Rectangle intersection
+ * used to be that fallback, but with cards packed tightly it could match
+ * whichever neighbour the drag card's box happened to overlap most — not
+ * necessarily the slot closest to the cursor — so a bench drag could land on
+ * the wrong player. closestCenter picks by actual distance instead.
  */
 const lineupCollisionDetection: CollisionDetection = (args) => {
   const underPointer = pointerWithin(args);
   if (underPointer.length) return underPointer;
   const from = (args.active.data.current as { from?: string } | undefined)?.from;
-  return from === BENCH_ZONE_ID ? rectIntersection(args) : [];
+  return from === BENCH_ZONE_ID ? closestCenter(args) : [];
 };
 
 export function MatchBoard({
