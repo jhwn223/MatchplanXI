@@ -87,6 +87,25 @@
   overflow: hidden;
 }
 .ko-cell[data-user] { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(79,209,197,0.3); }
+.ko-cell[data-current] {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245,158,11,0.35), 0 4px 14px rgba(245,158,11,0.22);
+  animation: ko-current-pulse 2.2s ease-in-out infinite;
+}
+@keyframes ko-current-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(245,158,11,0.35), 0 4px 14px rgba(245,158,11,0.22); }
+  50% { box-shadow: 0 0 0 4px rgba(245,158,11,0.5), 0 4px 18px rgba(245,158,11,0.32); }
+}
+.ko-current-tag {
+  display: block;
+  text-align: center;
+  padding: 3px 8px;
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+  color: #3a2606;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
 .ko-cell[data-pending] { border-style: dashed; }
 .ko-row {
   position: relative;
