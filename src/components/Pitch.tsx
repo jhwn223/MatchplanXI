@@ -4,6 +4,7 @@ import type { ConditionBreakdown } from "../data/conditionEngine";
 import type { Player } from "../data/types";
 import { Slot } from "./Slot";
 import type { TeamTactics } from "./match-arena/tactics";
+import type { PlayerDiscipline } from "./playerDiscipline";
 
 interface Props {
   formation: FormationSlot[];
@@ -15,6 +16,7 @@ interface Props {
   positionMode?: boolean;
   pitchRef?: RefObject<HTMLDivElement | null>;
   tactics?: TeamTactics;
+  discipline?: Map<number, PlayerDiscipline>;
 }
 
 export function tacticalCoordinate(
@@ -70,6 +72,7 @@ export function Pitch({
   positionMode,
   pitchRef,
   tactics,
+  discipline,
 }: Props) {
   return (
     <div
@@ -104,6 +107,7 @@ export function Pitch({
             onSelectPlayer={onSelectPlayer}
             coordinate={coordinate}
             positionMode={positionMode}
+            discipline={player ? discipline?.get(player.player_id) : undefined}
           />
         );
       })}

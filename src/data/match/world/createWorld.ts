@@ -68,6 +68,12 @@ export function createMatchWorld(
       createPlayerState(input, minute, "opp", player, tactics),
     ]),
   );
+  const initialYellowCards = (side: MatchSide) => new Map(
+    Object.entries(input.initialYellowCards?.[side] ?? {}).map(([playerId, count]) => [
+      Number(playerId),
+      count,
+    ]),
+  );
   return {
     minute,
     // The world clock is the match clock: seconds since kickoff. A world
@@ -87,6 +93,10 @@ export function createMatchWorld(
     lastPossessionSide: null,
     previousPossessionSide: null,
     possessionChangedAt: 0,
+    yellowCards: {
+      user: initialYellowCards("user"),
+      opp: initialYellowCards("opp"),
+    },
   };
 }
 
@@ -149,6 +159,10 @@ export function continueMatchWorld(
     lastPossessionSide: previous.lastPossessionSide,
     previousPossessionSide: previous.previousPossessionSide,
     possessionChangedAt: previous.possessionChangedAt,
+    yellowCards: {
+      user: new Map(previous.yellowCards.user),
+      opp: new Map(previous.yellowCards.opp),
+    },
   };
 
   for (const side of ["user", "opp"] as MatchSide[]) {

@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DndContext, DragOverlay } from "@dnd-kit/core";
 import {
+  DndContext,
+  DragOverlay,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
+} from "@dnd-kit/core";
+import {
+  BENCH_ZONE_ID,
   FORMATIONS,
   detectFormationShape,
   slotsOf,
@@ -9,13 +16,13 @@ import {
 import { computeTeamIndex } from "../data/conditionEngine";
 import {
   autoFillBestXI,
-  emptySlots,
   remapFormation,
 } from "../data/tactics";
 import {
   combineExtraTime,
   combineHalves,
   type HalfResult,
+  type MatchSide,
   type SimInput,
   type SimResult,
 } from "../data/matchSim";
@@ -47,6 +54,24 @@ import {
   type MatchPhase,
 } from "./match-board/types";
 import { DEFAULT_TEAM_TACTICS, type TeamTactics } from "./match-arena/tactics";
+import { disciplineFromEvents } from "./playerDiscipline";
+
+/**
+ * On the pitch a drop lands only where the cursor actually is. Rectangle
+ * intersection — the library default — treated any overlap of the dragged
+ * card with a neighbouring slot as a drop on it, so nudging a player slightly
+ * sideways swapped him with whoever stood there.
+ *
+ * Bringing a player on from the bench stays forgiving: that gesture aims at a
+ * slot rather than at a coordinate, so it falls back to rectangles when the
+ * cursor lands just outside one.
+ */
+const lineupCollisionDetection: CollisionDetection = (args) => {
+  const underPointer = pointerWithin(args);
+  if (underPointer.length) return underPointer;
+  const from = (args.active.data.current as { from?: string } | undefined)?.from;
+  return from === BENCH_ZONE_ID ? rectIntersection(args) : [];
+};
 
 export function MatchBoard({
   data,
@@ -77,6 +102,7 @@ export function MatchBoard({
   );
   const [startingXI, setStartingXI] = useState<Set<number> | null>(null);
   const [benchedOut, setBenchedOut] = useState<Set<number>>(new Set());
+  const [dismissedUserIds, setDismissedUserIds] = useState<Set<number>>(new Set());
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const pitchRef = useRef<HTMLDivElement>(null);
   const playDrop = useDropSound(soundOn);
@@ -194,6 +220,7 @@ export function MatchBoard({
     [startingXI, placedIds]
   );
   const subsRemaining = Math.max(0, maxSubs - subsUsed);
+  const requiredPlayers = startingXI ? Math.max(7, 11 - dismissedUserIds.size) : 11;
   const winEstimate = Math.max(
     8,
     Math.min(
@@ -213,6 +240,7 @@ export function MatchBoard({
     benchedOut,
     startingXI,
     maxSubs,
+    maxOnPitch: requiredPlayers,
     playDrop,
     setBenchedOut,
     setActiveDragId,
@@ -273,19 +301,6 @@ export function MatchBoard({
     });
   }
 
-  function resetLineup() {
-    if (!startingXI) {
-      onChangeLineup({
-        ...lineup,
-        slots: emptySlots(lineup.formation),
-        positions: {},
-        presetKey: null,
-        tacticStyleKey: null,
-        teamTactics: DEFAULT_TEAM_TACTICS,
-      });
-    }
-  }
-
   function buildSimInput() {
     return buildMatchSimInput({
       placedIds,
@@ -304,6 +319,7 @@ export function MatchBoard({
       effectiveAttackBias,
       isKnockout,
       teamTactics,
+      minimumPlayers: requiredPlayers,
     });
   }
 
@@ -316,6 +332,7 @@ export function MatchBoard({
     setFinalSim(null);
     setStartingXI(new Set(placedIds));
     setBenchedOut(new Set());
+    setDismissedUserIds(new Set());
     setLiveOpponentTactics(opponentPlan?.tactics ?? DEFAULT_TEAM_TACTICS);
     setPhase("half1");
   }
@@ -402,10 +419,28 @@ export function MatchBoard({
     setActiveSimInput(null);
     setStartingXI(null);
     setBenchedOut(new Set());
+    setDismissedUserIds(new Set());
+  }
+
+  function handlePlayerDismissed(side: MatchSide, playerId: number) {
+    if (side !== "user" || dismissedUserIds.has(playerId)) return;
+    setDismissedUserIds((current) => new Set(current).add(playerId));
+    setBenchedOut((current) => new Set(current).add(playerId));
+    onChangeLineup({
+      ...lineup,
+      slots: Object.fromEntries(
+        Object.entries(lineup.slots).map(([slotId, id]) => [slotId, id === playerId ? null : id]),
+      ),
+      presetKey: null,
+    });
   }
 
   const activePlayer = activeDragId != null ? playersById.get(activeDragId) : null;
-  const ready = placedIds.size === 11;
+  const ready = placedIds.size === requiredPlayers;
+  const discipline = useMemo(
+    () => disciplineFromEvents(regSim?.events ?? half1?.events, "user"),
+    [half1?.events, regSim?.events],
+  );
   // The arena overlay owns the pitch and bench while it is open. Rendering the
   // board's copies at the same time would register duplicate drop targets in
   // the shared DndContext, and they are hidden behind the modal anyway.
@@ -426,7 +461,7 @@ export function MatchBoard({
   };
   const primaryAction = phase === "halftime" ? startSecondHalf : phase === "etbreak" ? startExtraTime : kickoff;
   const primaryLabel = !ready
-    ? `선발 ${placedIds.size}/11 배치 필요`
+    ? `선발 ${placedIds.size}/${requiredPlayers} 배치 필요`
     : phase === "halftime"
       ? "🔄 후반전 시작"
       : phase === "etbreak"
@@ -434,7 +469,12 @@ export function MatchBoard({
         : "▶ 킥오프 (경기 실행)";
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={lineupCollisionDetection}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
       <MatchBoardScreen
         team={team}
         activeMatch={activeMatch}
@@ -466,6 +506,8 @@ export function MatchBoard({
         soundOn={soundOn}
         primaryLabel={primaryLabel}
         ready={ready}
+        requiredPlayers={requiredPlayers}
+        discipline={discipline}
         lineupInteractive={!arenaOpen}
         pitchRef={pitchRef}
         onBack={onBack}
@@ -473,7 +515,6 @@ export function MatchBoard({
         onSelectFormation={selectFormation}
         onAutoFill={autoFill}
         onResetPositions={() => onChangeLineup({ ...lineup, positions: {} })}
-        onResetLineup={resetLineup}
         onPrimaryAction={primaryAction}
         onSelectPlayer={setSelectedPlayer}
       />
@@ -510,6 +551,7 @@ export function MatchBoard({
         onTacticChange={changeLiveTactics}
         onOpponentTacticChange={setLiveOpponentTactics}
         onFormationChange={selectFormation}
+        onPlayerDismissed={handlePlayerDismissed}
         onFirstHalfComplete={completeFirstHalf}
         onSecondHalfComplete={completeSecondHalf}
         onExtraTimeComplete={completeExtraTime}

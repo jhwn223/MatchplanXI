@@ -11,6 +11,7 @@ import { ArenaLiveStats } from "./ArenaLiveStats";
 import { ArenaTacticsPanel } from "./ArenaTacticsPanel";
 import { ALL_PASS_TYPES, PASS_TYPE_META } from "./passMap";
 import { applyQuickTactic, type QuickTacticKey, type TeamTactics } from "./tactics";
+import { disciplineFromEvents, type PlayerDiscipline } from "../playerDiscipline";
 
 export type MatchCenterTab =
   | "overview"
@@ -40,6 +41,8 @@ interface Props {
   onApplyTactics: (tactics: TeamTactics) => void;
   onFormationChange?: (formation: FormationKey) => void;
   onClose: () => void;
+  dismissalNotice?: string | null;
+  discipline?: Map<number, PlayerDiscipline>;
 }
 
 export function ArenaMatchCenter({
@@ -62,9 +65,31 @@ export function ArenaMatchCenter({
   onApplyTactics,
   onFormationChange,
   onClose,
+  dismissalNotice,
+  discipline: suppliedDiscipline,
 }: Props) {
-  const events = sim.events ?? [];
+  const events = useMemo(() => sim.events ?? [], [sim.events]);
+  const eventDiscipline = useMemo(() => disciplineFromEvents(events, "user"), [events]);
+  const discipline = suppliedDiscipline ?? eventDiscipline;
   const advice = buildAdvice(live, minute, sim.userGoals, sim.oppGoals);
+  // Stamina in the squad tab is what it is right now: the live snapshot holds
+  // each player's current condition, so it is overlaid on the pre-match
+  // breakdown. Bench players keep their pre-match figure — they have not run.
+  const liveConditions = useMemo(() => {
+    if (!squadControls) return undefined;
+    const current = new Map(
+      (live?.players ?? [])
+        .filter((player) => player.side === "user")
+        .map((player) => [player.playerId, player.condition]),
+    );
+    if (!current.size) return squadControls.conditions;
+    return new Map(
+      [...squadControls.conditions].map(([playerId, breakdown]) => {
+        const score = current.get(playerId);
+        return [playerId, score == null ? breakdown : { ...breakdown, score }] as const;
+      }),
+    );
+  }, [live?.players, squadControls]);
 
   return (
     <section className="match-center">
@@ -133,6 +158,9 @@ export function ArenaMatchCenter({
       {activeTab === "squad" && squadControls && (
         <div className="arena-squad-board">
           <section className="arena-squad-board__pitch">
+            {dismissalNotice && (
+              <div className="arena-dismissal-notice" role="alert">{dismissalNotice}</div>
+            )}
             <header>
               <div>
                 <h3>선수 배치</h3>
@@ -164,18 +192,20 @@ export function ArenaMatchCenter({
               formation={slotsOf(formation)}
               slots={slots}
               playersById={playersById}
-              conditions={squadControls.conditions}
+              conditions={liveConditions ?? squadControls.conditions}
               onSelectPlayer={squadControls.onSelectPlayer}
               positions={positions}
               positionMode
               pitchRef={squadControls.pitchRef}
+              discipline={discipline}
             />
           </section>
           <Bench
             benchPlayers={squadControls.benchPlayers}
-            conditions={squadControls.conditions}
+            conditions={liveConditions ?? squadControls.conditions}
             benchedOut={squadControls.benchedOut}
             onSelectPlayer={squadControls.onSelectPlayer}
+            discipline={discipline}
           />
         </div>
       )}
@@ -233,7 +263,7 @@ function PlayerRatings({ players }: { players: PlayerMatchStats[] }) {
   );
 }
 
-function MatchAnalysis({
+export function MatchAnalysis({
   events,
   players,
   positionSamples = [],

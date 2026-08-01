@@ -1,6 +1,6 @@
 import { AnimatePresence } from "framer-motion";
 import type { Leaderboard } from "../../data/leaderboard";
-import type { HalfResult, SimInput, SimResult } from "../../data/matchSim";
+import type { HalfResult, MatchSide, SimInput, SimResult } from "../../data/matchSim";
 import type { TeamMatch } from "../../data/tournament";
 import type { Player, Team } from "../../data/types";
 import type { FormationKey } from "../../data/formation";
@@ -29,6 +29,7 @@ interface Props {
   onTacticChange: (tactics: TeamTactics) => void;
   onOpponentTacticChange: (tactics: TeamTactics) => void;
   onFormationChange: (formation: FormationKey) => void;
+  onPlayerDismissed: (side: MatchSide, playerId: number) => void;
   onFirstHalfComplete: (period: HalfResult) => ArenaSim;
   onSecondHalfComplete: (period: HalfResult) => ArenaSim;
   onExtraTimeComplete: (period: HalfResult) => ArenaSim;
@@ -57,6 +58,7 @@ export function MatchArenaOverlays({
   onTacticChange,
   onOpponentTacticChange,
   onFormationChange,
+  onPlayerDismissed,
   onFirstHalfComplete,
   onSecondHalfComplete,
   onExtraTimeComplete,
@@ -84,6 +86,7 @@ export function MatchArenaOverlays({
     onTacticChange,
     onOpponentTacticChange,
     onFormationChange,
+    onPlayerDismissed,
     onClose,
   } as const;
 

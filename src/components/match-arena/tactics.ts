@@ -32,6 +32,8 @@ export type StrikerRole = "target" | "poacher" | "falseNine";
 export type MidfieldRole = "hold" | "balanced" | "playmaker";
 export type FullbackRole = "stay" | "overlap" | "inverted";
 export type TeamWidth = "narrow" | "balanced" | "wide";
+export type LineOfEngagement = "deep" | "middle" | "high";
+export type Compactness = "compact" | "balanced" | "stretched";
 
 export interface TeamTactics {
   defenseStyle: DefenseStyle;
@@ -39,9 +41,6 @@ export interface TeamTactics {
   depth: number;
   buildUpPlay: BuildUpPlay;
   chanceCreation: ChanceCreation;
-  boxPlayers: number;
-  corners: number;
-  freeKicks: number;
   mentality: Mentality;
   tempo: Tempo;
   fluidity: Fluidity;
@@ -51,7 +50,6 @@ export interface TeamTactics {
   attackFocus: AttackFocus;
   shooting: ShootingInstruction;
   widePlay: WidePlay;
-  counterAttack: boolean;
   defensiveLine: DefensiveLine;
   pressing: PressingLevel;
   marking: Marking;
@@ -59,10 +57,26 @@ export interface TeamTactics {
   strikerRole: StrikerRole;
   midfieldRole: MidfieldRole;
   fullbackRole: FullbackRole;
+  /** Where the press starts, separate from how deep the back line sits. */
+  lineOfEngagement: LineOfEngagement;
+  /** Distance between the defensive, midfield and attacking lines. */
+  compactness: Compactness;
+  /** Players held back while the team attacks (2–5). */
+  restDefense: number;
+  offsideTrap: boolean;
 }
 
 export type TacticSelectKey = "defenseStyle" | "buildUpPlay" | "chanceCreation";
-export type TacticMeterKey = "depth" | "boxPlayers" | "corners" | "freeKicks";
+export type TacticMeterKey = "depth";
+
+/**
+ * Frozen values for the three instructions that used to be adjustable
+ * (box runners 6, corners 1 + free kicks 3, counter-attack on). Keeping their
+ * old default contributions means removing the controls changed no outcome.
+ */
+const BOX_COMMITMENT = (6 - 5.5) / 4.5;
+const SET_PIECE_COMMITMENT = ((1 + 3) / 2 - 5.5) / 4.5;
+const COUNTER_ATTACK_BONUS = 0.35;
 
 export const DEFAULT_LIVE_INTENSITY: LiveIntensity = {
   fluidDefense: 35,
@@ -82,9 +96,6 @@ export const DEFAULT_TEAM_TACTICS: TeamTactics = {
   depth: 4,
   buildUpPlay: "balanced",
   chanceCreation: "balanced",
-  boxPlayers: 6,
-  corners: 1,
-  freeKicks: 3,
   mentality: "balanced",
   tempo: "balanced",
   fluidity: "balanced",
@@ -94,7 +105,6 @@ export const DEFAULT_TEAM_TACTICS: TeamTactics = {
   attackFocus: "balanced",
   shooting: "balanced",
   widePlay: "mixed",
-  counterAttack: true,
   defensiveLine: "standard",
   pressing: "standard",
   marking: "zonal",
@@ -102,6 +112,10 @@ export const DEFAULT_TEAM_TACTICS: TeamTactics = {
   strikerRole: "poacher",
   midfieldRole: "balanced",
   fullbackRole: "overlap",
+  lineOfEngagement: "middle",
+  compactness: "balanced",
+  restDefense: 3,
+  offsideTrap: false,
 };
 
 export const TACTIC_SELECTS: Record<
@@ -220,7 +234,7 @@ export function intensityFromTeamTactics(tactics: TeamTactics): LiveIntensity {
       10,
       90,
     ),
-    counter: tactics.counterAttack ? 100 : 25,
+    counter: COUNTER_ATTACK_BONUS > 0 ? 100 : 25,
   };
 }
 
@@ -258,9 +272,12 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
     forwardRuns: 0.78,
   };
   const centered = (value: number) => (value - 5.5) / 4.5;
-  const boxCommitment = centered(tactics.boxPlayers);
   const depth = centered(tactics.depth);
-  const setPieceCommitment = centered((tactics.corners + tactics.freeKicks) / 2);
+  // Box runners, set-piece numbers and the counter-attack switch are no longer
+  // manager-adjustable. They are pinned to what their old defaults produced so
+  // dropping the controls does not quietly rebalance every match.
+  const boxCommitment = BOX_COMMITMENT;
+  const setPieceCommitment = SET_PIECE_COMMITMENT;
   const mentality = { defensive: -1, cautious: -0.5, balanced: 0, positive: 0.5, attacking: 1 }[tactics.mentality];
   const tempo = { slow: -1, balanced: 0, fast: 1 }[tactics.tempo];
   const fluidity = { rigid: -1, balanced: 0, fluid: 1 }[tactics.fluidity];
@@ -283,12 +300,12 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
   return {
     attackBias: clamp(chanceAttack[tactics.chanceCreation] + boxCommitment * 0.3 + mentality * 0.5 + strikerAttack, -1, 1),
     pressBias: clamp(defensePress[tactics.defenseStyle] * 0.45 + depth * 0.2 + pressing * 0.55 + workRate * 0.2, -1, 1),
-    overlapBias: clamp(teamWidth * 0.3 + boxCommitment * 0.2 + setPieceCommitment * 0.1 + widePlay * 0.35 + fullbackOverlap * 0.4, -1, 1),
+    overlapBias: clamp(teamWidth * 0.3 + boxCommitment * 0.2 + setPieceCommitment * 0.1 + widePlay * 0.35 + fullbackOverlap * 0.7, -1, 1),
     directnessBias: clamp(buildDirectness[tactics.buildUpPlay] * 0.4 + passing * 0.55 + strikerDirectness * 0.35, -1, 1),
     counterBias: clamp(
       (tactics.buildUpPlay === "fastBuildUp" ? 0.72 : tactics.buildUpPlay === "longPass" ? 0.4 : 0) +
         (tactics.chanceCreation === "forwardRuns" ? 0.28 : tactics.chanceCreation === "possession" ? -0.35 : 0) +
-        (tactics.counterAttack ? 0.35 : -0.25),
+        COUNTER_ATTACK_BONUS,
       -1,
       1
     ),
@@ -300,6 +317,20 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
     widthBias: clamp(teamWidth * 0.6 + focusWidth * 0.25 + widePlay * 0.25, -1, 1),
     focusBias: focus,
     setPieceBias: clamp(setPieceCommitment, -1, 1),
+    engagementBias: { deep: -1, middle: 0, high: 1 }[tactics.lineOfEngagement],
+    compactnessBias: { compact: 1, balanced: 0, stretched: -1 }[tactics.compactness],
+    // Committing bodies forward is what makes an attacking plan risky, so the
+    // held-back count is combined with the instructions that pull players up
+    // the pitch.
+    restDefenseBias: clamp(
+      (tactics.restDefense - 3) / 2 -
+        mentality * 0.25 -
+        Math.max(0, fullbackOverlap) * 0.2 -
+        (tactics.chanceCreation === "forwardRuns" ? 0.2 : 0),
+      -1,
+      1,
+    ),
+    offsideTrapBias: tactics.offsideTrap ? 1 : 0,
   };
 }
 
@@ -327,11 +358,11 @@ export const QUICK_TACTICS: Array<{ key: QuickTacticKey; label: string; descript
 export function applyQuickTactic(base: TeamTactics, key: QuickTacticKey): TeamTactics {
   if (key === "defensive") return {
     ...base, mentality: "defensive", tempo: "balanced", width: "narrow", defensiveLine: "low",
-    pressing: "low", tackling: "balanced", defenseStyle: "dropBack", depth: 3, boxPlayers: 4,
+    pressing: "low", tackling: "balanced", defenseStyle: "dropBack", depth: 3,
   };
   if (key === "protectLead") return {
     ...base, mentality: "defensive", tempo: "slow", workRate: "conserve", defensiveLine: "low", width: "narrow",
-    pressing: "low", tackling: "cautious", shooting: "patient", counterAttack: true, depth: 2, boxPlayers: 3,
+    pressing: "low", tackling: "cautious", shooting: "patient", depth: 2,
   };
   if (key === "balanced") return {
     ...DEFAULT_TEAM_TACTICS,
@@ -342,7 +373,7 @@ export function applyQuickTactic(base: TeamTactics, key: QuickTacticKey): TeamTa
   };
   if (key === "attacking") return {
     ...base, mentality: "attacking", tempo: "fast", width: "balanced", chanceCreation: "forwardRuns",
-    shooting: "balanced", defensiveLine: "high", pressing: "standard", boxPlayers: 8,
+    shooting: "balanced", defensiveLine: "high", pressing: "standard",
   };
   if (key === "highPress") return {
     ...base, mentality: "positive", tempo: "fast", workRate: "intense", defenseStyle: "constantPress", width: "wide",
@@ -350,11 +381,11 @@ export function applyQuickTactic(base: TeamTactics, key: QuickTacticKey): TeamTa
   };
   if (key === "overload") return {
     ...base, mentality: "positive", tempo: "fast", width: "wide", widePlay: "overlap",
-    fullbackRole: "overlap", attackFocus: "balanced", boxPlayers: 8, corners: 6,
+    fullbackRole: "overlap", attackFocus: "balanced",
   };
   return {
     ...base, mentality: "attacking", tempo: "fast", fluidity: "fluid", creativity: "expressive", width: "wide",
     passingStyle: "direct", chanceCreation: "forwardRuns", shooting: "onSight", widePlay: "overlap",
-    defensiveLine: "high", pressing: "high", workRate: "intense", boxPlayers: 9,
+    defensiveLine: "high", pressing: "high", workRate: "intense",
   };
 }

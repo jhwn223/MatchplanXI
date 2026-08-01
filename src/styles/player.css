@@ -59,6 +59,7 @@
 }
 
 .player-card__ring {
+  position: relative;
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -71,7 +72,7 @@
   font-weight: 700;
   font-size: 12px;
   background: #999;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .player-card__photo {
@@ -86,9 +87,17 @@
 .player-photo--fallback {
   display: grid;
   place-items: center;
-  color: #0b0e14;
-  font-weight: 800;
-  line-height: 1;
+  overflow: hidden;
+  color: #f7fbf6;
+  background: linear-gradient(145deg, #9eb5a0, #66846b);
+}
+
+.player-photo--fallback svg {
+  display: block;
+  width: 78%;
+  height: 78%;
+  fill: currentColor;
+  opacity: .92;
 }
 
 .player-card--slot .player-card__ring {
@@ -148,6 +157,27 @@
 .player-card--slot .player-card__score {
   margin-left: 0;
   font-size: 11px;
+}
+
+/* The stamina bar is drawn wherever a slot card appears — the pre-match board
+   and the in-match squad tab alike. It used to be styled only under the
+   pre-match selector, so in the arena it rendered with no track and no
+   height, i.e. invisibly. */
+.player-card__condition {
+  display: block;
+  width: 48px;
+  height: 5px;
+  margin-top: 2px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .52);
+  border-radius: 999px;
+  background: rgba(15, 35, 20, .28);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
+}
+.player-card__condition i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
 }
 
 /* ---- Player stats ---- */
@@ -366,3 +396,18 @@
   .player-stats-core { grid-template-columns: repeat(3, 1fr); padding: 16px; }
   .player-stats-details { grid-template-columns: 1fr; padding: 2px 16px 20px; }
 }
+.player-card__discipline {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(20, 32, 22, 0.35);
+  transform: rotate(5deg);
+  z-index: 3;
+}
+
+.player-card__discipline--yellow { background: #f5c518; }
+.player-card__discipline--red { background: #dc2626; }

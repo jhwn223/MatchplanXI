@@ -5,17 +5,19 @@ import { BENCH_ZONE_ID } from "../data/formation";
 import type { ConditionBreakdown } from "../data/conditionEngine";
 import type { Player, Position } from "../data/types";
 import { PlayerCard } from "./PlayerCard";
+import type { PlayerDiscipline } from "./playerDiscipline";
 
 interface Props {
   benchPlayers: Player[];
   conditions: Map<number, ConditionBreakdown>;
   benchedOut?: Set<number>;
   onSelectPlayer?: (player: Player) => void;
+  discipline?: Map<number, PlayerDiscipline>;
 }
 
 const POSITION_ORDER: Position[] = ["GK", "DEF", "MID", "FWD"];
 
-export function Bench({ benchPlayers, conditions, benchedOut, onSelectPlayer }: Props) {
+export function Bench({ benchPlayers, conditions, benchedOut, onSelectPlayer, discipline }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: BENCH_ZONE_ID });
   const [filter, setFilter] = useState<"ALL" | Position>("ALL");
   const [query, setQuery] = useState("");
@@ -71,6 +73,7 @@ export function Bench({ benchPlayers, conditions, benchedOut, onSelectPlayer }: 
                     dragFrom={BENCH_ZONE_ID}
                     ineligible={benchedOut?.has(player.player_id)}
                     onSelect={onSelectPlayer}
+                    discipline={discipline?.get(player.player_id)}
                   />
                 ))}
               </AnimatePresence>

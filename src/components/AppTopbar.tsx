@@ -1,3 +1,5 @@
+import { TeamFlag } from "./TeamFlag";
+
 interface Props {
   active: "squad" | "tactics" | "schedule" | "standings";
   teamCode?: string;
@@ -35,7 +37,12 @@ export function AppTopbar({ active, teamCode, onBrandClick }: Props) {
       </nav>
       <div className="app-topbar__context">
         <span className="app-topbar__season">WORLD CUP 2026</span>
-        {teamCode && <strong>{teamCode}</strong>}
+        {teamCode && (
+          <strong>
+            <TeamFlag fifaCode={teamCode} className="app-topbar__flag" />
+            <span>{teamCode}</span>
+          </strong>
+        )}
       </div>
     </header>
   );

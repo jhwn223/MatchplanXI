@@ -12,10 +12,13 @@ import { AppTopbar } from "../AppTopbar";
 import { Bench } from "../Bench";
 import { Pitch, tacticalCoordinate } from "../Pitch";
 import { TacticsPanel } from "../TacticsPanel";
+import { TeamFlag } from "../TeamFlag";
 import {
   ArenaTacticsPanel,
   TacticItemBoxSelect,
 } from "../match-arena/ArenaTacticsPanel";
+import { MatchAnalysis } from "../match-arena/ArenaMatchCenter";
+import { ArenaLiveStats } from "../match-arena/ArenaLiveStats";
 import {
   describeTeamTactics,
   intensityFromTeamTactics,
@@ -24,6 +27,7 @@ import {
 import { OpponentAnalysisPanel } from "./OpponentAnalysisPanel";
 import type { OpponentPlan, TacticalMatchup } from "./opponentPlan";
 import type { Lineup, MatchPhase } from "./types";
+import type { PlayerDiscipline } from "../playerDiscipline";
 
 interface Props {
   team: Team;
@@ -56,6 +60,8 @@ interface Props {
   soundOn: boolean;
   primaryLabel: string;
   ready: boolean;
+  requiredPlayers: number;
+  discipline: Map<number, PlayerDiscipline>;
   /** false while the arena overlay is showing: it owns the pitch and bench
    *  then, and two copies would register duplicate drop targets. */
   lineupInteractive?: boolean;
@@ -65,7 +71,6 @@ interface Props {
   onSelectFormation: (key: FormationKey) => void;
   onAutoFill: () => void;
   onResetPositions: () => void;
-  onResetLineup: () => void;
   onPrimaryAction: () => void;
   onSelectPlayer: (player: Player) => void;
 }
@@ -101,6 +106,8 @@ export function MatchBoardScreen({
   soundOn,
   primaryLabel,
   ready,
+  requiredPlayers,
+  discipline,
   lineupInteractive = true,
   pitchRef,
   onBack,
@@ -108,13 +115,12 @@ export function MatchBoardScreen({
   onSelectFormation,
   onAutoFill,
   onResetPositions,
-  onResetLineup,
   onPrimaryAction,
   onSelectPlayer,
 }: Props) {
-  const [saved, setSaved] = useState(true);
   const [workspaceMode, setWorkspaceMode] = useState<"lineup" | "tactics">("lineup");
   const [rightPanel, setRightPanel] = useState<"squad" | "opponent">("squad");
+  const [halftimeReview, setHalftimeReview] = useState<"stats" | "analysis" | null>(null);
   const match = activeMatch.match;
   const intensity = intensityFromTeamTactics(teamTactics);
   const staminaRisk = intensity.attackPress >= 72 || teamTactics.workRate === "intense";
@@ -124,12 +130,11 @@ export function MatchBoardScreen({
     teamTactics.mentality === "attacking";
 
   function updateTactics(next: TeamTactics) {
-    setSaved(false);
     onTacticsChange(next);
   }
 
   return (
-    <div className="board board--prematch" data-workspace={workspaceMode}>
+    <div className="board board--prematch" data-workspace={workspaceMode} data-phase={phase}>
       <AppTopbar active="tactics" teamCode={team.fifa_code} onBrandClick={onBack} />
 
       <header className="board__header">
@@ -166,13 +171,38 @@ export function MatchBoardScreen({
         </div>
       </header>
 
+      {phase === "halftime" && firstHalf && (
+        <HalftimeCommandStrip
+          result={firstHalf}
+          userTeamName={team.team_name}
+          opponentName={activeMatch.opponentName}
+          onOpenStats={() => setHalftimeReview("stats")}
+          onOpenAnalysis={() => setHalftimeReview("analysis")}
+        />
+      )}
+
+      {phase === "halftime" && firstHalf && halftimeReview && (
+        <HalftimeReviewOverlay
+          result={firstHalf}
+          userTeamName={team.team_name}
+          opponentName={activeMatch.opponentName}
+          view={halftimeReview}
+          onViewChange={setHalftimeReview}
+          onClose={() => setHalftimeReview(null)}
+        />
+      )}
+
       <div className="board__body">
         <aside className="board__sidebar" aria-label="경기 전 전술 설정">
           <div className="board-tactics-title">
             <span aria-hidden="true">⚯</span>
             <div>
-              <small>PRE-MATCH PLAN</small>
-              <h1>{workspaceMode === "lineup" ? "선수 구성" : "전술 설정"}</h1>
+              <small>{phase === "halftime" ? "HALF-TIME" : "PRE-MATCH PLAN"}</small>
+              <h1>
+                {phase === "halftime"
+                  ? workspaceMode === "lineup" ? "후반 선수 구성" : "후반 전술 조정"
+                  : workspaceMode === "lineup" ? "선수 구성" : "전술 설정"}
+              </h1>
             </div>
           </div>
           <div className="board-workspace-tabs" role="tablist" aria-label="경기 전 설정">
@@ -209,7 +239,10 @@ export function MatchBoardScreen({
           ) : (
             <div className="prematch-tactic-summary">
               <div className="prematch-tactic-summary__team">
-                <span>{team.fifa_code}</span>
+                <span>
+                  <TeamFlag fifaCode={team.fifa_code} className="prematch-tactic-summary__flag" />
+                  <small>{team.fifa_code}</small>
+                </span>
                 <div>
                   <small>MY TEAM</small>
                   <strong>{team.team_name}</strong>
@@ -227,23 +260,6 @@ export function MatchBoardScreen({
                 <strong>{describeTeamTactics(teamTactics)}</strong>
                 <p>포메이션과 전술 변경은 킥오프부터 적용되며 경기 중에도 이어서 조정할 수 있습니다.</p>
               </div>
-            </div>
-          )}
-
-          {startingXI && (
-            <div className="sub-tracker">
-              <span className="sub-tracker__label">교체 카드</span>
-              <div className="sub-tracker__cards">
-                {Array.from({ length: maxSubs }).map((_, index) => (
-                  <span key={index} className="sub-card" data-used={index < subsUsed || undefined} />
-                ))}
-              </div>
-              <span className="sub-tracker__count">{subsRemaining}장 남음</span>
-            </div>
-          )}
-          {phase === "halftime" && firstHalf && (
-            <div className="halftime-banner">
-              하프타임 · 전반 {firstHalf.userGoals} - {firstHalf.oppGoals} · 전술과 라인업을 조정하세요.
             </div>
           )}
           {phase === "etbreak" && regulation && (
@@ -288,6 +304,7 @@ export function MatchBoardScreen({
                   positions={lineup.positions}
                   positionMode
                   pitchRef={pitchRef}
+                  discipline={discipline}
                 />
               )}
               <div className="pitch-tactic-caption pitch-tactic-caption--lineup">
@@ -305,7 +322,7 @@ export function MatchBoardScreen({
                   <p>경기 중 전술 화면과 동일한 항목을 킥오프 전에 설정합니다.</p>
                 </div>
                 <span className="prematch-tactics-workspace__status">
-                  {saved ? "✓ 저장됨" : "● 변경사항 자동 저장"}
+                  ● 변경사항 자동 저장
                 </span>
               </header>
               <ArenaTacticsPanel
@@ -344,12 +361,26 @@ export function MatchBoardScreen({
           </div>
           {rightPanel === "squad" ? (
             lineupInteractive && (
-              <Bench
-                benchPlayers={benchPlayers}
-                conditions={conditions}
-                benchedOut={benchedOut}
-                onSelectPlayer={onSelectPlayer}
-              />
+              <>
+                {startingXI && (
+                  <div className="sub-tracker sub-tracker--bench">
+                    <span className="sub-tracker__label">교체 카드</span>
+                    <div className="sub-tracker__cards">
+                      {Array.from({ length: maxSubs }).map((_, index) => (
+                        <span key={index} className="sub-card" data-used={index < subsUsed || undefined} />
+                      ))}
+                    </div>
+                    <span className="sub-tracker__count">{subsRemaining}장 남음</span>
+                  </div>
+                )}
+                <Bench
+                  benchPlayers={benchPlayers}
+                  conditions={conditions}
+                  benchedOut={benchedOut}
+                  onSelectPlayer={onSelectPlayer}
+                  discipline={discipline}
+                />
+              </>
             )
           ) : opponent && opponentPlan ? (
             <OpponentAnalysisPanel
@@ -371,7 +402,7 @@ export function MatchBoardScreen({
       <footer className="board__actionbar">
         <div className="board__action-metric">
           <span>선발 명단</span>
-          <strong className={ready ? "is-ready" : ""}>{placedCount} / 11</strong>
+          <strong className={ready ? "is-ready" : ""}>{placedCount} / {requiredPlayers}</strong>
         </div>
         <div className="board__action-metric">
           <span>평균 컨디션</span>
@@ -387,25 +418,108 @@ export function MatchBoardScreen({
           {!staminaRisk && !spaceRisk && <span className="tactic-risk tactic-risk--safe">✓ 전술 균형 양호</span>}
         </div>
         <div className="board__action-spacer" />
-        <button
-          type="button"
-          className="board__save"
-          onClick={() => setSaved(true)}
-        >
-          {saved ? "전술 저장됨" : "전술 저장"}
-        </button>
-        <button
-          type="button"
-          className="board__reset"
-          disabled={startingXI != null}
-          onClick={onResetLineup}
-        >
-          초기화
-        </button>
         <button type="button" className="kickoff-btn" disabled={!ready} onClick={onPrimaryAction}>
           {primaryLabel}
         </button>
       </footer>
+    </div>
+  );
+}
+
+function HalftimeCommandStrip({
+  result,
+  userTeamName,
+  opponentName,
+  onOpenStats,
+  onOpenAnalysis,
+}: {
+  result: HalfResult;
+  userTeamName: string;
+  opponentName: string;
+  onOpenStats: () => void;
+  onOpenAnalysis: () => void;
+}) {
+  return (
+    <section className="halftime-command" aria-label="하프타임 분석과 후반전 결정">
+      <div className="halftime-command__score">
+        <small>HALF-TIME</small>
+        <div>
+          <span>{userTeamName}</span>
+          <strong>{result.userGoals} : {result.oppGoals}</strong>
+          <span>{opponentName}</span>
+        </div>
+      </div>
+
+      <div className="halftime-command__review">
+        <div>
+          <small>전반 데이터</small>
+          <strong>기록을 확인하고 후반 계획을 직접 결정하세요</strong>
+        </div>
+        <div className="halftime-command__actions">
+          <button type="button" onClick={onOpenStats}>전반 경기 통계</button>
+          <button type="button" onClick={onOpenAnalysis}>전반 경기 분석</button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HalftimeReviewOverlay({
+  result,
+  userTeamName,
+  opponentName,
+  view,
+  onViewChange,
+  onClose,
+}: {
+  result: HalfResult;
+  userTeamName: string;
+  opponentName: string;
+  view: "stats" | "analysis";
+  onViewChange: (view: "stats" | "analysis") => void;
+  onClose: () => void;
+}) {
+  const live = result.liveSnapshots.at(-1) ?? {
+    minute: 45,
+    userGoals: result.userGoals,
+    oppGoals: result.oppGoals,
+    userXg: result.userXg,
+    oppXg: result.oppXg,
+    teamStats: result.teamStats,
+    players: result.playerStats,
+  };
+
+  return (
+    <div className="halftime-review-overlay" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <section className="halftime-review" role="dialog" aria-modal="true" aria-label="전반전 경기 데이터">
+        <header className="halftime-review__header">
+          <div>
+            <small>HALF-TIME REVIEW</small>
+            <strong>{userTeamName} {result.userGoals} : {result.oppGoals} {opponentName}</strong>
+          </div>
+          <nav aria-label="전반전 데이터 보기">
+            <button type="button" data-active={view === "stats" || undefined} onClick={() => onViewChange("stats")}>경기 통계</button>
+            <button type="button" data-active={view === "analysis" || undefined} onClick={() => onViewChange("analysis")}>경기 분석</button>
+          </nav>
+          <button type="button" className="halftime-review__close" onClick={onClose} aria-label="닫기">×</button>
+        </header>
+
+        {view === "stats" ? (
+          <div className="halftime-review__stats">
+            <div className="halftime-review__teams"><strong>{userTeamName}</strong><span>전반전</span><strong>{opponentName}</strong></div>
+            <ArenaLiveStats live={live} userXg={result.userXg} oppXg={result.oppXg} />
+          </div>
+        ) : (
+          <MatchAnalysis
+            events={result.events}
+            players={result.playerStats}
+            positionSamples={result.positionSamples}
+            minute={45}
+          />
+        )}
+      </section>
     </div>
   );
 }

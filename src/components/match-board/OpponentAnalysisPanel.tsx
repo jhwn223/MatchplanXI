@@ -2,6 +2,7 @@ import { conditionColor, type ConditionBreakdown } from "../../data/conditionEng
 import { slotsOf, type FormationKey } from "../../data/formation";
 import type { Player, Team } from "../../data/types";
 import { PlayerPhoto } from "../player-photo/PlayerPhoto";
+import { TeamFlag } from "../TeamFlag";
 import type { TeamTactics } from "../match-arena/tactics";
 import type { OpponentPlan, TacticalMatchup } from "./opponentPlan";
 
@@ -32,7 +33,10 @@ export function OpponentAnalysisPanel({
   return (
     <div className="opponent-report">
       <header className="opponent-report__header">
-        <span>{opponent.fifa_code}</span>
+        <span>
+          <TeamFlag fifaCode={opponent.fifa_code} className="opponent-report__flag" />
+          <small>{opponent.fifa_code}</small>
+        </span>
         <div>
           <small>OPPOSITION REPORT</small>
           <h2>{opponent.team_name}</h2>

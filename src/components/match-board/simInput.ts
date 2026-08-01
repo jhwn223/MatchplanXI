@@ -79,6 +79,7 @@ interface BuildSimInputOptions {
   teamTactics: TeamTactics;
   opponentTactics?: TeamTactics;
   opponentFormation?: FormationKey;
+  minimumPlayers?: number;
 }
 
 export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | null {
@@ -99,8 +100,9 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     teamTactics,
     opponentTactics,
     opponentFormation = "4-3-3",
+    minimumPlayers = 11,
   } = options;
-  if (placedIds.size < 11 || teamIndex == null) return null;
+  if (placedIds.size < minimumPlayers || teamIndex == null) return null;
 
   const placed = formation
     .map((slot) => {

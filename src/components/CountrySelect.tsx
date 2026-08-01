@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import type { Team } from "../data/types";
 import { AppTopbar } from "./AppTopbar";
+import { TeamFlag } from "./TeamFlag";
 
 interface Props {
   teams: Team[];
@@ -68,6 +69,7 @@ export function CountrySelect({ teams, onPick }: Props) {
                     whileHover={{ scale: 1.03, y: -2 }}
                     whileTap={{ scale: 0.97 }}
                   >
+                    <TeamFlag fifaCode={t.fifa_code} className="team-chip__flag" />
                     <span className="team-chip__code">{t.fifa_code}</span>
                     <span className="team-chip__name">{t.team_name}</span>
                     <span className="team-chip__rank">#{t.fifa_ranking_pre_tournament}</span>

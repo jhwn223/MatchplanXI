@@ -146,6 +146,24 @@ describe("match engine invariants", () => {
     }
   });
 
+  test("yellow cards persist across live chunks and can be inherited after half-time", () => {
+    const firstInput = input(143);
+    firstInput.initialYellowCards = { user: { 105: 1 } };
+    const first = simulatePeriodWithWorld(firstInput, 46, 46, 46 * 999_983);
+    expect(first.world.yellowCards.user.get(105)).toBe(1);
+
+    first.world.yellowCards.user.set(106, 1);
+    const second = simulatePeriodWithWorld(
+      input(143),
+      47,
+      47,
+      47 * 999_983,
+      first.world,
+    );
+    expect(second.world.yellowCards.user.get(105)).toBe(1);
+    expect(second.world.yellowCards.user.get(106)).toBe(1);
+  });
+
   test("live minute chunks timestamp every event inside their own minute", () => {
     // The arena replays by timestamp and holds its clock at the period end
     // while events are pending. An event stamped outside its chunk — or after

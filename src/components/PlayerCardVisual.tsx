@@ -4,6 +4,7 @@ import { conditionColor } from "../data/conditionEngine";
 import type { ConditionBreakdown } from "../data/conditionEngine";
 import type { Player } from "../data/types";
 import { PlayerPhoto } from "./player-photo/PlayerPhoto";
+import type { PlayerDiscipline } from "./playerDiscipline";
 
 export type CardVisualState = "idle" | "dragging-source" | "floating";
 
@@ -19,6 +20,7 @@ interface Props {
   attributes?: Record<string, any>;
   useLayoutId?: boolean;
   ineligible?: boolean;
+  discipline?: PlayerDiscipline;
   onSelect?: (player: Player) => void;
 }
 
@@ -33,7 +35,7 @@ const VARIANTS = {
 
 export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
   (
-    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = false, ineligible, onSelect },
+    { player, condition, variant, state = "idle", style, listeners, attributes, useLayoutId = false, ineligible, discipline, onSelect },
     ref
   ) => {
     const color = condition ? conditionColor(condition.score) : "hsl(210, 10%, 55%)";
@@ -66,15 +68,36 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
           transition={{ duration: 0.45, ease: "easeOut" }}
         >
           <PlayerPhoto player={player} className="player-card__photo" />
+          {discipline && (
+            <span
+              className={`player-card__discipline player-card__discipline--${discipline}`}
+              title={discipline === "red" ? "레드카드" : "옐로카드"}
+              aria-label={discipline === "red" ? "레드카드" : "옐로카드"}
+            />
+          )}
         </motion.div>
         <div className="player-card__meta">
           <span className="player-card__name">{player.player_name}</span>
           <span className="player-card__sub">
-            {ability ? `OVR ${ability.overall} · ${keyStats}` : `${player.position} · ${player.caps} caps`}
+            {ability
+              ? variant === "slot" ? `OVR ${ability.overall}` : `OVR ${ability.overall} · ${keyStats}`
+              : `${player.position} · ${player.caps} caps`}
           </span>
         </div>
         {ineligible && <span className="player-card__ineligible">교체 불가</span>}
-        {condition && (
+        {condition && variant === "slot" && (
+          <span
+            className="player-card__condition"
+            title={`컨디션 ${Math.round(condition.score)}%`}
+            aria-label={`컨디션 ${Math.round(condition.score)}%`}
+          >
+            <motion.i
+              animate={{ width: `${condition.score}%`, backgroundColor: color }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
+            />
+          </span>
+        )}
+        {condition && variant === "bench" && (
           <motion.span
             className="player-card__score"
             animate={{ color }}

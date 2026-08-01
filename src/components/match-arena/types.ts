@@ -9,6 +9,7 @@ import type {
   HalfResult,
   LiveMatchSnapshot,
   MatchEvent,
+  MatchSide,
   PenaltyResult,
   PositionSample,
   SimComparison,
@@ -93,6 +94,7 @@ export interface MatchArenaProps {
   onTacticChange?: (tactics: TeamTactics) => void;
   onOpponentTacticChange?: (tactics: TeamTactics) => void;
   onFormationChange?: (formation: FormationKey) => void;
+  onPlayerDismissed?: (side: MatchSide, playerId: number) => void;
   onPeriodComplete: (period: HalfResult) => ArenaSim;
   onComplete: () => void;
   onClose: () => void;

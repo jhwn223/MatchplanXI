@@ -146,7 +146,8 @@ export function groupStandingsHub(
   data: TournamentData,
   groupLetter: string,
   played: PlayedMap,
-  userTeamName: string
+  userTeamName: string,
+  tournamentSeed = 0,
 ): StandingRow[] {
   const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
   const elo = eloOf(data);
@@ -184,7 +185,7 @@ export function groupStandingsHub(
     } else if (!referenceDate || m.date > referenceDate) {
       continue; // this matchday hasn't happened for the user yet either
     } else {
-      const seed = (m.match_id * 100003) >>> 0;
+      const seed = mixTournamentSeed(m.match_id * 100003, tournamentSeed);
       const homeElo = elo.get(m.home_team_name)?.elo ?? 1600;
       const awayElo = elo.get(m.away_team_name)?.elo ?? 1600;
       const r = quickSimScore(
@@ -224,7 +225,8 @@ export function qualificationProbability(
   teamName: string,
   // 400 trials left enough sampling noise that a strong side could draw 400
   // qualifying trials in a row and be reported as certain.
-  trials = 1200
+  trials = 1200,
+  tournamentSeed = 0,
 ): number {
   const elo = eloOf(data);
   const ability = abilityByTeam(data);
@@ -244,7 +246,7 @@ export function qualificationProbability(
     const trialPlayed: PlayedMap = { ...played };
     for (const match of groupMatches) {
       if (trialPlayed[match.match_id]) continue;
-      const seed = (trial * 100_003 + match.match_id * 7_919) >>> 0;
+      const seed = mixTournamentSeed(trial * 100_003 + match.match_id * 7_919, tournamentSeed);
       const result = quickSimScore(
         seed,
         elo.get(match.home_team_name)?.elo ?? 1600,
@@ -285,7 +287,8 @@ export function allGroupStandings(data: TournamentData, played: PlayedMap): Reco
 export function groupStandingsFull(
   data: TournamentData,
   groupLetter: string,
-  played: PlayedMap
+  played: PlayedMap,
+  tournamentSeed = 0,
 ): StandingRow[] {
   const groupTeams = data.teams.filter((t) => t.group_letter === groupLetter);
   const elo = eloOf(data);
@@ -309,7 +312,7 @@ export function groupStandingsFull(
       hs = result.homeGoals;
       as = result.awayGoals;
     } else {
-      const seed = (m.match_id * 100003) >>> 0;
+      const seed = mixTournamentSeed(m.match_id * 100003, tournamentSeed);
       const homeElo = elo.get(m.home_team_name)?.elo ?? 1600;
       const awayElo = elo.get(m.away_team_name)?.elo ?? 1600;
       const r = quickSimScore(
@@ -338,9 +341,13 @@ export function groupStandingsFull(
 /** allGroupStandings, but every group is fully resolved (see groupStandingsFull).
  *  Use this — not allGroupStandings — for anything that needs a coherent whole-
  *  tournament picture (KO qualifiers, the tournament-wide leaderboard). */
-export function allGroupStandingsFull(data: TournamentData, played: PlayedMap): Record<string, StandingRow[]> {
+export function allGroupStandingsFull(
+  data: TournamentData,
+  played: PlayedMap,
+  tournamentSeed = 0,
+): Record<string, StandingRow[]> {
   const out: Record<string, StandingRow[]> = {};
-  for (const g of GROUPS) out[g] = groupStandingsFull(data, g, played);
+  for (const g of GROUPS) out[g] = groupStandingsFull(data, g, played, tournamentSeed);
   return out;
 }
 
@@ -480,6 +487,10 @@ function hashNum(id: string): number {
   return h >>> 0;
 }
 
+function mixTournamentSeed(base: number, tournamentSeed: number): number {
+  return (base ^ Math.imul(tournamentSeed >>> 0, 0x9e3779b1)) >>> 0;
+}
+
 /** user KO results: koId -> {userGoals, oppGoals}, plus a shootout outcome if it went there */
 export type KOResults = Record<
   string,
@@ -510,7 +521,8 @@ export function buildBracket(
   data: TournamentData,
   qualifiers: KOTeam[],
   koResults: KOResults,
-  userTeamName: string
+  userTeamName: string,
+  tournamentSeed = 0,
 ): KOMatch[][] {
   const venues = data.venues;
   const ability = abilityByTeam(data);
@@ -560,7 +572,13 @@ export function buildBracket(
             }
           }
         } else {
-          const w = koSimWinner(hashNum(id) + a.elo + b.elo, a, b, ability, venue.elevation_meters);
+          const w = koSimWinner(
+            mixTournamentSeed(hashNum(id) + a.elo + b.elo, tournamentSeed),
+            a,
+            b,
+            ability,
+            venue.elevation_meters,
+          );
           winner = w.winner; aGoals = w.a; bGoals = w.b; pens = w.pens; played = true;
         }
       }
@@ -621,7 +639,13 @@ export function buildBracket(
           }
         }
       } else {
-        const result = koSimWinner(hashNum(id) + thirdA.elo + thirdB.elo, thirdA, thirdB, ability, venue.elevation_meters);
+        const result = koSimWinner(
+          mixTournamentSeed(hashNum(id) + thirdA.elo + thirdB.elo, tournamentSeed),
+          thirdA,
+          thirdB,
+          ability,
+          venue.elevation_meters,
+        );
         winner = result.winner;
         aGoals = result.a;
         bGoals = result.b;

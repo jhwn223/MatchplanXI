@@ -58,8 +58,11 @@
   letter-spacing: .06em;
 }
 .fixture__match { justify-content: space-between; align-items: center; gap: 20px; }
-.fixture__team-code { min-width: 48px; color: var(--text); font-size: 22px; font-weight: 850; }
-.fixture__team-code--opp { text-align: right; }
+.fixture__team-code { min-width: 62px; display: flex; align-items: center; gap: 7px; color: var(--text); font-size: 18px; font-weight: 850; }
+.fixture__team-code b { font: inherit; }
+.fixture__team-code--opp { justify-content: flex-end; text-align: right; }
+.fixture__team-code--opp .fixture__flag { order: 2; }
+.fixture__flag { width: 29px; height: 21px; object-fit: cover; border: 1px solid var(--border); border-radius: 4px; }
 .fixture__score { font-size: 28px; font-variant-numeric: tabular-nums; }
 .fixture__factors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .fixture__factors > span {
@@ -132,16 +135,6 @@
 .board__action-metric span { color: var(--text-dim); font-size: 10px; }
 .board__action-metric strong { color: var(--accent); font-size: 20px; font-variant-numeric: tabular-nums; }
 .board__action-spacer { flex: 1; }
-.board__reset {
-  min-height: 44px;
-  padding: 0 22px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: #fff;
-  color: var(--text);
-  cursor: pointer;
-}
-.board__reset:disabled { opacity: .45; cursor: not-allowed; }
 .board__actionbar .kickoff-btn { min-width: 180px; min-height: 44px; padding: 0 24px; border-radius: 9px; }
 
 .arena-modal { max-width: 1120px; }
@@ -155,7 +148,9 @@
 .arena-score__team { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
 .arena-score__team > small { color: var(--text-dim); font-size: 9px; letter-spacing: .12em; }
 .arena-score__team > div { display: flex; align-items: center; gap: 12px; }
-.arena-score__team > div > span { min-width: 34px; height: 34px; display: grid; place-items: center; border-radius: 7px; color: #003915; font-size: 10px; font-weight: 850; }
+.arena-score__team > div > span { min-width: 42px; min-height: 38px; padding: 3px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 7px; color: #003915; font-size: 9px; font-weight: 850; }
+.arena-score__team > div > span > em { color: inherit; font-style: normal; font-size: 8px; line-height: 1; }
+.arena-score__flag { width: 25px; height: 18px; object-fit: cover; border: 1px solid rgba(255,255,255,.65); border-radius: 3px; }
 .arena-score__team > div > strong { font-size: 19px; border-bottom: 3px solid var(--accent); }
 .arena-score__team--away { align-items: flex-end; }
 .arena-score__team--away > div > span { order: 2; background: var(--accent); color: #fff; }
@@ -299,7 +294,6 @@
   .fixture__meta-panel p { margin-top: 8px; }
   .board__actionbar { position: static; flex-wrap: wrap; gap: 16px; padding: 16px; }
   .board__action-spacer { display: none; }
-  .board__reset,
   .board__actionbar .kickoff-btn { flex: 1 1 160px; }
   .arena-score__team > div > strong { display: none; }
   .arena-score__nums { font-size: 30px; }
