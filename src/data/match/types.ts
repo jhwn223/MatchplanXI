@@ -1,5 +1,6 @@
 import type { TeamAbilityProfile } from "../playerAbility";
 import type { Position } from "../types";
+import type { PlayerRole } from "../playerRoles";
 
 export interface PlacedPlayerLite {
   playerId: number;
@@ -18,6 +19,7 @@ export interface PlacedPlayerLite {
    * fresh legs instead of carrying the whole match clock.
    */
   enteredAtMinute?: number;
+  tacticalRole?: PlayerRole;
   overall: number;
   pace: number;
   acceleration: number;

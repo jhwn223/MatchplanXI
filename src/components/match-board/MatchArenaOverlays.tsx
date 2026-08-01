@@ -4,6 +4,7 @@ import type { HalfResult, MatchSide, SimInput, SimResult } from "../../data/matc
 import type { TeamMatch } from "../../data/tournament";
 import type { Player, Team } from "../../data/types";
 import type { FormationKey } from "../../data/formation";
+import type { PlayerRole } from "../../data/playerRoles";
 import { MatchArena, type ArenaSim } from "../MatchArena";
 import type { ArenaSquadControls } from "../match-arena/types";
 import type { TeamTactics } from "../match-arena/tactics";
@@ -28,6 +29,7 @@ interface Props {
   opponentFormation?: FormationKey;
   squadControls: ArenaSquadControls;
   onTacticChange: (tactics: TeamTactics) => void;
+  onRoleChange: (slotId: string, role: PlayerRole) => void;
   onOpponentTacticChange: (tactics: TeamTactics) => void;
   onFormationChange: (formation: FormationKey) => void;
   onPlayerDismissed: (side: MatchSide, playerId: number) => void;
@@ -66,6 +68,7 @@ export function MatchArenaOverlays({
   opponentFormation,
   squadControls,
   onTacticChange,
+  onRoleChange,
   onOpponentTacticChange,
   onFormationChange,
   onPlayerDismissed,
@@ -89,6 +92,7 @@ export function MatchArenaOverlays({
     formationLabel: detectedFormation,
     slots: lineup.slots,
     positions: lineup.positions,
+    slotRoles: lineup.slotRoles,
     playersById,
     opponentPlayers,
     opponentBench,
@@ -98,6 +102,7 @@ export function MatchArenaOverlays({
     opponentFormation,
     squadControls,
     onTacticChange,
+    onRoleChange,
     onOpponentTacticChange,
     onFormationChange,
     onPlayerDismissed,

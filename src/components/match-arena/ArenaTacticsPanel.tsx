@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { slotsOf, type FormationKey } from "../../data/formation";
 import { tacticalCoordinate } from "../Pitch";
 import { TeamFlag } from "../TeamFlag";
+import type { Player } from "../../data/types";
+import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
+import { RoleAssignmentBoard } from "./RoleAssignmentBoard";
 import {
   applyQuickTactic,
   QUICK_TACTICS,
@@ -9,7 +12,7 @@ import {
   type TeamTactics,
 } from "./tactics";
 
-type TacticsTab = "quick" | "roles" | "general" | "attack" | "defense";
+export type TacticsTab = "quick" | "roles" | "general" | "attack" | "defense";
 
 interface Props {
   userTeamName: string;
@@ -18,6 +21,11 @@ interface Props {
   formationLabel?: string;
   tactics: TeamTactics;
   onApply: (tactics: TeamTactics) => void;
+  slots?: Record<string, number | null>;
+  playersById?: Map<number, Player>;
+  slotRoles?: SlotRoleAssignments;
+  onRoleChange?: (slotId: string, role: PlayerRole) => void;
+  initialTab?: TacticsTab;
   variant?: "match" | "prematch";
 }
 
@@ -54,10 +62,15 @@ export function ArenaTacticsPanel({
   formationLabel,
   tactics,
   onApply,
+  slots = {},
+  playersById = new Map(),
+  slotRoles,
+  onRoleChange,
+  initialTab = "quick",
   variant = "match",
 }: Props) {
   const [draft, setDraft] = useState<TeamTactics>(tactics);
-  const [tab, setTab] = useState<TacticsTab>("quick");
+  const [tab, setTab] = useState<TacticsTab>(initialTab);
   const [selectedQuick, setSelectedQuick] = useState<QuickTacticKey | null>(null);
 
   useEffect(() => {
@@ -128,15 +141,13 @@ export function ArenaTacticsPanel({
             </div>
           )}
           {tab === "roles" && (
-            <div className="tactic-field-grid">
-              <TacticSelect label="공격수 역할" value={draft.strikerRole} options={OPTIONS.strikerRole} onChange={(value) => patch("strikerRole", value as TeamTactics["strikerRole"])} />
-              <TacticSelect label="미드필더 역할" value={draft.midfieldRole} options={OPTIONS.midfieldRole} onChange={(value) => patch("midfieldRole", value as TeamTactics["midfieldRole"])} />
-              <TacticSelect label="풀백 역할" value={draft.fullbackRole} options={OPTIONS.fullbackRole} onChange={(value) => patch("fullbackRole", value as TeamTactics["fullbackRole"])} />
-              <div className="role-explainer">
-                <strong>역할 조합도 경기 판정에 반영됩니다</strong>
-                <span>침투형 공격수는 슈팅 빈도, 플레이메이커는 창의적인 패스, 오버래핑 풀백은 측면 공격 가담을 높입니다.</span>
-              </div>
-            </div>
+            <RoleAssignmentBoard
+              formation={formation}
+              slots={slots}
+              playersById={playersById}
+              assignments={slotRoles}
+              onChange={onRoleChange ?? (() => {})}
+            />
           )}
           {tab === "general" && (
             <div className="tactic-field-grid">

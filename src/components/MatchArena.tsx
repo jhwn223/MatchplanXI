@@ -171,6 +171,7 @@ export function MatchArena({
   tacticStyleKey,
   slots,
   positions,
+  slotRoles,
   playersById,
   opponentPlayers,
   opponentBench,
@@ -186,6 +187,7 @@ export function MatchArena({
   initialOpponentTactics = DEFAULT_TEAM_TACTICS,
   opponentFormation = "4-3-3",
   onTacticChange,
+  onRoleChange,
   onOpponentTacticChange,
   onFormationChange,
   onPlayerDismissed,
@@ -827,11 +829,13 @@ export function MatchArena({
             tactics={teamTactics}
             slots={slots}
             positions={positions}
+            slotRoles={slotRoles}
             playersById={playersById}
             opponentPlayers={opponentPlayers}
             opponentBench={opponentBench}
             squadControls={squadControls}
             onApplyTactics={updateTeamTactics}
+            onRoleChange={onRoleChange}
             onFormationChange={onFormationChange}
             dismissalNotice={dismissalNotice}
             discipline={discipline}

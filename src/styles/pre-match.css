@@ -1642,6 +1642,21 @@
   font-size: 14px;
 }
 
+.board--prematch[data-workspace="tactics"] .role-board {
+  grid-template-columns: minmax(270px, 0.8fr) minmax(340px, 1.2fr);
+  gap: 28px;
+}
+
+.board--prematch[data-workspace="tactics"] .role-board__pitch {
+  width: min(100%, 350px);
+}
+
+@media (max-width: 980px) {
+  .board--prematch[data-workspace="tactics"] .role-board {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1320px) {
   .board--prematch {
     --prematch-rail: 310px;

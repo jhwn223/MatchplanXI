@@ -33,6 +33,7 @@ import { getTeamMatches } from "../data/tournament";
 import { usePlayerConditions } from "../hooks/usePlayerConditions";
 import { useDropSound } from "../hooks/useDropSound";
 import type { Player } from "../data/types";
+import type { PlayerRole } from "../data/playerRoles";
 import { PlayerCardVisual } from "./PlayerCardVisual";
 import { PlayerStatsModal } from "./PlayerStatsModal";
 import {
@@ -342,6 +343,13 @@ export function MatchBoard({
     });
   }
 
+  function changeSlotRole(slotId: string, role: PlayerRole) {
+    onChangeLineup({
+      ...lineup,
+      slotRoles: { ...lineup.slotRoles, [slotId]: role },
+    });
+  }
+
   /**
    * When each player currently on the pitch came on, so fatigue is charged for
    * time played rather than time on the clock. Kickoff stamps the whole XI with
@@ -434,7 +442,7 @@ export function MatchBoard({
     );
     // 경기 도중 포메이션·선수 배치가 바뀌면 다음 플레이부터 시뮬레이션 입력도 갱신한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineup.formation, lineup.positions, lineup.slots]);
+  }, [lineup.formation, lineup.positions, lineup.slotRoles, lineup.slots]);
 
   function startSecondHalf() {
     const input = buildSimInput();
@@ -563,6 +571,7 @@ export function MatchBoard({
         effectiveAttackBias={effectiveAttackBias}
         teamTactics={teamTactics}
         onTacticsChange={changePreMatchTactics}
+        onRoleChange={changeSlotRole}
         opponent={opponent}
         opponentPlayers={opponentEleven}
         opponentBench={opponentBench}
@@ -630,6 +639,7 @@ export function MatchBoard({
         opponentFormation={opponentPlan?.formation}
         squadControls={squadControls}
         onTacticChange={changeLiveTactics}
+        onRoleChange={changeSlotRole}
         onOpponentTacticChange={setLiveOpponentTactics}
         onFormationChange={selectFormation}
         onPlayerDismissed={handlePlayerDismissed}

@@ -2,6 +2,7 @@ import { useMemo, useState, type CSSProperties } from "react";
 import type { LiveMatchSnapshot, PassType, PlayerMatchStats } from "../../data/matchSim";
 import { FORMATION_KEYS, slotsOf, type FormationKey, type SlotPositions } from "../../data/formation";
 import type { Player } from "../../data/types";
+import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
 import { Bench } from "../Bench";
 import { Pitch } from "../Pitch";
 import { TeamFlag } from "../TeamFlag";
@@ -36,11 +37,13 @@ interface Props {
   tactics: TeamTactics;
   slots: Record<string, number | null>;
   positions?: SlotPositions;
+  slotRoles?: SlotRoleAssignments;
   playersById: Map<number, Player>;
   opponentPlayers: Player[];
   opponentBench: Player[];
   squadControls?: ArenaSquadControls;
   onApplyTactics: (tactics: TeamTactics) => void;
+  onRoleChange?: (slotId: string, role: PlayerRole) => void;
   onFormationChange?: (formation: FormationKey) => void;
   dismissalNotice?: string | null;
   discipline?: Map<number, PlayerDiscipline>;
@@ -60,11 +63,13 @@ export function ArenaMatchCenter({
   tactics,
   slots,
   positions,
+  slotRoles,
   playersById,
   opponentPlayers,
   opponentBench,
   squadControls,
   onApplyTactics,
+  onRoleChange,
   onFormationChange,
   dismissalNotice,
   discipline: suppliedDiscipline,
@@ -258,6 +263,10 @@ export function ArenaMatchCenter({
           formation={formation}
           formationLabel={formationLabel}
           tactics={tactics}
+          slots={slots}
+          playersById={playersById}
+          slotRoles={slotRoles}
+          onRoleChange={onRoleChange}
           onApply={onApplyTactics}
         />
       )}

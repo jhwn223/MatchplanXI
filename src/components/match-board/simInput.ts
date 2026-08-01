@@ -4,6 +4,7 @@ import type { PlacedPlayerLite, SimInput } from "../../data/matchSim";
 import { buildTeamAbilityProfile } from "../../data/playerAbility";
 import type { TeamMatch } from "../../data/tournament";
 import type { Player, Team } from "../../data/types";
+import { defaultRoleForSlot, resolvedRoleForSlot, type PlayerRole } from "../../data/playerRoles";
 import {
   simProfileFromTeamTactics,
   type TeamTactics,
@@ -15,6 +16,7 @@ export function toSimPlayer(
   slot: Pick<FormationSlot, "id" | "label" | "position" | "x" | "y">,
   condition: number,
   enteredAtMinute = 0,
+  tacticalRole?: PlayerRole,
 ): PlacedPlayerLite {
   const ability = player.ability;
   const base = ability?.overall ?? 65;
@@ -30,6 +32,7 @@ export function toSimPlayer(
     baseX: 100 - slot.y,
     baseY: slot.x,
     enteredAtMinute,
+    tacticalRole: tacticalRole ?? defaultRoleForSlot(slot),
     overall: base,
     pace: ability?.pace ?? base,
     acceleration: ability?.acceleration ?? ability?.pace ?? base,
@@ -120,6 +123,7 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
         { ...slot, x: coordinate.x, y: coordinate.y },
         conditions.get(player.player_id)?.score ?? 65,
         entryMinutes?.get(player.player_id) ?? 0,
+        resolvedRoleForSlot(lineup.slotRoles, slot),
       );
     })
     .filter((player): player is PlacedPlayerLite => player != null);
@@ -154,6 +158,12 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
           y: player.position === "GK" ? 92 : player.position === "DEF" ? 75 : player.position === "MID" ? 50 : 20,
         },
         opponentConditions.get(player.player_id)?.score ?? 72,
+        0,
+        defaultRoleForSlot(opponentSlots[index] ?? {
+          id: `opp-${index}`,
+          label: player.position,
+          position: player.position,
+        }),
       ),
     ),
     userAbility: buildTeamAbilityProfile(selectedPlayers, conditions),

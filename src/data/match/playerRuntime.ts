@@ -5,6 +5,7 @@ import type {
   SimInput,
   SimTacticProfile,
 } from "./types";
+import { roleDefinition } from "../playerRoles";
 
 export type ActionKind =
   | "generic"
@@ -20,6 +21,7 @@ export interface FatigueBreakdown {
   staminaLoss: number;
   altitudeLoss: number;
   tacticalLoss: number;
+  roleLoss: number;
   totalLoss: number;
 }
 
@@ -104,13 +106,15 @@ export function fatigueBreakdown(
   const staminaResistance = clamp((player.stamina - 55) / 90, 0, 0.5);
   const tacticalLoss =
     elapsed * tacticalIntensity * 0.075 * (1 - staminaResistance) * positionLoad;
-  const totalLoss = baseLoss + staminaLoss + altitudeLoss + tacticalLoss;
+  const roleLoss = elapsed * roleDefinition(player.tacticalRole).workload * 0.035 * positionLoad;
+  const totalLoss = baseLoss + staminaLoss + altitudeLoss + tacticalLoss + roleLoss;
   return {
     condition: Math.round(clamp(player.condition - totalLoss, 5, 100)),
     baseLoss,
     staminaLoss,
     altitudeLoss,
     tacticalLoss,
+    roleLoss,
     totalLoss,
   };
 }
