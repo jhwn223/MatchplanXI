@@ -645,14 +645,18 @@
   grid-row: span 2;
   width: 38px;
   height: 38px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   border-radius: 8px;
   background: var(--accent);
   color: #fff;
   font-size: 10px;
   font-weight: 900;
 }
+.match-tactics-editor__summary > div span small { color: #fff; font-size: 7px; line-height: 1; }
 .match-tactics-editor__summary > div strong { font-size: 13px; }
 .match-tactics-editor__summary > div small { color: var(--text-dim); font-size: 9px; }
 .tactic-shape { width: 100%; display: block; }
@@ -1303,4 +1307,45 @@
 .pk-taker-select__footer .sim-btn {
   flex: none;
   padding: 10px 18px;
+}
+.arena-dismissal-notice {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid #ef9a9a;
+  border-left: 5px solid #dc2626;
+  border-radius: 10px;
+  background: #fff1f1;
+  color: #8f1717;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.arena-halftime-transition {
+  display: grid;
+  place-content: center;
+  min-height: 430px;
+  padding: 44px;
+  background: radial-gradient(circle at center, #f6faf2 0%, #edf4e9 68%, #e7eee3 100%);
+  color: #15251a;
+  text-align: center;
+}
+
+.arena-halftime-transition span {
+  color: #087333;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .12em;
+}
+
+.arena-halftime-transition strong {
+  margin: 12px 0;
+  font-size: 46px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.arena-halftime-transition p {
+  margin: 0;
+  color: #6a766a;
+  font-size: 13px;
 }

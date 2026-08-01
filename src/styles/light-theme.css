@@ -62,15 +62,25 @@
 }
 .app-topbar__season { color: var(--text-dim); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; }
 .app-topbar__context strong {
-  min-width: 38px;
+  min-width: 56px;
   height: 38px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 7px;
+  border-radius: 999px;
   background: var(--accent);
   color: #fff;
   font-size: 11px;
   box-shadow: 0 4px 14px rgba(0, 101, 43, 0.2);
+}
+.app-topbar__flag {
+  width: 22px;
+  height: 16px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, .65);
+  border-radius: 3px;
 }
 
 .country-select,

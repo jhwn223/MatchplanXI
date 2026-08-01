@@ -18,26 +18,29 @@ import {
 } from "../data/tournamentEngine";
 import type { PlayedMap } from "../data/tournament";
 import type { Leaderboard } from "../data/leaderboard";
-import { getPlayerPhoto, getPlayerPhotoUrl, playerInitials } from "./player-photo/playerPhotoData";
+import { PlayerAvatar } from "./player-photo/PlayerPhoto";
+import { getPlayerPhoto, getPlayerPhotoUrl } from "./player-photo/playerPhotoData";
 import { AppTopbar } from "./AppTopbar";
+import { TeamFlag } from "./TeamFlag";
 
 interface Props {
   data: TournamentData;
   team: Team;
   played: PlayedMap;
   koResults: KOResults;
+  tournamentSeed: number;
   leaderboard?: Leaderboard;
   onBack: () => void;
   onPlayKO: (m: KOMatch) => void;
   onRestart?: () => void;
 }
 
-export function Bracket({ data, team, played, koResults, leaderboard = {}, onBack, onPlayKO, onRestart }: Props) {
+export function Bracket({ data, team, played, koResults, tournamentSeed, leaderboard = {}, onBack, onPlayKO, onRestart }: Props) {
   const [showBracket, setShowBracket] = useState(false);
-  const standings = allGroupStandingsFull(data, played);
+  const standings = allGroupStandingsFull(data, played, tournamentSeed);
   const qualifiers = getQualifiers(data, standings);
   const userQualified = qualifiers.some((q) => q.name === team.team_name);
-  const rounds = buildBracket(data, qualifiers, koResults, team.team_name);
+  const rounds = buildBracket(data, qualifiers, koResults, team.team_name, tournamentSeed);
   const nextMatch = nextUserKOMatch(rounds, team.team_name);
   const champ = champion(rounds);
   const finalMatch = rounds[4]?.find((match) => match.placement === "final") ?? null;
@@ -115,7 +118,10 @@ export function Bracket({ data, team, played, koResults, leaderboard = {}, onBac
           {champ ? "← 최종 결과" : "← 일정"}
         </button>
         <div className="hub__title-block">
-          <span className="hub__code">{team.fifa_code}</span>
+          <span className="hub__code">
+            <TeamFlag fifaCode={team.fifa_code} className="hub__flag" />
+            <small>{team.fifa_code}</small>
+          </span>
           <div>
             <h1 className="hub__title">토너먼트 대진표</h1>
             <p className="hub__meta">32강 · 다른 조 경기는 전력(Elo) 기반 시뮬레이션으로 채워집니다</p>
@@ -287,7 +293,10 @@ function PodiumCard({
   return (
     <div className={`podium-card podium-card--${place}`} data-highlight={highlight || undefined}>
       {highlight && <span className="podium-card__badge">{label}</span>}
-      <div className="podium-card__flag">{code}</div>
+      <div className="podium-card__flag">
+        <TeamFlag fifaCode={code} className="podium-card__flag-image" />
+        <span>{code}</span>
+      </div>
       <div className="podium-card__name">{name}</div>
       {!highlight && <span className="podium-card__label">{label}</span>}
       {subtitle && <p className="podium-card__subtitle">{subtitle}</p>}
@@ -347,11 +356,7 @@ function AwardAvatar({ playerId, name }: { playerId: number; name: string }) {
   const photo = getPlayerPhoto(playerId);
 
   if (!photo || failed) {
-    return (
-      <span className="award-card__avatar" aria-hidden="true">
-        {playerInitials(name)}
-      </span>
-    );
+    return <PlayerAvatar name={name} className="award-card__avatar" />;
   }
 
   return (

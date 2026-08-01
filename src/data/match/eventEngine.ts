@@ -327,7 +327,8 @@ export function simulatePeriodWithWorld(
       addEvent(offendingSide, "redCard", offender, victim, false);
       return;
     }
-    const alreadyBooked = (stats?.yellowCards ?? 0) > 0;
+    const previousYellows = world.yellowCards[offendingSide].get(offender.playerId) ?? 0;
+    const alreadyBooked = previousYellows > 0;
     const bookingChance =
       clamp(
         0.2 +
@@ -342,15 +343,16 @@ export function simulatePeriodWithWorld(
       // real game sees.
       (alreadyBooked ? 0.35 : 1);
     if (rng() >= bookingChance) return;
-    if (stats && stats.yellowCards > 0) {
+    if (alreadyBooked) {
       // Second caution: the referee sends him off rather than booking twice.
       running[offendingSide].redCards++;
-      stats.redCards++;
+      if (stats) stats.redCards++;
       addEvent(offendingSide, "redCard", offender, victim, false);
       return;
     }
     running[offendingSide].yellowCards++;
     if (stats) stats.yellowCards++;
+    world.yellowCards[offendingSide].set(offender.playerId, previousYellows + 1);
     addEvent(offendingSide, "yellowCard", offender, victim, false);
   };
 
@@ -519,6 +521,31 @@ export function simulatePeriodWithWorld(
       possessionPlayers,
       sidePlayers(input, defendingSide),
     );
+    // How much space the defending side has left behind and around itself.
+    // Every term is a deliberate choice that side made to gain something
+    // else, so this is the price of those choices.
+    const defendingExposure = clamp(
+      Math.max(0, defendingTactics.defensiveLineBias) * 0.95 +
+        Math.max(0, defendingTactics.engagementBias) * 0.4 +
+        Math.max(0, defendingTactics.pressBias) * 0.3 +
+        Math.max(0, -defendingTactics.restDefenseBias) * 0.75 +
+        Math.max(0, -defendingTactics.compactnessBias) * 0.25 +
+        Math.max(0, defendingTactics.compactnessBias) * Math.max(0, sideTactics.widthBias) * 0.5 +
+        // A sprung trap is the highest-risk defending there is: beat it and
+        // the runner is clean through.
+        defendingTactics.offsideTrapBias * 0.45,
+      0,
+      2,
+    );
+    /**
+     * A stepping line also catches runs that were level. The roll is only
+     * taken when a trap is actually set, so a side that does not use one is
+     * judged purely on positions as before.
+     */
+    const offsideAgainst = (receiver: PlacedPlayerLite) =>
+      isPlayerOffside(world, side, receiver) ||
+      (defendingTactics.offsideTrapBias > 0 &&
+        rng() < defendingTactics.offsideTrapBias * 0.004);
     // Real possessions are short: about three or four touches before the ball
     // is either progressed into a chance or given away. The clock-driven loop
     // now runs many more of them per match, so each one has to be brief for
@@ -620,6 +647,16 @@ export function simulatePeriodWithWorld(
         receiver,
         defenders,
       );
+      // Where the ball is decides how dangerous the pass is. Building out of
+      // our own third against a side that presses high is the risky moment;
+      // the same pass in midfield against a low block is not. Without this the
+      // turnover map was flat and told the manager nothing.
+      const ballAtPass = side === "user" ? world.ball.x : 100 - world.ball.x;
+      const inOwnThird = clamp((40 - ballAtPass) / 40, 0, 1);
+      const trappedInBuildUp =
+        inOwnThird *
+        Math.max(0, defendingTactics.pressBias + defendingTactics.engagementBias) *
+        0.075;
       const routinePassChance = clamp(
         0.92 +
           (passQuality - pressureQuality) / 500 -
@@ -627,8 +664,9 @@ export function simulatePeriodWithWorld(
           matchupEdge * 0.35 -
           laneRisk * 0.045 -
           defendingTactics.pressBias * 0.055 -
-          defendingTactics.defensiveLineBias * 0.02,
-        0.88,
+          defendingTactics.defensiveLineBias * 0.02 -
+          trappedInBuildUp,
+        0.7,
         0.98
       );
       const pressingFoulChance = clamp(
@@ -664,7 +702,7 @@ export function simulatePeriodWithWorld(
         passerStats.touches++;
         passerStats.passesAttempted++;
       }
-      if (isPlayerOffside(world, side, receiver)) {
+      if (offsideAgainst(receiver)) {
         recordOffside(side, receiver, passer);
         possessionLost = true;
         break;
@@ -683,7 +721,11 @@ export function simulatePeriodWithWorld(
         clamp(
           0.38 +
             defendingTactics.pressBias * 0.26 +
-            defendingTactics.defensiveLineBias * 0.08,
+            defendingTactics.defensiveLineBias * 0.03 +
+            // Engaging higher up wins the ball closer to the opponent goal;
+            // a compact block makes the interception itself more likely.
+            defendingTactics.engagementBias * 0.12 +
+            defendingTactics.compactnessBias * 0.01,
           0.08,
           0.78,
         )
@@ -859,8 +901,24 @@ export function simulatePeriodWithWorld(
           receiver,
           defenders,
         );
+        // A compact block closes the middle but leaves the flanks; a stretched
+        // one is the reverse, so width is the way through a squeezed defence.
+        const compactnessResistance =
+          defendingTactics.compactnessBias * 0.014 -
+          defendingTactics.compactnessBias * Math.max(0, sideTactics.widthBias) * 0.075;
+        // Deep in the final third a packed defence is where possession dies,
+        // which is what a low block is for.
+        const ballHere = side === "user" ? world.ball.x : 100 - world.ball.x;
+        const inFinalThird = clamp((ballHere - 60) / 40, 0, 1);
+        const congestion =
+          inFinalThird *
+          (Math.max(0, -defendingTactics.defensiveLineBias) +
+            Math.max(0, defendingTactics.compactnessBias)) *
+          0.06;
         const passChance = clamp(
-          0.72 +
+          0.72 -
+            compactnessResistance -
+            congestion +
             (passQuality - interceptionQuality) / 220 -
             progress * 0.012 -
             directness * 0.025 -
@@ -872,7 +930,7 @@ export function simulatePeriodWithWorld(
         );
         running[side].passesAttempted++;
         if (carrierStats) carrierStats.passesAttempted++;
-        if (isPlayerOffside(world, side, receiver)) {
+        if (offsideAgainst(receiver)) {
           recordOffside(side, receiver, carrier);
           break;
         }
@@ -904,6 +962,8 @@ export function simulatePeriodWithWorld(
         counterEdge * 0.022 +
         sideTactics.tempoBias * 0.016 +
         sideTactics.shootingBias * 0.055 +
+        // Bodies sent forward instead of held back arrive in the box.
+        Math.max(0, -sideTactics.restDefenseBias) * 0.03 +
         matchupEdge * 0.24;
       const roleShotChance = carrier.position === "FWD" ? 0.11 : carrier.position === "MID" ? 0.05 : 0.015;
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
@@ -959,8 +1019,12 @@ export function simulatePeriodWithWorld(
         sideTactics.shootingBias * 0.012 +
         sideTactics.setPieceBias * 0.003 +
         counterEdge * 0.009 +
-        Math.max(0, defendingTactics.pressBias) * 0.004 +
-        Math.max(0, defendingTactics.defensiveLineBias) * 0.007 +
+        Math.max(0, -sideTactics.restDefenseBias) * 0.025 +
+        // What the defending side's plan costs it. A high line and a high
+        // press leave grass behind them, and a side that keeps few players
+        // home is punished on the break — without this, committing everyone
+        // forward was free and pure upside.
+        defendingExposure * 0.16 +
         matchupEdge * 0.11;
       const baseXg = carrier.position === "FWD" ? 0.06 : carrier.position === "MID" ? 0.038 : 0.022;
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.045, 0.012, 0.48);

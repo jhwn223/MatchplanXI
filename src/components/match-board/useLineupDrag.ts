@@ -20,6 +20,7 @@ interface UseLineupDragOptions {
   benchedOut: Set<number>;
   startingXI: Set<number> | null;
   maxSubs: number;
+  maxOnPitch: number;
   playDrop: () => void;
   setBenchedOut: Dispatch<SetStateAction<Set<number>>>;
   setActiveDragId: Dispatch<SetStateAction<number | null>>;
@@ -34,6 +35,7 @@ export function useLineupDrag({
   benchedOut,
   startingXI,
   maxSubs,
+  maxOnPitch,
   playDrop,
   setBenchedOut,
   setActiveDragId,
@@ -55,10 +57,37 @@ export function useLineupDrag({
 
     if (dragData.from !== BENCH_ZONE_ID && targetId !== BENCH_ZONE_ID) {
       const sourceSlot = formation.find((slot) => slot.id === dragData.from);
+      if (!sourceSlot) return;
+
+      // Dropped on another slot: the two exchange places. Every pitch drag
+      // used to be read as a free position nudge, so two starters could never
+      // be swapped. The slots keep their own tactical coordinates — only the
+      // players move.
+      const targetSlot = targetId && targetId !== dragData.from
+        ? formation.find((slot) => slot.id === targetId)
+        : undefined;
+      if (targetSlot) {
+        const occupantId = lineup.slots[targetSlot.id];
+        const occupant = occupantId != null ? playersById.get(occupantId) : null;
+        if (!canPlaceInSlot(player.position, targetSlot.position)) return;
+        if (occupant && !canPlaceInSlot(occupant.position, sourceSlot.position)) return;
+        onChangeLineup({
+          ...lineup,
+          slots: {
+            ...lineup.slots,
+            [sourceSlot.id]: occupantId ?? null,
+            [targetSlot.id]: dragData.playerId,
+          },
+          presetKey: null,
+        });
+        playDrop();
+        return;
+      }
+
       const pitchRect = pitchRef.current?.getBoundingClientRect();
       // The keeper stays on his line: only outfield positions are adjustable.
       // He can still be dragged to the bench to be substituted.
-      if (!sourceSlot || sourceSlot.position === "GK" || !pitchRect) return;
+      if (sourceSlot.position === "GK" || !pitchRect) return;
       const current = lineup.positions?.[sourceSlot.id] ?? sourceSlot;
       onChangeLineup({
         ...lineup,
@@ -92,6 +121,7 @@ export function useLineupDrag({
 
     if (startingXI) {
       const nextPlaced = new Set(Object.values(next).filter((id): id is number => id != null));
+      if (nextPlaced.size > maxOnPitch) return;
       if ([...nextPlaced].filter((id) => !startingXI.has(id)).length > maxSubs) return;
     }
 

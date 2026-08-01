@@ -4,6 +4,7 @@ import type { FormationSlot, PitchCoordinate } from "../data/formation";
 import type { ConditionBreakdown } from "../data/conditionEngine";
 import type { Player } from "../data/types";
 import { PlayerCard } from "./PlayerCard";
+import type { PlayerDiscipline } from "./playerDiscipline";
 
 interface Props {
   slot: FormationSlot;
@@ -12,9 +13,10 @@ interface Props {
   onSelectPlayer?: (player: Player) => void;
   coordinate: PitchCoordinate;
   positionMode?: boolean;
+  discipline?: PlayerDiscipline;
 }
 
-export function Slot({ slot, player, condition, onSelectPlayer, coordinate, positionMode }: Props) {
+export function Slot({ slot, player, condition, onSelectPlayer, coordinate, positionMode, discipline }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: slot.id });
 
   return (
@@ -33,6 +35,7 @@ export function Slot({ slot, player, condition, onSelectPlayer, coordinate, posi
           variant="slot"
           dragFrom={slot.id}
           onSelect={onSelectPlayer}
+          discipline={discipline}
         />
       ) : (
         <motion.div

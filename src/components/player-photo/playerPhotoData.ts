@@ -27,9 +27,3 @@ export function getPlayerPhoto(playerId: number): PlayerPhotoRecord | undefined 
 export function getPlayerPhotoUrl(photo: PlayerPhotoRecord): string {
   return `${import.meta.env.BASE_URL}player-photos/${photo.fileName}`;
 }
-
-export function playerInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const last = parts[parts.length - 1] ?? "";
-  return last.slice(0, 2).toUpperCase();
-}

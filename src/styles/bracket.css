@@ -163,7 +163,10 @@
   font-weight: 800;
   letter-spacing: 0.3px;
   margin-bottom: 4px;
+  overflow: hidden;
 }
+.podium-card__flag-image { width: 34px; height: 25px; object-fit: cover; border-radius: 4px; }
+.podium-card__flag span { display: none; }
 .podium-card--1 .podium-card__flag { width: 68px; height: 68px; font-size: 17px; border-color: #f59e0b; }
 .podium-card__label { font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.5px; }
 .podium-card__name { font-size: 20px; font-weight: 800; color: var(--text); }

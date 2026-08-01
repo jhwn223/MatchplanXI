@@ -15,6 +15,10 @@ export const BALANCED_SIM_TACTICS: Readonly<SimTacticProfile> = {
   widthBias: 0,
   focusBias: 0,
   setPieceBias: 0,
+  engagementBias: 0,
+  compactnessBias: 0,
+  restDefenseBias: 0,
+  offsideTrapBias: 0,
 };
 
 export function normalizeSimTactics(tactics?: SimTacticProfile): SimTacticProfile {
@@ -33,6 +37,10 @@ export function normalizeSimTactics(tactics?: SimTacticProfile): SimTacticProfil
     widthBias: clamp(source.widthBias, -1, 1),
     focusBias: clamp(source.focusBias, -1, 1),
     setPieceBias: clamp(source.setPieceBias, -1, 1),
+    engagementBias: clamp(source.engagementBias ?? 0, -1, 1),
+    compactnessBias: clamp(source.compactnessBias ?? 0, -1, 1),
+    restDefenseBias: clamp(source.restDefenseBias ?? 0, -1, 1),
+    offsideTrapBias: clamp(source.offsideTrapBias ?? 0, 0, 1),
   };
 }
 

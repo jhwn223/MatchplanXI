@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { slotsOf, type FormationKey } from "../../data/formation";
 import { tacticalCoordinate } from "../Pitch";
+import { TeamFlag } from "../TeamFlag";
 import {
   applyQuickTactic,
   QUICK_TACTICS,
@@ -41,6 +42,9 @@ const OPTIONS = {
   midfieldRole: [["hold", "수비 지원"], ["balanced", "균형"], ["playmaker", "플레이메이커"]],
   fullbackRole: [["stay", "수비 대기"], ["overlap", "오버래핑"], ["inverted", "인버티드"]],
   width: [["narrow", "좁게"], ["balanced", "중간"], ["wide", "넓게"]],
+  lineOfEngagement: [["deep", "로우 블록"], ["middle", "미들 블록"], ["high", "하이 블록"]],
+  compactness: [["compact", "촘촘하게"], ["balanced", "보통"], ["stretched", "넓게 벌려"]],
+  offsideTrap: [["off", "사용 안 함"], ["on", "사용"]],
 } as const;
 
 export function ArenaTacticsPanel({
@@ -75,7 +79,10 @@ export function ArenaTacticsPanel({
     <section className={`match-tactics-editor match-tactics-editor--${variant}`}>
       {variant === "match" && <div className="match-tactics-editor__summary">
         <div>
-          <span>{userCode}</span>
+          <span>
+            <TeamFlag fifaCode={userCode} className="match-tactics-editor__flag" />
+            <small>{userCode}</small>
+          </span>
           <strong>{userTeamName}</strong>
           {/* Formation lives with the lineup, on the squad tab. */}
           <small>{formationLabel ?? formation}</small>
@@ -149,10 +156,7 @@ export function ArenaTacticsPanel({
               <TacticSelect label="공격 방향" value={draft.attackFocus} options={OPTIONS.attackFocus} onChange={(value) => patch("attackFocus", value as TeamTactics["attackFocus"])} />
               <TacticSelect label="슈팅 지시" value={draft.shooting} options={OPTIONS.shooting} onChange={(value) => patch("shooting", value as TeamTactics["shooting"])} />
               <TacticSelect label="와이드 플레이" value={draft.widePlay} options={OPTIONS.widePlay} onChange={(value) => patch("widePlay", value as TeamTactics["widePlay"])} />
-              <TacticMeter label="박스 침투 인원" value={draft.boxPlayers} onChange={(value) => patch("boxPlayers", value)} />
-              <TacticMeter label="코너킥 공격 인원" value={draft.corners} onChange={(value) => patch("corners", value)} />
-              <TacticMeter label="프리킥 공격 인원" value={draft.freeKicks} onChange={(value) => patch("freeKicks", value)} />
-              <TacticToggle label="역습 허용" checked={draft.counterAttack} onChange={(value) => patch("counterAttack", value)} />
+              <TacticMeter label="잔류 수비 인원" value={draft.restDefense} min={2} max={5} onChange={(value) => patch("restDefense", value)} />
             </div>
           )}
           {tab === "defense" && (
@@ -162,6 +166,9 @@ export function ArenaTacticsPanel({
               <TacticSelect label="압박 강도" value={draft.pressing} options={OPTIONS.pressing} onChange={(value) => patch("pressing", value as TeamTactics["pressing"])} />
               <TacticSelect label="마킹 방식" value={draft.marking} options={OPTIONS.marking} onChange={(value) => patch("marking", value as TeamTactics["marking"])} />
               <TacticSelect label="태클 강도" value={draft.tackling} options={OPTIONS.tackling} onChange={(value) => patch("tackling", value as TeamTactics["tackling"])} />
+              <TacticSelect label="압박 시작 위치" value={draft.lineOfEngagement} options={OPTIONS.lineOfEngagement} onChange={(value) => patch("lineOfEngagement", value as TeamTactics["lineOfEngagement"])} />
+              <TacticSelect label="라인 간격" value={draft.compactness} options={OPTIONS.compactness} onChange={(value) => patch("compactness", value as TeamTactics["compactness"])} />
+              <TacticSelect label="오프사이드 트랩" value={draft.offsideTrap ? "on" : "off"} options={OPTIONS.offsideTrap} onChange={(value) => patch("offsideTrap", value === "on")} />
               <TacticMeter label="수비 깊이" value={draft.depth} onChange={(value) => patch("depth", value)} />
             </div>
           )}
@@ -246,20 +253,11 @@ export function TacticItemBoxSelect({
 
 const TacticSelect = TacticItemBoxSelect;
 
-function TacticMeter({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function TacticMeter({ label, value, min = 1, max = 10, onChange }: { label: string; value: number; min?: number; max?: number; onChange: (value: number) => void }) {
   return (
     <label className="match-tactic-field match-tactic-field--range">
       <span>{label}<strong>{value}</strong></span>
-      <input type="range" min="1" max="10" value={value} onChange={(event) => onChange(Number(event.target.value))} />
-    </label>
-  );
-}
-
-function TacticToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <label className="match-tactic-field match-tactic-field--toggle">
-      <span>{label}</span>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input type="range" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} />
     </label>
   );
 }

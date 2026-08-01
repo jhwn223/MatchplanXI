@@ -67,6 +67,18 @@ export function actionPerformanceFactor(
   return clamp(conditionFactor * positionFit, 0.62, 1.12);
 }
 
+/**
+ * How hard each role runs. Previously every position drained at the same rate
+ * and a full match cost only about nine points, so nobody ever looked tired.
+ * Keepers barely move; forwards make the most repeated high-intensity runs.
+ */
+const POSITION_LOAD: Record<PlacedPlayerLite["position"], number> = {
+  GK: 0.35,
+  DEF: 0.9,
+  MID: 1.15,
+  FWD: 1.3,
+};
+
 export function fatigueBreakdown(
   player: PlacedPlayerLite,
   minute: number,
@@ -75,10 +87,12 @@ export function fatigueBreakdown(
 ): FatigueBreakdown {
   const elapsed = clamp(minute, 0, 120);
   const load = tactics ?? NO_TACTICAL_LOAD;
-  const baseLoss = elapsed * 0.075;
-  const staminaLoss = elapsed * clamp((100 - player.stamina) / 1_000, 0.004, 0.065);
+  const positionLoad = POSITION_LOAD[player.position] ?? 1;
+  const baseLoss = elapsed * 0.25 * positionLoad;
+  const staminaLoss =
+    elapsed * clamp((100 - player.stamina) / 1_000, 0.004, 0.065) * positionLoad;
   const altitudeLoss =
-    elapsed * clamp((elevation - 800) / 45_000, 0, 0.075);
+    elapsed * clamp((elevation - 800) / 45_000, 0, 0.075) * positionLoad;
   const tacticalIntensity =
     Math.max(0, load.pressBias) * 0.5 +
     Math.max(0, load.tempoBias) * 0.32 +
@@ -86,7 +100,7 @@ export function fatigueBreakdown(
     Math.max(0, load.tacklingBias) * 0.08;
   const staminaResistance = clamp((player.stamina - 55) / 90, 0, 0.5);
   const tacticalLoss =
-    elapsed * tacticalIntensity * 0.075 * (1 - staminaResistance);
+    elapsed * tacticalIntensity * 0.075 * (1 - staminaResistance) * positionLoad;
   const totalLoss = baseLoss + staminaLoss + altitudeLoss + tacticalLoss;
   return {
     condition: Math.round(clamp(player.condition - totalLoss, 5, 100)),

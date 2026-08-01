@@ -7,10 +7,14 @@ import {
   snapshotAtMinute,
   type HalfResult,
   type LiveMatchSnapshot,
+  type MatchEvent,
+  type MatchSide,
   type MatchWorld,
   type PlacedPlayerLite,
 } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
+import { TeamFlag } from "./TeamFlag";
+import { disciplineFromEvents } from "./playerDiscipline";
 import { ArenaEventFeed } from "./match-arena/ArenaEventFeed";
 import { ArenaLiveStats } from "./match-arena/ArenaLiveStats";
 import { ArenaMatchCenter, type MatchCenterTab } from "./match-arena/ArenaMatchCenter";
@@ -36,6 +40,15 @@ import {
 } from "./match-board/opponentPlan";
 
 export type { ArenaSim } from "./match-arena/types";
+
+function inheritedYellowCards(events: MatchEvent[] | undefined) {
+  const cards: Record<MatchSide, Record<number, number>> = { user: {}, opp: {} };
+  for (const event of events ?? []) {
+    if (event.type !== "yellowCard") continue;
+    cards[event.side][event.actorId] = (cards[event.side][event.actorId] ?? 0) + 1;
+  }
+  return cards;
+}
 
 function ScorerList({ scorers }: { scorers: { minute: number; name: string }[] }) {
   if (!scorers.length) return null;
@@ -74,6 +87,53 @@ function BookingList({
   );
 }
 
+function remappedIndex(oldDots: Dot[], nextDots: Dot[], index: number | null | undefined) {
+  if (index == null || index < 0) return index ?? -1;
+  const dot = oldDots[index];
+  return dot ? nextDots.indexOf(dot) : -1;
+}
+
+/** Keep every index-based animation reference valid when a player leaves. */
+function replaceDotsAndRemapIndexes(s: ArenaState, oldDots: Dot[], nextDots: Dot[]) {
+  s.ball.owner = remappedIndex(oldDots, nextDots, s.ball.owner);
+  s.ball.flightTo = remappedIndex(oldDots, nextDots, s.ball.flightTo);
+  if (s.ball.flightTarget) {
+    const owner = s.ball.flightTarget.owner;
+    const chaser = s.ball.flightTarget.chaser;
+    s.ball.flightTarget.owner = owner == null ? null : remappedIndex(oldDots, nextDots, owner);
+    s.ball.flightTarget.chaser = chaser == null ? null : remappedIndex(oldDots, nextDots, chaser);
+  }
+  if (s.pendingKick != null) {
+    const next = remappedIndex(oldDots, nextDots, s.pendingKick);
+    s.pendingKick = next >= 0 ? next : null;
+  }
+  if (s.scoring) {
+    const shooter = remappedIndex(oldDots, nextDots, s.scoring.shooter);
+    s.scoring = shooter >= 0 ? { ...s.scoring, shooter } : null;
+  }
+  if (s.scriptedRun) {
+    const actor = remappedIndex(oldDots, nextDots, s.scriptedRun.actor);
+    s.scriptedRun = actor >= 0 ? { ...s.scriptedRun, actor } : null;
+  }
+  if (s.situation) {
+    const actor = remappedIndex(oldDots, nextDots, s.situation.actor);
+    s.situation = actor >= 0 ? { ...s.situation, actor } : null;
+  }
+  s.dots = nextDots;
+}
+
+function removePlayerFromArena(s: ArenaState, side: MatchSide, playerId: number) {
+  const team = side === "user" ? 0 : 1;
+  const oldDots = [...s.dots];
+  const dismissed = oldDots.find((dot) => dot.team === team && dot.playerId === playerId);
+  if (!dismissed) return;
+  if (s.ball.owner >= 0 && oldDots[s.ball.owner] === dismissed) {
+    s.ball.x = dismissed.x;
+    s.ball.y = dismissed.y;
+  }
+  replaceDotsAndRemapIndexes(s, oldDots, oldDots.filter((dot) => dot !== dismissed));
+}
+
 export function MatchArena({
   simInput,
   priorEvents,
@@ -104,6 +164,7 @@ export function MatchArena({
   onTacticChange,
   onOpponentTacticChange,
   onFormationChange,
+  onPlayerDismissed,
   onPeriodComplete,
   onComplete,
   onClose,
@@ -122,6 +183,13 @@ export function MatchArena({
   const periodRef = useRef<HalfResult | null>(null);
   const matchWorldRef = useRef<MatchWorld | null>(null);
   const simulatedThroughRef = useRef(startMinute);
+  const handledDismissalsRef = useRef(
+    new Set(
+      (priorEvents ?? [])
+        .filter((event) => event.type === "redCard")
+        .map((event) => `${event.side}:${event.actorId}:${event.minute}`),
+    ),
+  );
   const periodEndedRef = useRef(false);
   const simRef = useRef<ArenaSim>({
     goals: [],
@@ -163,6 +231,7 @@ export function MatchArena({
     },
   ]);
   const [opponentTacticChanges, setOpponentTacticChanges] = useState<OpponentTacticChange[]>([]);
+  const [dismissalNotice, setDismissalNotice] = useState<string | null>(null);
 
   useEffect(() => {
     simInputRef.current = simInput;
@@ -257,9 +326,14 @@ export function MatchArena({
         side: "user" | "opp",
       ) => {
         const dismissed = new Set(
-          priorPlayerStats
-            .filter((stat) => stat.side === side && stat.redCards > 0)
-            .map((stat) => stat.playerId),
+          [
+            ...priorPlayerStats
+              .filter((stat) => stat.side === side && stat.redCards > 0)
+              .map((stat) => stat.playerId),
+            ...(priorEvents ?? [])
+              .filter((event) => event.side === side && event.type === "redCard")
+              .map((event) => event.actorId),
+          ],
         );
         const injured = new Set(
           priorPlayerStats
@@ -279,6 +353,7 @@ export function MatchArena({
         oppPlaced: availablePlayers(simInputRef.current.oppPlaced, "opp"),
         userTactics: simProfileFromTeamTactics(tacticsRef.current),
         oppTactics: simProfileFromTeamTactics(opponentTacticsRef.current),
+        initialYellowCards: inheritedYellowCards(priorEvents),
       };
       const step = simulatePeriodWithWorld(
         minuteInput,
@@ -404,11 +479,18 @@ export function MatchArena({
 
   function applyUserFormationToState(s: ArenaState, snapToShape: boolean) {
     const userSlots = slotsOf(formation);
+    const oldDots = [...s.dots];
+    const currentUserDots = oldDots.filter((dot) => dot.team === 0);
+    const unused = new Set(currentUserDots);
+    const nextUserDots: Dot[] = [];
     userSlots.forEach((slot, i) => {
-      const dot = s.dots[i];
-      if (!dot || dot.team !== 0) return;
       const pid = slots[slot.id];
+      if (pid == null) return;
       const player = pid != null ? playersById.get(pid) : null;
+      let dot = currentUserDots.find((candidate) => candidate.playerId === pid && unused.has(candidate));
+      if (!dot) dot = [...unused][0];
+      if (!dot) return;
+      unused.delete(dot);
       const coordinate = positions?.[slot.id] ?? slot;
       const h = homeFor(coordinate.x, coordinate.y, 0);
       dot.hx = h.x;
@@ -424,16 +506,29 @@ export function MatchArena({
         dot.vx = 0;
         dot.vy = 0;
       }
+      nextUserDots.push(dot);
     });
+    replaceDotsAndRemapIndexes(s, oldDots, [
+      ...nextUserDots,
+      ...oldDots.filter((dot) => dot.team === 1),
+    ]);
   }
 
   function buildState(): ArenaState {
     const dots: Dot[] = [];
+    const previouslyDismissed = (side: MatchSide) => new Set(
+      (priorEvents ?? [])
+        .filter((event) => event.side === side && event.type === "redCard")
+        .map((event) => event.actorId),
+    );
+    const dismissedUser = previouslyDismissed("user");
+    const dismissedOpponent = previouslyDismissed("opp");
     const rnd = (i: number) => ((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1;
     const userSlots = slotsOf(formation);
     userSlots.forEach((s, i) => {
       const pid = slots[s.id];
       const player = pid != null ? playersById.get(pid) : null;
+      if (player && dismissedUser.has(player.player_id)) return;
       const num = player ? (player.player_id % 30) + 1 : i + 1;
       const coordinate = positions?.[s.id] ?? s;
       const h = homeFor(coordinate.x, coordinate.y, 0);
@@ -450,6 +545,7 @@ export function MatchArena({
       const h = homeFor(s.x, s.y, 1);
       const k = kickoffHomeFor(h.x, h.y, 1);
       const player = opponentQueues[s.position].shift() ?? opponentPlayers[i] ?? null;
+      if (player && dismissedOpponent.has(player.player_id)) return;
       dots.push({ playerId: player?.player_id ?? -(100 + i + 1), x: k.x, y: k.y, vx: 0, vy: 0, facing: Math.PI, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player, simPlayerFor(player, "opp")), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28, action: "idle", actionT: 0 });
     });
     // The home side kicks off the match; the away side restarts the second
@@ -534,6 +630,12 @@ export function MatchArena({
     setHud,
   });
 
+  useEffect(() => {
+    if (!ended || final || !onInterimContinue) return;
+    const timer = window.setTimeout(onInterimContinue, 350);
+    return () => window.clearTimeout(timer);
+  }, [ended, final, onInterimContinue]);
+
 
   function replay() {
     stateRef.current = buildState();
@@ -581,6 +683,26 @@ export function MatchArena({
   // each one carries the minute it happened, and the periods already played
   // are prepended so the list keeps growing across the interval.
   const timeline = [...(priorEvents ?? []), ...playedEvents];
+  const discipline = disciplineFromEvents(timeline, "user");
+  useEffect(() => {
+    for (const event of playedEvents) {
+      if (event.type !== "redCard") continue;
+      const key = `${event.side}:${event.actorId}:${event.minute}`;
+      if (handledDismissalsRef.current.has(key)) continue;
+      handledDismissalsRef.current.add(key);
+      if (stateRef.current) {
+        removePlayerFromArena(stateRef.current, event.side, event.actorId);
+      }
+      onPlayerDismissed?.(event.side, event.actorId);
+      setDismissalNotice(
+        `${event.actor} 퇴장 · ${event.side === "user" ? "10명으로 포메이션을 재정비하세요." : "상대가 10명이 되었습니다. 전술을 재정비하세요."}`,
+      );
+      openMatchCenter("squad");
+    }
+    // Event count is the authoritative playback cursor. Other callback/state
+    // identities must not make an already handled card fire twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hud.eventCount]);
   const bookings = (side: "user" | "opp") =>
     timeline
       .filter(
@@ -617,7 +739,13 @@ export function MatchArena({
         <div className="arena-score">
           <div className="arena-score__team">
             <small>HOME</small>
-            <div><span style={{ background: userColor }}>{userCode}</span><strong>{userTeamName}</strong></div>
+            <div>
+              <span style={{ background: userColor }}>
+                <TeamFlag fifaCode={userCode} className="arena-score__flag" />
+                <em>{userCode}</em>
+              </span>
+              <strong>{userTeamName}</strong>
+            </div>
             <ScorerList scorers={scorers("user")} />
             <BookingList bookings={bookings("user")} />
           </div>
@@ -627,7 +755,13 @@ export function MatchArena({
           </div>
           <div className="arena-score__team arena-score__team--away">
             <small>AWAY</small>
-            <div><strong>{oppTeamName}</strong><span>{oppCode}</span></div>
+            <div>
+              <strong>{oppTeamName}</strong>
+              <span>
+                <TeamFlag fifaCode={oppCode} className="arena-score__flag" />
+                <em>{oppCode}</em>
+              </span>
+            </div>
             <ScorerList scorers={scorers("opp")} />
             <BookingList bookings={bookings("opp")} />
           </div>
@@ -664,6 +798,8 @@ export function MatchArena({
             squadControls={squadControls}
             onApplyTactics={updateTeamTactics}
             onFormationChange={onFormationChange}
+            dismissalNotice={dismissalNotice}
+            discipline={discipline}
             onClose={closeMatchCenter}
           />
         )}
@@ -788,7 +924,7 @@ export function MatchArena({
             <button type="button" className="arena-ctrl arena-ctrl--section arena-ctrl--skip" data-active={activePanel != null || undefined} onClick={() => openMatchCenter("tactics")}>✎ 전술 변경</button>
             </div>
           </div>
-        ) : (
+        ) : final ? (
           <ArenaResultPanel
             sim={sim}
             final={final}
@@ -803,6 +939,12 @@ export function MatchArena({
             onClose={onClose}
             onNext={onNext}
           />
+        ) : (
+          <div className="arena-halftime-transition" role="status">
+            <span>{interimLabel}</span>
+            <strong>{sim.userGoals} : {sim.oppGoals}</strong>
+            <p>전반 분석과 후반 전술 보드를 준비하고 있습니다.</p>
+          </div>
         )}
       </motion.div>
     </motion.div>

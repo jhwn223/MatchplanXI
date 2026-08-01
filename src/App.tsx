@@ -23,6 +23,13 @@ function koMatchIdNum(id: string): number {
   return 900000 + (Math.abs(h) % 90000);
 }
 
+function createTournamentSeed(): number {
+  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+    return crypto.getRandomValues(new Uint32Array(1))[0];
+  }
+  return Date.now() >>> 0;
+}
+
 function App() {
   const { data, loading, error } = useTournamentData();
   const [view, setView] = useState<View>("select");
@@ -31,6 +38,7 @@ function App() {
   const [lineups, setLineups] = useState<Record<number, Lineup>>({});
   const [played, setPlayed] = useState<PlayedMap>({});
   const [leaderboard, setLeaderboard] = useState<Leaderboard>({});
+  const [tournamentSeed, setTournamentSeed] = useState(createTournamentSeed);
   // knockout state
   const [koResults, setKoResults] = useState<KOResults>({});
   const [koLineups, setKoLineups] = useState<Record<string, Lineup>>({});
@@ -56,6 +64,7 @@ function App() {
     setKoResults({});
     setKoLineups({});
     setLeaderboard({});
+    setTournamentSeed(createTournamentSeed());
     setView("hub");
   }
 
@@ -184,6 +193,7 @@ function App() {
         team={team}
         lineupCounts={lineupCounts}
         played={played}
+        tournamentSeed={tournamentSeed}
         onBack={() => setView("select")}
         onOpenMatch={openMatch}
         onOpenBracket={() => setView("bracket")}
@@ -198,6 +208,7 @@ function App() {
         team={team}
         played={played}
         koResults={koResults}
+        tournamentSeed={tournamentSeed}
         leaderboard={leaderboard}
         onBack={() => setView("hub")}
         onPlayKO={openKO}

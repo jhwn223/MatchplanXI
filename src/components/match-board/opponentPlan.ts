@@ -123,7 +123,6 @@ export function buildOpponentPlan({
       ...applyQuickTactic(DEFAULT_TEAM_TACTICS, "attacking"),
       passingStyle: "direct",
       chanceCreation: "forwardRuns",
-      counterAttack: true,
     };
     identity = "빠른 침투와 직접 공격";
   }
@@ -314,7 +313,6 @@ export function decideOpponentTacticChange({
             passingStyle: "direct",
             buildUpPlay: "fastBuildUp",
             chanceCreation: "forwardRuns",
-            counterAttack: true,
           },
         }
       : {
@@ -324,7 +322,6 @@ export function decideOpponentTacticChange({
           tactics: {
             ...applyQuickTactic(current, "control"),
             workRate: "conserve",
-            counterAttack: false,
           },
         };
   }
@@ -346,7 +343,6 @@ export function decideOpponentTacticChange({
         passingStyle: "direct",
         buildUpPlay: "fastBuildUp",
         chanceCreation: "forwardRuns",
-        counterAttack: true,
       },
     };
   }

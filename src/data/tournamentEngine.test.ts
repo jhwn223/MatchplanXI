@@ -39,4 +39,15 @@ describe("2026 tournament bracket", () => {
     expect(rounds[4].find((match) => match.placement === "third")?.played).toBe(true);
     expect(champion(rounds)).not.toBeNull();
   });
+
+  test("keeps one tournament stable but varies simulated results for a new tournament seed", () => {
+    const first = buildBracket(data, qualifiers, {}, "No user team", 1234);
+    const replay = buildBracket(data, qualifiers, {}, "No user team", 1234);
+    const nextTournament = buildBracket(data, qualifiers, {}, "No user team", 9876);
+    const signature = (rounds: ReturnType<typeof buildBracket>) =>
+      rounds.flat().map((match) => `${match.aGoals}-${match.bGoals}:${match.winner?.name}`).join("|");
+
+    expect(signature(replay)).toBe(signature(first));
+    expect(signature(nextTournament)).not.toBe(signature(first));
+  });
 });

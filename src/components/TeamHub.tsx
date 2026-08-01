@@ -15,12 +15,14 @@ import {
   qualificationProbability,
 } from "../data/tournamentEngine";
 import { AppTopbar } from "./AppTopbar";
+import { TeamFlag } from "./TeamFlag";
 
 interface Props {
   data: TournamentData;
   team: Team;
   lineupCounts: Record<number, number>;
   played: PlayedMap;
+  tournamentSeed: number;
   onBack: () => void;
   onOpenMatch: (matchId: number) => void;
   onOpenBracket: () => void;
@@ -40,10 +42,10 @@ function userResultOf(tm: TeamMatch, played: PlayedMap): UserResult | null {
   return { gf, ga, outcome: gf > ga ? "W" : gf < ga ? "L" : "D" };
 }
 
-export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch, onOpenBracket }: Props) {
+export function TeamHub({ data, team, lineupCounts, played, tournamentSeed, onBack, onOpenMatch, onOpenBracket }: Props) {
   const allMatches = getTeamMatches(data, team.team_name);
   const groupMatches = allMatches.filter((m) => m.match.stage_name === "Group Stage");
-  const standings = groupStandingsHub(data, team.group_letter, played, team.team_name);
+  const standings = groupStandingsHub(data, team.group_letter, played, team.team_name, tournamentSeed);
 
   const groupPlayedCount = groupMatches.filter((m) => played[m.match.match_id]).length;
   const groupComplete = groupPlayedCount === groupMatches.length;
@@ -55,14 +57,14 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
   const qualified = useMemo(
     () =>
       groupComplete &&
-      getQualifiers(data, allGroupStandingsFull(data, played)).some(
+      getQualifiers(data, allGroupStandingsFull(data, played, tournamentSeed)).some(
         (entry) => entry.name === team.team_name,
       ),
-    [data, played, team.team_name, groupComplete],
+    [data, played, team.team_name, groupComplete, tournamentSeed],
   );
   const advanceProbability = useMemo(
-    () => qualificationProbability(data, team.group_letter, played, team.team_name),
-    [data, team.group_letter, team.team_name, played]
+    () => qualificationProbability(data, team.group_letter, played, team.team_name, 1200, tournamentSeed),
+    [data, team.group_letter, team.team_name, played, tournamentSeed]
   );
 
   let banner: { text: string; tone: string };
@@ -85,7 +87,10 @@ export function TeamHub({ data, team, lineupCounts, played, onBack, onOpenMatch,
           ← 국가 선택
         </button>
         <div className="hub__title-block">
-          <span className="hub__code">{team.fifa_code}</span>
+          <span className="hub__code">
+            <TeamFlag fifaCode={team.fifa_code} className="hub__flag" />
+            <small>{team.fifa_code}</small>
+          </span>
           <div>
             <h1 className="hub__title">{team.team_name}</h1>
             <p className="hub__meta">
@@ -220,13 +225,19 @@ function FixtureCard({
         {featured && <span className="fixture__next-label">NEXT FIXTURE</span>}
         {locked && <span className="fixture__locked-label">🔒 LOCKED</span>}
         <div className="fixture__match">
-          <span className="fixture__team-code">{teamCode}</span>
+          <span className="fixture__team-code">
+            <TeamFlag fifaCode={teamCode} className="fixture__flag" />
+            <b>{teamCode}</b>
+          </span>
           {result ? (
             <strong className="fixture__score">{result.gf} — {result.ga}</strong>
           ) : (
             <span className="fixture__vs">VS</span>
           )}
-          <span className="fixture__team-code fixture__team-code--opp">{tm.opponentCode}</span>
+          <span className="fixture__team-code fixture__team-code--opp">
+            <TeamFlag fifaCode={tm.opponentCode} className="fixture__flag" />
+            <b>{tm.opponentCode}</b>
+          </span>
         </div>
         {!result && (
           <div className="fixture__factors">

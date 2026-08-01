@@ -193,6 +193,14 @@ export interface SimTacticProfile {
   widthBias: number;
   focusBias: number;
   setPieceBias: number;
+  /** Where the block starts pressing, independent of how deep it defends. */
+  engagementBias: number;
+  /** Positive squeezes the lines together, negative stretches them apart. */
+  compactnessBias: number;
+  /** Positive holds more players back while attacking. */
+  restDefenseBias: number;
+  /** Stepping up as a unit to play opponents offside. */
+  offsideTrapBias: number;
 }
 
 export interface SimInput {
@@ -213,6 +221,8 @@ export interface SimInput {
   oppAbility: TeamAbilityProfile;
   actual: SimActual | null;
   isKnockout: boolean;
+  /** Cautions inherited from an earlier period, keyed by player id. */
+  initialYellowCards?: Partial<Record<MatchSide, Record<number, number>>>;
 }
 
 export interface PenaltyResult {

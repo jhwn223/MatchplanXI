@@ -18,7 +18,7 @@
   margin: 0 auto;
   padding: 0;
   gap: 0;
-  grid-template-columns: var(--prematch-rail) minmax(520px, 760px) minmax(310px, 390px);
+  grid-template-columns: var(--prematch-rail) minmax(520px, 1fr) var(--prematch-rail);
   align-items: stretch;
   justify-content: stretch;
   border-inline: 1px solid #ced9ca;
@@ -507,6 +507,16 @@
   margin: 0 18px 18px;
 }
 
+.board--prematch .sub-tracker--bench {
+  position: sticky;
+  top: 54px;
+  z-index: 4;
+  margin: 12px 14px 0;
+  border-color: #ccd9c8;
+  background: rgba(247, 250, 243, .97);
+  backdrop-filter: blur(8px);
+}
+
 .board--prematch .board__pitch {
   position: relative;
   padding: 20px 20px 22px;
@@ -661,6 +671,23 @@
 .board--prematch[data-workspace="lineup"] .player-card--slot .player-card__score {
   font-weight: 900;
   text-shadow: 0 1px 2px rgba(0,0,0,.35);
+}
+
+.board--prematch[data-workspace="lineup"] .player-card--slot .player-card__condition {
+  width: 48px;
+  height: 5px;
+  margin-top: 2px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .52);
+  border-radius: 999px;
+  background: rgba(15, 35, 20, .28);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
+}
+
+.board--prematch[data-workspace="lineup"] .player-card--slot .player-card__condition i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
 }
 
 .pitch__tactic-guides {
@@ -885,25 +912,6 @@
   color: #07652e;
 }
 
-.board--prematch .board__save,
-.board--prematch .board__reset {
-  min-height: 46px;
-  padding: 0 17px;
-  border: 1px solid #c5d0c1;
-  border-radius: 11px;
-  background: #fff;
-  color: #233027;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 850;
-  cursor: pointer;
-}
-
-.board--prematch .board__reset:disabled {
-  opacity: .45;
-  cursor: not-allowed;
-}
-
 .board--prematch .kickoff-btn {
   min-width: 190px;
   min-height: 52px;
@@ -942,7 +950,7 @@
 }
 
 .board--prematch[data-workspace="tactics"] .board__body {
-  grid-template-columns: 300px minmax(640px, 1fr) minmax(310px, 370px);
+  grid-template-columns: var(--prematch-rail) minmax(640px, 1fr) var(--prematch-rail);
 }
 
 .board--prematch[data-workspace="tactics"] .board__sidebar {
@@ -975,6 +983,429 @@
   font-size: 11px;
   font-weight: 950;
   box-shadow: 0 7px 16px rgba(8, 115, 51, .2);
+}
+
+/* Halftime is a decision workspace, not a second result screen. */
+.halftime-command {
+  display: grid;
+  grid-template-columns: minmax(450px, .95fr) minmax(520px, 1.05fr);
+  width: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+  min-height: 92px;
+  padding: 0 20px;
+  border: 1px solid #d4dfd0;
+  border-top: 0;
+  background: #f8fbf5;
+  color: #16251a;
+}
+
+.halftime-command > div {
+  min-width: 0;
+  border-right: 1px solid #dde6da;
+}
+
+.halftime-command > div:last-child { border-right: 0; }
+
+.halftime-command__score {
+  display: grid;
+  align-content: center;
+  justify-items: stretch;
+  padding: 10px 28px 10px 8px;
+}
+
+.halftime-command__score > small {
+  text-align: center;
+  color: #087333;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .14em;
+}
+
+.halftime-command__score > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  margin-top: 5px;
+}
+
+.halftime-command__score span {
+  max-width: 100%;
+  overflow: hidden;
+  margin-top: 0;
+  color: #647064;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.halftime-command__score span:first-child { text-align: right; }
+.halftime-command__score span:last-child { text-align: left; }
+
+.halftime-command__score strong {
+  margin-top: 0;
+  color: #102016;
+  font-size: 34px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.halftime-command__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  padding: 13px 12px;
+}
+
+.halftime-metric {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 5px;
+  min-height: 0;
+  padding: 8px 9px;
+  border-left: 1px solid #e1e8de;
+}
+
+.halftime-metric:first-child { border-left: 0; }
+
+.halftime-metric strong {
+  color: #087333;
+  font-size: 12px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+.halftime-metric strong:last-child {
+  color: #bd2d2d;
+  text-align: right;
+}
+
+.halftime-metric span {
+  color: #748074;
+  font-size: 7px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.halftime-command__diagnosis {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 12px 18px;
+}
+
+.halftime-command__diagnosis small,
+.halftime-command__decision small {
+  color: #075f2b;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .04em;
+}
+
+.halftime-command__diagnosis strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #314033;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.halftime-command__diagnosis button {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #315b39;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.halftime-command__diagnosis button:hover { text-decoration: underline; }
+
+.halftime-command__review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 4px 12px 20px;
+}
+
+.halftime-command__review > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.halftime-command__review small {
+  color: #087333;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .06em;
+}
+
+.halftime-command__review strong {
+  overflow: hidden;
+  color: #314033;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.halftime-command__decision {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 2px 12px 18px;
+}
+
+.halftime-command__decision > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.halftime-command__decision strong,
+.halftime-command__decision span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.halftime-command__decision strong { font-size: 10px; }
+
+.halftime-command__decision span {
+  color: #6c776d;
+  font-size: 8px;
+}
+
+.halftime-command__actions {
+  display: flex;
+  gap: 5px;
+  width: auto;
+}
+
+.halftime-command__actions button {
+  min-height: 29px;
+  padding: 5px 12px;
+  border: 1px solid #cdd9c9;
+  border-radius: 8px;
+  background: #fff;
+  color: #31513a;
+  font: inherit;
+  font-size: 8px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.halftime-command__review .halftime-command__actions button:last-child {
+  border-color: #087333;
+  background: #087333;
+  color: #fff;
+}
+
+.halftime-command__apply {
+  border-color: #087333 !important;
+  background: #087333 !important;
+  color: #fff !important;
+}
+
+.halftime-command__apply:hover {
+  background: #075f2b !important;
+}
+
+.board--prematch[data-phase="halftime"] .board__sidebar,
+.board--prematch[data-phase="halftime"] .board__bench {
+  max-height: calc(100vh - 310px);
+}
+
+.board--prematch[data-phase="halftime"] .board__sidebar {
+  max-height: none;
+  overflow: visible;
+}
+
+.board--prematch[data-phase="halftime"] .board__body {
+  align-items: stretch;
+}
+
+.board--prematch[data-phase="halftime"] .board__pitch,
+.board--prematch[data-phase="halftime"] .board__bench {
+  align-self: stretch;
+  height: 100%;
+  min-height: 100%;
+  max-height: none;
+}
+
+.board--prematch[data-phase="halftime"] .board__bench {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.board--prematch[data-phase="halftime"] .board__bench > .board-side-tabs,
+.board--prematch[data-phase="halftime"] .board__bench > .sub-tracker {
+  flex: 0 0 auto;
+}
+
+.board--prematch[data-phase="halftime"] .board__bench > .bench {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.board--prematch[data-phase="halftime"][data-workspace="tactics"] .board__pitch {
+  max-height: none;
+  overflow-y: auto;
+}
+
+.board--prematch[data-phase="halftime"] .prematch-tactics-workspace {
+  min-height: 100%;
+  background: #f5f8f2;
+}
+
+.halftime-review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 34px;
+  background: rgba(18, 30, 20, .46);
+  backdrop-filter: blur(5px);
+}
+
+.halftime-review {
+  display: flex;
+  flex-direction: column;
+  width: min(1120px, calc(100vw - 68px));
+  height: min(760px, calc(100vh - 68px));
+  overflow: hidden;
+  border: 1px solid #cbd8c7;
+  border-radius: 20px;
+  background: #f7faf4;
+  box-shadow: 0 28px 80px rgba(13, 31, 18, .24);
+}
+
+.halftime-review__header {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto minmax(260px, 1fr);
+  align-items: center;
+  min-height: 76px;
+  padding: 12px 22px;
+  border-bottom: 1px solid #d6e0d2;
+  background: #fff;
+}
+
+.halftime-review__header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.halftime-review__header small {
+  color: #087333;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .1em;
+}
+
+.halftime-review__header strong { font-size: 15px; }
+
+.halftime-review__header nav {
+  display: flex;
+  padding: 4px;
+  border-radius: 10px;
+  background: #edf3e9;
+}
+
+.halftime-review__header nav button {
+  min-width: 100px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #647064;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.halftime-review__header nav button[data-active] {
+  background: #fff;
+  color: #087333;
+  box-shadow: 0 3px 10px rgba(30, 60, 34, .09);
+}
+
+.halftime-review__close {
+  justify-self: end;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: #536055;
+  font-size: 25px;
+  cursor: pointer;
+}
+
+.halftime-review__stats {
+  width: min(720px, calc(100% - 80px));
+  margin: auto;
+  padding: 26px 42px;
+  border: 1px solid #d4dfd0;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.halftime-review__teams {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e0e7dd;
+}
+
+.halftime-review__teams strong:last-child { text-align: right; }
+.halftime-review__teams span { color: #758075; font-size: 9px; font-weight: 850; }
+
+.halftime-review > .match-analysis-board {
+  flex: 1;
+  min-height: 0;
+  margin: 18px;
+  overflow: hidden;
+  border: 1px solid #d4dfd0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.halftime-review > .match-analysis-board > aside,
+.halftime-review > .match-analysis-board > section {
+  overflow: auto;
+}
+.prematch-tactic-summary__team > span small,
+.opponent-report__header > span small {
+  color: inherit;
+  font-size: 8px;
+  line-height: 1;
+}
+.prematch-tactic-summary__flag,
+.opponent-report__flag,
+.match-tactics-editor__flag {
+  width: 29px;
+  height: 21px;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,.7);
+  border-radius: 4px;
 }
 
 .prematch-tactic-summary__team div {
@@ -1217,7 +1648,7 @@
   }
 
   .board--prematch[data-workspace="tactics"] .board__body {
-    grid-template-columns: 280px minmax(560px, 1fr) 310px;
+    grid-template-columns: 280px minmax(560px, 1fr) 280px;
   }
 
   .board--prematch .board__action-metric--estimate {
@@ -1266,8 +1697,7 @@
   }
 
   .tactic-risk-list,
-  .board--prematch .board__action-metric--estimate,
-  .board--prematch .board__save {
+  .board--prematch .board__action-metric--estimate {
     display: none;
   }
 }
@@ -1328,7 +1758,11 @@
 }
 
 .opponent-report__header > span {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   width: 48px;
   height: 48px;
   place-items: center;
@@ -1731,4 +2165,31 @@
   font-size: 9px;
   font-weight: 850;
   cursor: pointer;
+}
+
+/* Interval columns use the same viewport as the pre-match workspace.
+   Kept last so generic and responsive rules cannot shorten the right rail. */
+.board--prematch[data-phase="halftime"] .board__pitch,
+.board--prematch[data-phase="halftime"] .board__bench {
+  display: block;
+  align-self: stretch;
+  height: auto;
+  min-height: 0;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.board--prematch[data-phase="halftime"] .board__bench > .board-side-tabs,
+.board--prematch[data-phase="halftime"] .board__bench > .sub-tracker {
+  position: sticky;
+  z-index: 5;
+}
+
+.board--prematch[data-phase="halftime"] .board__bench > .board-side-tabs { top: 0; }
+.board--prematch[data-phase="halftime"] .board__bench > .sub-tracker { top: 54px; }
+
+.board--prematch[data-phase="halftime"] .board__bench > .bench {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
 }

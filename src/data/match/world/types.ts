@@ -63,6 +63,8 @@ export interface MatchWorld {
   lastPossessionSide: MatchSide | null;
   previousPossessionSide: MatchSide | null;
   possessionChangedAt: number;
+  /** Persistent across one-minute simulation chunks and half-time remounts. */
+  yellowCards: Record<MatchSide, Map<number, number>>;
 }
 
 export type TacticsBySide = Record<MatchSide, SimTacticProfile>;
