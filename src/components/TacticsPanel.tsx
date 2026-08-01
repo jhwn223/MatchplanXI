@@ -1,4 +1,5 @@
-import { FORMATIONS, FORMATION_KEYS, type FormationKey } from "../data/formation";
+import { FORMATION_KEYS, type FormationKey } from "../data/formation";
+import { attackBiasLabel, formationTraits } from "../data/formationTraits";
 import { TACTIC_STYLES, recommendedStylesFor, type TacticStyleKey } from "../data/tactics";
 
 interface Props {
@@ -16,14 +17,6 @@ interface Props {
   subsLocked?: boolean;
 }
 
-function biasLabel(bias: number): string {
-  if (bias >= 0.7) return "초공격";
-  if (bias >= 0.3) return "공격";
-  if (bias <= -0.5) return "수비";
-  if (bias <= -0.2) return "안정";
-  return "균형";
-}
-
 export function TacticsPanel({
   selectedFormation,
   detectedFormation,
@@ -36,7 +29,7 @@ export function TacticsPanel({
   subsLocked = false,
 }: Props) {
   const lockedTitle = "남은 교체 인원 안에서 최적 조합을 배치합니다";
-  const formationMeta = FORMATIONS[selectedFormation];
+  const traits = formationTraits(selectedFormation);
   const recommended = recommendedStylesFor(selectedFormation);
 
   return (
@@ -65,17 +58,28 @@ export function TacticsPanel({
           ⚡ 자동 배치 (최적 11인)
         </button>
         <span className="tactics-panel__hint">
-          감지된 형태 {detectedFormation} · {biasLabel(attackBias)}
+          감지된 형태 {detectedFormation} · {attackBiasLabel(attackBias)}
         </span>
       </div>
 
       <div className="tactics-panel__section">
         <span className="tactics-panel__label">{selectedFormation} 장단점</span>
+        {/* The counts the simulation itself reads. Showing them makes it plain
+            that the notes below are measured from the shape, not written by
+            hand about it. */}
+        <div className="formation-commitment" aria-label="지역별 배치 인원">
+          {([["수비", 0], ["중원", 1], ["공격", 2]] as const).map(([label, index]) => (
+            <span key={label}>
+              {label}
+              <strong>{traits.commitment[index]}</strong>
+            </span>
+          ))}
+        </div>
         <div className="formation-summary">
           <div className="formation-summary__col formation-summary__col--pros">
             <strong>👍 장점</strong>
             <ul>
-              {formationMeta.pros.map((point) => (
+              {traits.pros.map((point) => (
                 <li key={point}>{point}</li>
               ))}
             </ul>
@@ -83,7 +87,7 @@ export function TacticsPanel({
           <div className="formation-summary__col formation-summary__col--cons">
             <strong>👎 단점</strong>
             <ul>
-              {formationMeta.cons.map((point) => (
+              {traits.cons.map((point) => (
                 <li key={point}>{point}</li>
               ))}
             </ul>

@@ -668,7 +668,21 @@
 }
 
 .board--prematch[data-workspace="lineup"] .pitch-slot {
-  transition: left 220ms cubic-bezier(.2,.8,.2,1), top 220ms cubic-bezier(.2,.8,.2,1);
+  /* Keep the player card at its current visual size, but make the whole
+     rectangle a drop target just like the in-match squad screen. */
+  width: 88px;
+  height: 90px;
+  border-radius: 16px;
+  transition:
+    left 220ms cubic-bezier(.2,.8,.2,1),
+    top 220ms cubic-bezier(.2,.8,.2,1),
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.board--prematch[data-workspace="lineup"] .pitch-slot[data-over="true"] {
+  background: rgba(219, 246, 220, .2);
+  box-shadow: inset 0 0 0 2px rgba(166, 230, 172, .82);
 }
 
 .board--prematch[data-workspace="lineup"] .player-card--slot .player-card__ring {
