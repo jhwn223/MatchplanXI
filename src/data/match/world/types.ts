@@ -54,6 +54,16 @@ export interface WorldBallState extends WorldPoint {
   ownerId: number | null;
 }
 
+export interface WorldFatigueState {
+  /** Unrounded condition retained between chunks so one-minute steps do not lose fractional fatigue. */
+  condition: number;
+  updatedAtMinute: number;
+  totalLoss: number;
+  tacticalLoss: number;
+}
+
+export type PlayerUnavailableReason = "dismissed" | "injured";
+
 export interface MatchWorld {
   minute: number;
   elapsedSeconds: number;
@@ -65,6 +75,10 @@ export interface MatchWorld {
   possessionChangedAt: number;
   /** Persistent across one-minute simulation chunks and half-time remounts. */
   yellowCards: Record<MatchSide, Map<number, number>>;
+  /** Authoritative accumulated fatigue; current tactics apply only after updatedAtMinute. */
+  fatigueByPlayer: Record<MatchSide, Map<number, WorldFatigueState>>;
+  /** Players in this map cannot be reintroduced into the active simulation. */
+  unavailablePlayers: Record<MatchSide, Map<number, PlayerUnavailableReason>>;
 }
 
 export type TacticsBySide = Record<MatchSide, SimTacticProfile>;

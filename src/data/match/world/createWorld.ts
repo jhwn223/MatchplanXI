@@ -4,6 +4,7 @@ import type { MatchSide, PlacedPlayerLite, SimInput } from "../types";
 import type {
   MatchWorld,
   TacticsBySide,
+  WorldFatigueState,
   WorldPlayerState,
 } from "./types";
 
@@ -74,6 +75,14 @@ export function createMatchWorld(
       count,
     ]),
   );
+  const initialFatigue = (players: PlacedPlayerLite[]) => new Map<number, WorldFatigueState>(
+    players.map((player) => [player.playerId, {
+      condition: player.condition,
+      updatedAtMinute: Math.max(0, player.enteredAtMinute ?? 0),
+      totalLoss: 0,
+      tacticalLoss: 0,
+    }]),
+  );
   return {
     minute,
     // The world clock is the match clock: seconds since kickoff. A world
@@ -97,6 +106,14 @@ export function createMatchWorld(
       user: initialYellowCards("user"),
       opp: initialYellowCards("opp"),
     },
+    fatigueByPlayer: {
+      user: initialFatigue(input.placed),
+      opp: initialFatigue(input.oppPlaced),
+    },
+    unavailablePlayers: {
+      user: new Map(),
+      opp: new Map(),
+    },
   };
 }
 
@@ -119,24 +136,40 @@ export function continueMatchWorld(
     side: MatchSide,
     players: PlacedPlayerLite[],
   ) => new Map(
-    players.map((player) => {
-      const existing = previous.players[side].get(player.playerId);
-      if (!existing) {
+    players
+      .filter((player) => !previous.unavailablePlayers[side].has(player.playerId))
+      .map((player) => {
+        const existing = previous.players[side].get(player.playerId);
+        if (!existing) {
+          return [
+            player.playerId,
+            createPlayerState(input, minute, side, player, tactics),
+          ] as const;
+        }
         return [
           player.playerId,
-          createPlayerState(input, minute, side, player, tactics),
+          {
+            ...existing,
+            player,
+            target: { ...existing.target },
+          },
         ] as const;
-      }
-      return [
-        player.playerId,
-        {
-          ...existing,
-          player,
-          target: { ...existing.target },
-        },
-      ] as const;
-    }),
+      }),
   );
+
+  const reconcileFatigue = (side: MatchSide, players: PlacedPlayerLite[]) => {
+    const fatigue = new Map(previous.fatigueByPlayer[side]);
+    for (const player of players) {
+      if (fatigue.has(player.playerId)) continue;
+      fatigue.set(player.playerId, {
+        condition: player.condition,
+        updatedAtMinute: Math.max(0, player.enteredAtMinute ?? minute),
+        totalLoss: 0,
+        tacticalLoss: 0,
+      });
+    }
+    return fatigue;
+  };
 
   const players = {
     user: reconcileSide("user", input.placed),
@@ -163,6 +196,14 @@ export function continueMatchWorld(
       user: new Map(previous.yellowCards.user),
       opp: new Map(previous.yellowCards.opp),
     },
+    fatigueByPlayer: {
+      user: reconcileFatigue("user", input.placed),
+      opp: reconcileFatigue("opp", input.oppPlaced),
+    },
+    unavailablePlayers: {
+      user: new Map(previous.unavailablePlayers.user),
+      opp: new Map(previous.unavailablePlayers.opp),
+    },
   };
 
   for (const side of ["user", "opp"] as MatchSide[]) {
@@ -188,4 +229,3 @@ export function continueMatchWorld(
 
   return world;
 }
-

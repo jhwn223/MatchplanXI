@@ -16,6 +16,11 @@ import {
   beginPossession,
 } from "./world/movementEngine";
 import {
+  accrueActiveFatigue,
+  markPlayerUnavailable,
+  runtimeInputForWorld,
+} from "./world/playerState";
+import {
   attackFocusLaneWeight,
   defensiveLineHeight,
   defensiveThirdCover,
@@ -175,16 +180,18 @@ export function simulatePeriodWithWorld(
   const playerStats = createPlayerStats(input);
   const snapshots = new Map<number, ReturnType<typeof createLiveSnapshot>>();
   const periodStartMinute = Math.max(0, lo - 1);
-  const commitment: Record<MatchSide, number[]> = {
-    user: commitmentByThird(input.placed),
-    opp: commitmentByThird(input.oppPlaced),
-  };
   const userTactics = tacticsForSide(input, "user");
   const oppTactics = tacticsForSide(input, "opp");
   const tacticsBySide = { user: userTactics, opp: oppTactics };
   let world = previousWorld
     ? continueMatchWorld(previousWorld, input, lo, tacticsBySide)
     : createMatchWorld(input, lo, tacticsBySide);
+  const runtimeInput = runtimeInputForWorld(input, world);
+  const activeSidePlayers = (side: MatchSide) =>
+    sidePlayers(runtimeInput, side).filter(
+      (player) => !world.unavailablePlayers[side].has(player.playerId),
+    );
+  const commitment = (side: MatchSide) => commitmentByThird(activeSidePlayers(side));
   const eloEdge = (input.userElo - input.oppElo) / 600;
   const creativityEdge = (input.userAbility.creativity - input.oppAbility.creativity) / 120;
   const tacticalPossessionEdge =
@@ -202,7 +209,7 @@ export function simulatePeriodWithWorld(
   );
   snapshots.set(
     periodStartMinute,
-    createLiveSnapshot(input, periodStartMinute, running, playerStats, goals, periodStartMinute)
+    createLiveSnapshot(runtimeInput, periodStartMinute, running, playerStats, goals, periodStartMinute)
   );
 
   // One clock drives everything: `world.elapsedSeconds` is seconds since
@@ -229,7 +236,7 @@ export function simulatePeriodWithWorld(
     let remaining = Math.max(0, seconds);
     while (remaining > 0.001) {
       const slice = Math.min(12, remaining);
-      advanceWorld(world, input, tacticsBySide, slice, tickLength);
+      advanceWorld(world, runtimeInput, tacticsBySide, slice, tickLength);
       remaining -= slice;
     }
     world.ball.x = ballX;
@@ -284,7 +291,7 @@ export function simulatePeriodWithWorld(
     success: boolean,
   ) => coordinateFromWorld(
     world,
-    input,
+    runtimeInput,
     tacticsBySide,
     side,
     type,
@@ -395,6 +402,15 @@ export function simulatePeriodWithWorld(
       running[offendingSide].redCards++;
       if (stats) stats.redCards++;
       addEvent(offendingSide, "redCard", offender, victim, false);
+      markPlayerUnavailable(
+        world,
+        runtimeInput,
+        offendingSide,
+        offender,
+        "dismissed",
+        currentMinute(),
+        tactics,
+      );
       return;
     }
     const previousYellows = world.yellowCards[offendingSide].get(offender.playerId) ?? 0;
@@ -418,6 +434,15 @@ export function simulatePeriodWithWorld(
       running[offendingSide].redCards++;
       if (stats) stats.redCards++;
       addEvent(offendingSide, "redCard", offender, victim, false);
+      markPlayerUnavailable(
+        world,
+        runtimeInput,
+        offendingSide,
+        offender,
+        "dismissed",
+        currentMinute(),
+        tactics,
+      );
       return;
     }
     running[offendingSide].yellowCards++;
@@ -461,7 +486,7 @@ export function simulatePeriodWithWorld(
     }
     const sideTactics = side === "user" ? userTactics : oppTactics;
     const defendingSide = otherSide(side);
-    const candidates = outfield(sidePlayers(input, side));
+    const candidates = outfield(activeSidePlayers(side));
     if (kind === "corner") running[side].corners++;
     addEvent(side, kind, taker, keeperPlayer, true);
 
@@ -515,7 +540,7 @@ export function simulatePeriodWithWorld(
         shooterStats.shotsOnTarget++;
         shooterStats.goals++;
       }
-      for (const defender of sidePlayers(input, defendingSide)) {
+      for (const defender of activeSidePlayers(defendingSide)) {
         if (defender.position !== "GK" && defender.position !== "DEF") continue;
         const stat = playerStat(playerStats, defendingSide, defender);
         if (stat) stat.goalsConceded++;
@@ -572,8 +597,8 @@ export function simulatePeriodWithWorld(
       const previous = world.lastPossessionSide;
       if (previous == null) return rng() < userPossessionChance ? "user" : "opp";
       const userThird = thirdOf(world.ball.x);
-      const userBodies = commitment.user[userThird];
-      const oppBodies = commitment.opp[2 - userThird];
+      const userBodies = commitment("user")[userThird];
+      const oppBodies = commitment("opp")[2 - userThird];
       const userShare = clamp(
         0.5 + (userBodies - oppBodies) * 0.09 + (previous === "user" ? -0.16 : 0.16),
         0.12,
@@ -583,10 +608,10 @@ export function simulatePeriodWithWorld(
     };
     const side: MatchSide = ownerSide ?? contestedSide();
     const defendingSide = otherSide(side);
-    const attackers = outfield(sidePlayers(input, side));
-    const possessionPlayers = sidePlayers(input, side);
-    const defenders = outfield(sidePlayers(input, defendingSide));
-    const keeperPlayer = goalkeeper(sidePlayers(input, defendingSide));
+    const attackers = outfield(activeSidePlayers(side));
+    const possessionPlayers = activeSidePlayers(side);
+    const defenders = outfield(activeSidePlayers(defendingSide));
+    const keeperPlayer = goalkeeper(activeSidePlayers(defendingSide));
     // Without a playable squad there is no action that could advance the
     // clock, so stop rather than spin.
     if (!attackers.length || !defenders.length || !keeperPlayer) break;
@@ -603,7 +628,7 @@ export function simulatePeriodWithWorld(
       sideTactics,
       defendingTactics,
       possessionPlayers,
-      sidePlayers(input, defendingSide),
+      activeSidePlayers(defendingSide),
     );
     // How much space the defending side has left behind and around itself.
     // Every term is a deliberate choice that side made to gain something
@@ -642,7 +667,7 @@ export function simulatePeriodWithWorld(
       const ballCanonical = side === "user" ? world.ball.x : 100 - world.ball.x;
       const attackingThird = thirdOf(ballCanonical);
       return clamp(
-        commitment[defendingSide][2 - attackingThird] - commitment[side][attackingThird],
+        commitment(defendingSide)[2 - attackingThird] - commitment(side)[attackingThird],
         -2,
         4,
       );
@@ -989,6 +1014,7 @@ export function simulatePeriodWithWorld(
             0.18,
           ) * penaltyAreaRestraint(duelX);
           if (rng() < foulChance) {
+            let setPieceTaker = carrier;
             running[defendingSide].fouls++;
             if (defenderStats) defenderStats.foulsCommitted++;
             addEvent(defendingSide, "foul", defender, carrier, false);
@@ -997,10 +1023,20 @@ export function simulatePeriodWithWorld(
               running[side].injuries++;
               if (carrierStats) carrierStats.injuries++;
               addEvent(side, "injury", carrier, defender, false);
+              markPlayerUnavailable(
+                world,
+                runtimeInput,
+                side,
+                carrier,
+                "injured",
+                currentMinute(),
+                sideTactics,
+              );
+              setPieceTaker = activeSidePlayers(side)[0] ?? carrier;
             }
             resolveSetPiece(side,
               duelX >= PENALTY_AREA_X ? "penaltyKick" : "freeKick",
-              carrier,
+              setPieceTaker,
               keeperPlayer,
             );
             break;
@@ -1169,7 +1205,7 @@ export function simulatePeriodWithWorld(
       // front line get in each other's way and, worse, are not behind the ball
       // building the move that would reach them — so stacking the attacking
       // third has to give diminishing returns rather than multiplying chances.
-      const crowding = clamp(1 - Math.max(0, commitment[side][2] - 4) * 0.13, 0.4, 1);
+      const crowding = clamp(1 - Math.max(0, commitment(side)[2] - 4) * 0.13, 0.4, 1);
       const spaceToShoot = (throughOnGoal ? 1.5 : 0.55 + openness * 0.78) * crowding;
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
@@ -1317,7 +1353,7 @@ export function simulatePeriodWithWorld(
           const assisterStats = playerStat(playerStats, side, lastPasser);
           if (assisterStats) assisterStats.assists++;
         }
-        for (const defenderPlayer of sidePlayers(input, defendingSide)) {
+        for (const defenderPlayer of activeSidePlayers(defendingSide)) {
           if (defenderPlayer.position !== "GK" && defenderPlayer.position !== "DEF") continue;
           const defenderStats = playerStat(playerStats, defendingSide, defenderPlayer);
           if (defenderStats) defenderStats.goalsConceded++;
@@ -1388,7 +1424,7 @@ export function simulatePeriodWithWorld(
     const snapshotMinute = currentMinute();
     snapshots.set(
       snapshotMinute,
-      createLiveSnapshot(input, snapshotMinute, running, playerStats, goals, periodStartMinute),
+      createLiveSnapshot(runtimeInput, snapshotMinute, running, playerStats, goals, periodStartMinute),
     );
   }
 
@@ -1406,7 +1442,8 @@ export function simulatePeriodWithWorld(
   events.sort(
     (a, b) => (a.timestamp ?? a.minute - 1) - (b.timestamp ?? b.minute - 1),
   );
-  snapshots.set(hi, createLiveSnapshot(input, hi, running, playerStats, goals, periodStartMinute));
+  accrueActiveFatigue(world, runtimeInput, hi, tacticsBySide);
+  snapshots.set(hi, createLiveSnapshot(runtimeInput, hi, running, playerStats, goals, periodStartMinute));
   return {
     result: {
       goals,
@@ -1417,7 +1454,7 @@ export function simulatePeriodWithWorld(
       userXg: running.user.xg,
       oppXg: running.opp.xg,
       teamStats: finalizeTeamStatsPair(running),
-      playerStats: finalizePlayerStats(input, playerStats, hi, periodStartMinute),
+      playerStats: finalizePlayerStats(runtimeInput, playerStats, hi, periodStartMinute),
       liveSnapshots: [...snapshots.values()].sort((a, b) => a.minute - b.minute),
     },
     world,
