@@ -141,7 +141,7 @@ export function MatchBoardScreen({
         <div className="board__match">
           <span className="board__stage">{stageLabelKo(match.stage_name)}</span>
           <span className="board__teams">
-            {team.team_name} <span className="board__vs">{activeMatch.isHome ? "vs" : "@"}</span>{" "}
+            {team.team_name} <span className="board__vs">vs</span>{" "}
             {activeMatch.opponentName}
           </span>
           <span className="board__stadium">
