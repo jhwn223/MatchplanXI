@@ -347,6 +347,36 @@ describe("match engine invariants", () => {
     }
   });
 
+  test("a clear Elo advantage improves results without pre-deciding them", () => {
+    const sampleSize = 24;
+    const level = Array.from({ length: sampleSize }, (_, seed) =>
+      simulatePeriod(input(seed + 1000), 1, 90, 0),
+    );
+    const stronger = Array.from({ length: sampleSize }, (_, seed) => {
+      const match = input(seed + 1000);
+      match.userElo = 1850;
+      match.oppElo = 1600;
+      return simulatePeriod(match, 1, 90, 0);
+    });
+    const averageGoalDifference = (results: typeof stronger) =>
+      results.reduce(
+        (sum, result) => sum + result.userGoals - result.oppGoals,
+        0,
+      ) / results.length;
+    const strongerWins = stronger.filter(
+      (result) => result.userGoals > result.oppGoals,
+    ).length;
+    const strongerNonWins = stronger.length - strongerWins;
+
+    expect(averageGoalDifference(stronger)).toBeGreaterThan(
+      averageGoalDifference(level),
+    );
+    expect(strongerWins).toBeGreaterThan(strongerNonWins);
+    // The cap is intentional: an Elo edge improves repeated decisions but
+    // never turns a match into a predetermined result.
+    expect(strongerNonWins).toBeGreaterThan(0);
+  });
+
   test("successful passes preserve the carrier inside each possession", () => {
     const result = simulatePeriod(input(77), 1, 90, 0);
     const possessions = new Map<string, typeof result.events>();

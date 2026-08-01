@@ -413,13 +413,27 @@ function enforceSpacingAndLines(state: ArenaState, dt: number) {
       .filter(({ dot }) => dot.team === team && dot.role === "DEF");
     if (defenders.length) {
       const phase = state.movement?.phaseByTeam[team] ?? "defensiveBlock";
-      const targetLineX = defenders.reduce(
-        (sum, { dot }) => sum + relativeShapeTarget(state, dot, undefined, phase).x,
-        0,
-      ) / defenders.length;
-      for (const { dot, index } of defenders) {
-        if (busy.has(index)) continue;
-        dot.x = approachBand(dot.x, targetLineX - 5.5, targetLineX + 5.5, lineStep);
+      const targets = defenders.map(({ dot, index }) => ({
+        dot,
+        index,
+        targetX: relativeShapeTarget(state, dot, undefined, phase).x,
+      }));
+      // A full-back sent forward has left the back line. Banding every
+      // defender around its mean target held overlapping full-backs level with
+      // the centre-backs, so the run the shape asked for never appeared here
+      // either. See the same guard in the simulation's movement engine.
+      const forward = team === 0 ? 1 : -1;
+      const meanTarget = targets.reduce((sum, entry) => sum + entry.targetX, 0) / targets.length;
+      const holdingLine = targets.filter(
+        (entry) => (entry.targetX - meanTarget) * forward <= 12,
+      );
+      if (holdingLine.length) {
+        const targetLineX =
+          holdingLine.reduce((sum, entry) => sum + entry.targetX, 0) / holdingLine.length;
+        for (const { dot, index } of holdingLine) {
+          if (busy.has(index)) continue;
+          dot.x = approachBand(dot.x, targetLineX - 5.5, targetLineX + 5.5, lineStep);
+        }
       }
     }
     const keeperIndex = state.dots.findIndex((dot) => dot.team === team && dot.role === "GK");

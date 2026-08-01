@@ -301,11 +301,13 @@ export function passOptionScore(
   // at all — square and backward balls scored exactly the same as a ball
   // played up the pitch — and a short-passing side actively preferred to
   // retreat.
-  const forwardFit = clamp(1 + forwardDistance * (0.5 + directness) / 50, 0.4, 1.9);
+  const forwardFit = clamp(1 + forwardDistance * (0.8 + directness) / 50, 0.4, 2.1);
   const roleWeight =
-    receiver.position === "GK" ? 0.18 :
+    // A forward is the point of the move, not a less likely option than the
+    // defender behind you.
+    receiver.position === "GK" ? 0.14 :
       receiver.position === "MID" ? 2.2 :
-        receiver.position === "DEF" ? 1.45 : 1.7;
+        receiver.position === "DEF" ? 1.2 : 2.1;
   const intelligence =
     0.5 + (receiver.positioning + receiver.reactions + receiver.ballControl) / 270;
   const focusFit = attackFocusLaneWeight(

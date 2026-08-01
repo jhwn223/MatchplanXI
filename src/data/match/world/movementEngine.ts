@@ -235,15 +235,18 @@ function targetForPlayer(
   }
   if (ownsBall) {
     const focusPull = focusAmount * (focusedLaneY - state.y) * 0.16;
+    // A player on the ball looks to go forward. Nudging him three metres and
+    // then tethering him to within five of his slot made every carry look like
+    // a man holding position rather than driving at the defence.
     const desired = {
-      x: state.x + dir * (phase === "transitionAttack" ? 5 : 3),
+      x: state.x + dir * (phase === "transitionAttack" ? 9 : 6),
       y: state.y + (shape.y - state.y) * 0.28 + focusPull,
     };
     return {
       point: constrainToAnchor(
         shape,
         desired,
-        player.position === "FWD" ? 14 : player.position === "MID" ? 5 : 6,
+        player.position === "FWD" ? 17 : player.position === "MID" ? 9 : 9,
         player.position === "FWD" ? 14 : 12,
       ),
       intent: "carry",
@@ -251,7 +254,15 @@ function targetForPlayer(
   }
   if (hasBall) {
     const nearbySupportRank = nearbySupportIds.indexOf(player.playerId);
-    if (nearbySupportRank >= 0 && player.position !== "FWD") {
+    // A full-back who has already gone past the ball is making an overlap, not
+    // offering support behind it. Dragging him back to `ball.x - 7` because he
+    // happened to be one of the two nearest team-mates cancelled the run at
+    // exactly the moment it mattered.
+    const overlapping =
+      player.position === "DEF" &&
+      Math.abs(player.baseY - 50) > 18 &&
+      (side === "user" ? shape.x > world.ball.x - 4 : shape.x < world.ball.x + 4);
+    if (nearbySupportRank >= 0 && player.position !== "FWD" && !overlapping) {
       const focusSupport = focusAmount * (focusedLaneY - world.ball.y) * 0.22;
       const desired = {
         x: world.ball.x - dir * (7 + nearbySupportRank * 2),
@@ -370,7 +381,12 @@ function movePlayer(
   const performance = state.movementFactor ?? 1;
   const pace = (state.player.pace * 0.62 + state.player.acceleration * 0.38) / 100;
   const intelligence = clamp((state.player.positioning + state.player.reactions) / 180, 0.65, 1.1);
-  const maxSpeed = (2.5 + pace * 3.4) * performance * intelligence;
+  // A player a long way from where he needs to be is sprinting, not jogging.
+  // At one flat speed an overlapping full-back needed ten seconds to cover his
+  // run and a possession does not last that long, so the overlap never
+  // actually happened on the pitch however far forward his target moved.
+  const sprint = clamp(1 + (remaining - 8) / 26, 1, 1.6);
+  const maxSpeed = (2.5 + pace * 3.4) * performance * intelligence * sprint;
   const step = Math.min(remaining, maxSpeed * seconds);
   state.vx = (dx / remaining) * (step / Math.max(seconds, 0.001));
   state.vy = (dy / remaining) * (step / Math.max(seconds, 0.001));
@@ -440,9 +456,24 @@ function enforceSpacingAndLines(
       (state) => state.player.position === "DEF",
     );
     if (defenders.length) {
-      const targetLineX = defenders.reduce((sum, state) => sum + state.target.x, 0) / defenders.length;
-      for (const defender of defenders) {
-        defender.x = approachBand(defender.x, targetLineX - 5.5, targetLineX + 5.5, lineStep);
+      // A full-back who has been sent forward has left the back line; he is on
+      // an overlap, not holding a position in it. Forcing every defender into
+      // one band around the line's mean target is what tied full-backs to the
+      // centre-backs: with his own target at the byline and three team-mates
+      // sitting deep, the mean dragged him back and he stopped dead just past
+      // halfway, whatever his instruction said.
+      const forward = side === "user" ? 1 : -1;
+      const meanTarget =
+        defenders.reduce((sum, state) => sum + state.target.x, 0) / defenders.length;
+      const holdingLine = defenders.filter(
+        (state) => (state.target.x - meanTarget) * forward <= 12,
+      );
+      if (holdingLine.length) {
+        const targetLineX =
+          holdingLine.reduce((sum, state) => sum + state.target.x, 0) / holdingLine.length;
+        for (const defender of holdingLine) {
+          defender.x = approachBand(defender.x, targetLineX - 5.5, targetLineX + 5.5, lineStep);
+        }
       }
     }
     const keeper = [...world.players[side].values()].find(

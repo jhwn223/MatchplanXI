@@ -1253,13 +1253,17 @@
 }
 
 .board--prematch[data-phase="halftime"] .board__sidebar {
-  overflow: visible;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .board--prematch[data-phase="halftime"] .board__body {
   align-items: stretch;
 }
 
+.board--prematch[data-phase="halftime"] .board__sidebar,
 .board--prematch[data-phase="halftime"] .board__pitch,
 .board--prematch[data-phase="halftime"] .board__bench {
   align-self: stretch;
@@ -2047,6 +2051,7 @@
 
 /* Interval columns use the same viewport as the pre-match workspace.
    Kept last so generic and responsive rules cannot shorten the right rail. */
+.board--prematch[data-phase="halftime"] .board__sidebar,
 .board--prematch[data-phase="halftime"] .board__pitch,
 .board--prematch[data-phase="halftime"] .board__bench {
   display: block;

@@ -189,6 +189,8 @@ export interface SimTacticProfile {
   attackBias: number;
   pressBias: number;
   overlapBias: number;
+  /** How far the full-backs actually bomb on, separate from general width. */
+  fullbackPushBias: number;
   directnessBias: number;
   counterBias: number;
   tempoBias: number;

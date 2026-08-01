@@ -310,6 +310,15 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
       1,
     ),
     pressBias: clamp(defensePress[tactics.defenseStyle] * 0.45 + depth * 0.2 + pressing * 0.55 + workRate * 0.2, -1, 1),
+    // Kept separate from `overlapBias`, which blends in team width and set
+    // pieces and so never got near its extremes. How far a full-back runs is
+    // decided by his own instruction, and it has to be able to reach the top
+    // of the scale or the run never happens.
+    fullbackPushBias: clamp(
+      fullbackOverlap * 1.15 + widePlay * 0.35 + teamWidth * 0.12,
+      -1,
+      1,
+    ),
     overlapBias: clamp(
       teamWidth * 0.3 +
         boxCommitment * 0.2 +

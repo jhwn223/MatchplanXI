@@ -58,6 +58,21 @@ function averagePace(players: PlacedPlayerLite[], position: PlacedPlayerLite["po
 }
 
 /**
+ * Elo represents the team-level organisation that is not fully described by
+ * one player's attributes: spacing, collective decision making and the
+ * repeatability of good actions. Keep it deliberately bounded so a better
+ * plan, fresher players and the individual duels can still overturn it.
+ */
+function eloPerformanceEdge(userElo: number, oppElo: number) {
+  return clamp((userElo - oppElo) / 400, -1, 1);
+}
+
+function eloQualityMultiplier(edge: number, side: MatchSide) {
+  const sideEdge = side === "user" ? edge : -edge;
+  return clamp(1 + sideEdge * 0.15, 0.86, 1.15);
+}
+
+/**
  * Rewards a plan that specifically attacks the opponent's current structure.
  * This is recalculated for every simulated minute, so an in-match tactical
  * change affects the very next possession instead of a precomputed result.
@@ -192,14 +207,14 @@ export function simulatePeriodWithWorld(
       (player) => !world.unavailablePlayers[side].has(player.playerId),
     );
   const commitment = (side: MatchSide) => commitmentByThird(activeSidePlayers(side));
-  const eloEdge = (input.userElo - input.oppElo) / 600;
+  const eloEdge = eloPerformanceEdge(input.userElo, input.oppElo);
   const creativityEdge = (input.userAbility.creativity - input.oppAbility.creativity) / 120;
   const tacticalPossessionEdge =
     (oppTactics.directnessBias - userTactics.directnessBias) * 0.018 +
     (userTactics.pressBias - oppTactics.pressBias) * 0.012;
   const userPossessionChance = clamp(
     0.5 +
-      eloEdge * 0.06 +
+      eloEdge * 0.075 +
       creativityEdge * 0.08 -
       (input.attackBias - (input.oppAttackBias ?? 0)) * 0.025 +
       tacticalPossessionEdge +
@@ -501,8 +516,14 @@ export function simulatePeriodWithWorld(
         );
     if (rng() >= deliveryChance || !candidates.length) return;
 
+    // A goalkeeper can end up carrying the ball out of defence, and a foul on
+    // him was handing him the resulting spot kick to take himself.
+    const outfieldTaker =
+      taker.position === "GK"
+        ? weightedPick(candidates, (player) => 0.5 + player.penalties / 100, rng)
+        : taker;
     const shooter = kind === "penaltyKick"
-      ? taker
+      ? outfieldTaker
       : weightedPick(
           candidates,
           (player) =>
@@ -599,8 +620,15 @@ export function simulatePeriodWithWorld(
       const userThird = thirdOf(world.ball.x);
       const userBodies = commitment("user")[userThird];
       const oppBodies = commitment("opp")[2 - userThird];
+      // The better side wins more of the loose balls. Team strength used to
+      // reach the match through the opening possession alone, which left a
+      // two-hundred-point rating gap deciding almost nothing.
       const userShare = clamp(
-        0.5 + (userBodies - oppBodies) * 0.09 + (previous === "user" ? -0.16 : 0.16),
+        0.5 +
+          (userBodies - oppBodies) * 0.09 +
+          eloEdge * 0.1 +
+          creativityEdge * 0.05 +
+          (previous === "user" ? -0.16 : 0.16),
         0.12,
         0.88,
       );
@@ -641,6 +669,9 @@ export function simulatePeriodWithWorld(
     const counterEdge = clamp(sideTactics.counterBias - defendingTactics.counterBias, -1.5, 1.5);
     const sideWorkRate = tacticalWorkRate(sideTactics, minute);
     const defendingWorkRate = tacticalWorkRate(defendingTactics, minute);
+    const sideStrengthEdge = side === "user" ? eloEdge : -eloEdge;
+    const sideQualityMultiplier = eloQualityMultiplier(eloEdge, side);
+    const defendingQualityMultiplier = eloQualityMultiplier(eloEdge, defendingSide);
     const matchupEdge = tacticalMatchupEdge(
       sideTactics,
       defendingTactics,
@@ -705,7 +736,7 @@ export function simulatePeriodWithWorld(
       rng() <
       clamp(
         0.76 -
-          lineRisk * 0.12 -
+          lineRisk * 0.09 -
           (receiver.positioning - 68) / 320 -
           (receiver.pace - 68) / 380 +
           defendingTactics.offsideTrapBias * 0.13,
@@ -826,13 +857,13 @@ export function simulatePeriodWithWorld(
         [passer.vision, 0.14],
         [passer.ballControl, 0.12],
         [passer.composure, 0.08],
-      ], "technical", sideTactics) * sideWorkRate;
+      ], "technical", sideTactics) * sideWorkRate * sideQualityMultiplier;
       const pressureQuality = skill(pressingDefender, minute, input.elevation, [
         [pressingDefender.interceptions, 0.38],
         [pressingDefender.defensiveAwareness, 0.28],
         [pressingDefender.reactions, 0.2],
         [pressingDefender.aggression, 0.14],
-      ], "decision", defendingTactics) * defendingWorkRate * (
+      ], "decision", defendingTactics) * defendingWorkRate * defendingQualityMultiplier * (
         1 +
         defendingTactics.pressBias * 0.055 +
         defendingTactics.defensiveLineBias * 0.025 +
@@ -989,14 +1020,14 @@ export function simulatePeriodWithWorld(
         [carrier.agility, 0.18],
         [carrier.pace, 0.14],
         [carrier.composure, 0.1],
-      ], "technical", sideTactics) * sideWorkRate;
+      ], "technical", sideTactics) * sideWorkRate * sideQualityMultiplier;
       const defenderTackle = skill(defender, minute, input.elevation, [
         [defender.standingTackle, 0.3],
         [defender.defensiveAwareness, 0.24],
         [defender.strength, 0.17],
         [defender.interceptions, 0.17],
         [defender.reactions, 0.12],
-      ], "duel", defendingTactics) * defendingWorkRate * (
+      ], "duel", defendingTactics) * defendingWorkRate * defendingQualityMultiplier * (
         1 +
         defendingTactics.pressBias * 0.045 +
         defendingTactics.tacklingBias * 0.06 +
@@ -1087,7 +1118,7 @@ export function simulatePeriodWithWorld(
               receiverHome.y - carrierHome.y,
             );
             // See passOptionScore: a neutral directness still means forward.
-            const forwardFit = clamp(1 + forwardDistance * (0.5 + directness) / 55, 0.45, 1.8);
+            const forwardFit = clamp(1 + forwardDistance * (0.8 + directness) / 55, 0.45, 2.0);
             const distanceFit = 1 / (1 + Math.max(0, distance - (22 + directness * 8)) / 22);
             const offsideFit = isPlayerOffside(world, side, player) ? 0.08 : 1;
             const focusFit = attackFocusLaneWeight(
@@ -1112,14 +1143,14 @@ export function simulatePeriodWithWorld(
           [carrier.composure, 0.14],
           [carrier.ballControl, 0.1],
           [carrier.longPassing, 0.06],
-        ], "technical", sideTactics) * sideWorkRate;
+        ], "technical", sideTactics) * sideWorkRate * sideQualityMultiplier;
         const interceptionQuality = skill(defender, minute, input.elevation, [
           [defender.interceptions, 0.32],
           [defender.defensiveAwareness, 0.27],
           [defender.reactions, 0.17],
           [defender.aggression, 0.12],
           [defender.pace, 0.12],
-        ], "decision", defendingTactics) * defendingWorkRate * (
+        ], "decision", defendingTactics) * defendingWorkRate * defendingQualityMultiplier * (
           1 +
           defendingTactics.pressBias * 0.08 +
           defendingTactics.defensiveLineBias * 0.03 +
@@ -1198,13 +1229,13 @@ export function simulatePeriodWithWorld(
       // instead of collapsing onto the ball, so the same instruction reaches
       // the box far more often than it used to and needs a smaller premium.
       const tacticShotBias =
-        sideAttackBias * 0.022 +
+        sideAttackBias * 0.021 +
         sideTactics.overlapBias * 0.005 +
         counterEdge * 0.009 +
         sideTactics.tempoBias * 0.006 +
-        sideTactics.shootingBias * 0.021 +
+        sideTactics.shootingBias * 0.019 +
         // Bodies sent forward instead of held back arrive in the box.
-        Math.max(0, -sideTactics.restDefenseBias) * 0.011 +
+        Math.max(0, -sideTactics.restDefenseBias) * 0.010 +
         matchupEdge * 0.1;
       // A possession reaching the final third is not automatically a shot.
       // These rates keep a normal match near 24-28 combined attempts while
@@ -1220,7 +1251,7 @@ export function simulatePeriodWithWorld(
       // saturates exactly where defensive formations live: a 5-4-1 got no more
       // credit for its extra defenders than a 4-3-3, so committing players to
       // defence cost attacking output and bought nothing back.
-      const openness = clamp((6.2 - cover) / 3.8, 0, 1.25);
+      const openness = clamp((6.2 - cover) / 4.6, 0, 1.1);
       // Through on goal is a chance regardless of how many bodies are behind
       // the ball, because they have all been beaten.
       // There is only so much room in front of a goal. Bodies past a full
@@ -1228,7 +1259,7 @@ export function simulatePeriodWithWorld(
       // building the move that would reach them — so stacking the attacking
       // third has to give diminishing returns rather than multiplying chances.
       const crowding = clamp(1 - Math.max(0, commitment(side)[2] - 4) * 0.13, 0.4, 1);
-      const spaceToShoot = (throughOnGoal ? 1.4 : 0.27 + openness * 0.66) * crowding;
+      const spaceToShoot = (throughOnGoal ? 1.3 : 0.37 + openness * 0.54) * crowding;
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
       // The final touch has to reach the edge of the penalty area before a
@@ -1291,7 +1322,7 @@ export function simulatePeriodWithWorld(
       // add 0.32 xG to every attempt. A saturating curve keeps exposed space
       // meaningful while preventing repeated 6-4 and 7-3 scorelines.
       const exposureChanceBoost =
-        0.021 * (1 - Math.exp(-Math.max(0, defendingExposure) * 1.25));
+        0.015 * (1 - Math.exp(-Math.max(0, defendingExposure) * 1.25));
       const matchupChanceBoost = clamp(matchupEdge * 0.04, -0.02, 0.03);
       // Urgency creates more attempts, not magically cleaner chances. Teams
       // throwing bodies forward or shooting on sight take a larger share of
@@ -1317,10 +1348,14 @@ export function simulatePeriodWithWorld(
         exposureChanceBoost +
         matchupChanceBoost -
         forcedShotPenalty +
+        // A stronger side tends to turn the same territory into a slightly
+        // cleaner look. This remains much smaller than a favourable tactical
+        // matchup, so the manager can still reverse the expected result.
+        sideStrengthEdge * 0.016 +
         // An unguarded box is a chance; a crowded one is a blocked effort.
         openness * 0.04 +
         // A defence that has not reset yet is the whole value of a counter.
-        counterAttack * 0.10 +
+        counterAttack * 0.09 +
         (throughOnGoal ? 0.10 : 0);
       const baseXg = carrier.position === "FWD" ? 0.058 : carrier.position === "MID" ? 0.035 : 0.020;
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.03, 0.01, 0.45);
@@ -1344,28 +1379,28 @@ export function simulatePeriodWithWorld(
         [carrier.shotPower, 0.13],
         [carrier.composure, 0.2],
         [carrier.positioning, 0.15],
-      ], "technical", sideTactics) * sideWorkRate;
+      ], "technical", sideTactics) * sideWorkRate * sideQualityMultiplier;
       const blockQuality = skill(marker, minute, input.elevation, [
         [marker.defending, 0.22],
         [marker.defensiveAwareness, 0.28],
         [marker.standingTackle, 0.2],
         [marker.reactions, 0.16],
         [marker.aggression, 0.14],
-      ], "duel", defendingTactics) * defendingWorkRate;
+      ], "duel", defendingTactics) * defendingWorkRate * defendingQualityMultiplier;
       const keeperQuality = skill(keeperPlayer, minute, input.elevation, [
         [keeperPlayer.gkReflexes, 0.3],
         [keeperPlayer.gkDiving, 0.25],
         [keeperPlayer.gkPositioning, 0.22],
         [keeperPlayer.gkHandling, 0.13],
         [keeperPlayer.reactions, 0.1],
-      ], "goalkeeping", defendingTactics) * defendingWorkRate;
+      ], "goalkeeping", defendingTactics) * defendingWorkRate * defendingQualityMultiplier;
       const finishingMultiplier = clamp(0.84 + (shootingTechnique - 60) / 160, 0.68, 1.28);
       const keeperMultiplier = clamp(0.74 - (keeperQuality - 65) / 260, 0.54, 0.9);
       // Keep normal conversion close to football's roughly ten-percent
       // range. The former 1.2 boost was compensating for an older, low-quality
       // shot model and now over-converted the better chances created by the
       // positional simulation.
-      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.74, 0.01, 0.74);
+      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.36, 0.01, 0.72);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
         if (shooterStats) {
