@@ -273,6 +273,8 @@ function FinalResults({
   );
 }
 
+const MEDAL_EMOJI: Record<1 | 2 | 3, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
 function PodiumCard({
   place,
   label,
@@ -301,7 +303,10 @@ function PodiumCard({
       {!highlight && <span className="podium-card__label">{label}</span>}
       {subtitle && <p className="podium-card__subtitle">{subtitle}</p>}
       {record && <p className="podium-card__record">{record}</p>}
-      <div className="podium-card__rank">{place}</div>
+      <div className="podium-card__rank">
+        <span className="podium-card__medal" aria-hidden="true">{MEDAL_EMOJI[place]}</span>
+        {place}위
+      </div>
     </div>
   );
 }
