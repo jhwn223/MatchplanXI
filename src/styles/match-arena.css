@@ -777,6 +777,55 @@
   box-shadow: 0 10px 22px rgba(20, 48, 26, .16);
 }
 
+/* The in-match pitch is intentionally compact. Keep each player's visible
+   card small enough for fine positioning, while giving its parent slot a
+   larger invisible hit area so swaps do not require pixel-perfect drops. */
+.arena-squad-board .pitch-slot {
+  width: 72px;
+  height: 76px;
+  border-radius: 14px;
+}
+
+.arena-squad-board .pitch-slot[data-over="true"] {
+  background: rgba(219, 246, 220, .2);
+  box-shadow: inset 0 0 0 2px rgba(166, 230, 172, .82);
+}
+
+.arena-squad-board .player-card--slot,
+.arena-drag-overlay .player-card--slot {
+  width: 60px;
+}
+
+.arena-squad-board .player-card--slot .player-card__ring,
+.arena-drag-overlay .player-card--slot .player-card__ring {
+  width: 35px;
+  height: 35px;
+  border-width: 2px;
+}
+
+.arena-squad-board .player-card--slot .player-card__name,
+.arena-squad-board .player-card--slot .player-card__sub,
+.arena-drag-overlay .player-card--slot .player-card__name,
+.arena-drag-overlay .player-card--slot .player-card__sub {
+  max-width: 60px;
+}
+
+.arena-squad-board .player-card--slot .player-card__name,
+.arena-drag-overlay .player-card--slot .player-card__name {
+  font-size: 9px;
+}
+
+.arena-squad-board .player-card--slot .player-card__sub,
+.arena-drag-overlay .player-card--slot .player-card__sub {
+  font-size: 8px;
+}
+
+.arena-squad-board .player-card--slot .player-card__condition,
+.arena-drag-overlay .player-card--slot .player-card__condition {
+  width: 40px;
+  height: 4px;
+}
+
 .arena-squad-board .bench {
   align-self: start;
   min-height: 0;
@@ -1017,12 +1066,31 @@
 }
 
 .arena-opponent-board .pitch--compact .player-card--slot {
-  width: 78px;
+  width: 60px;
 }
 
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__name,
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__sub {
-  max-width: 78px;
+  max-width: 60px;
+}
+
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__ring {
+  width: 35px;
+  height: 35px;
+  border-width: 2px;
+}
+
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__name {
+  font-size: 9px;
+}
+
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__sub {
+  font-size: 8px;
+}
+
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__condition {
+  width: 40px;
+  height: 4px;
 }
 
 .arena-opponent-board .opponent-report__shape {

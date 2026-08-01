@@ -74,9 +74,23 @@ import { disciplineFromEvents } from "./playerDiscipline";
  */
 const lineupCollisionDetection: CollisionDetection = (args) => {
   const underPointer = pointerWithin(args);
-  if (underPointer.length) return underPointer;
+  if (underPointer.length) {
+    // The enlarged in-match hit areas can overlap slightly. In that case
+    // pointerWithin returns registration order, which may select the slot next
+    // to the one the user is visibly aiming at. Keep only the collision whose
+    // centre is nearest to the pointer so the highlighted slot and final drop
+    // target always agree.
+    const pointerTargetIds = new Set(underPointer.map(({ id }) => id));
+    const nearestPointerTarget = closestCenter(args).find(({ id }) => pointerTargetIds.has(id));
+    return nearestPointerTarget ? [nearestPointerTarget] : underPointer;
+  }
   const from = (args.active.data.current as { from?: string } | undefined)?.from;
-  return from === BENCH_ZONE_ID ? closestCenter(args) : [];
+  if (from !== BENCH_ZONE_ID) return [];
+
+  // When bringing on a substitute, do not let the large bench container win
+  // the closest-centre fallback over an actual formation slot.
+  const nearestPitchSlot = closestCenter(args).find(({ id }) => String(id) !== BENCH_ZONE_ID);
+  return nearestPitchSlot ? [nearestPitchSlot] : [];
 };
 
 /**
@@ -585,13 +599,15 @@ export function MatchBoard({
 
       <DragOverlay dropAnimation={null} modifiers={[snapDragToCursor]}>
         {activePlayer && (
-          <PlayerCardVisual
-            player={activePlayer}
-            condition={conditions.get(activePlayer.player_id)}
-            variant="slot"
-            state="floating"
-            useLayoutId={false}
-          />
+          <div className={arenaOpen ? "arena-drag-overlay" : undefined}>
+            <PlayerCardVisual
+              player={activePlayer}
+              condition={conditions.get(activePlayer.player_id)}
+              variant="slot"
+              state="floating"
+              useLayoutId={false}
+            />
+          </div>
         )}
       </DragOverlay>
 

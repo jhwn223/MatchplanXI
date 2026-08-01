@@ -21,7 +21,11 @@ export function attackFocusLaneWeight(
   const centralFocus = clamp(centralFocusBias, 0, 1);
   const centrality = 1 - Math.abs(lane);
   const flankWeight = alignment * Math.abs(focus) * 0.68;
-  const centralWeight = centralFocus * (centrality * 0.7 - (1 - centrality) * 0.55);
+  // Playing through the middle has to be legible in the pass map, so the
+  // penalty on wide options carries most of the weight — narrowing the target
+  // is what makes a central plan look central, not favouring the centre a
+  // little more.
+  const centralWeight = centralFocus * (centrality * 0.7 - (1 - centrality) * 0.85);
   return clamp(1 + flankWeight + centralWeight, 0.36, 1.7);
 }
 
