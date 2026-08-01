@@ -33,15 +33,11 @@ export interface FormationMeta {
   slots: FormationSlot[];
   /** -1 = very defensive, +1 = very attacking; feeds the match sim */
   attackBias: number;
-  pros: string[];
-  cons: string[];
 }
 
 export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   "5-4-1": {
     attackBias: -0.9,
-    pros: ["최다 수비수로 실점 억제", "역습 시 측면 윙백 활용"],
-    cons: ["공격 인원 부족", "최전방 고립되기 쉬움"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "lb", label: "LB", position: "DEF", x: 10, y: 72 },
@@ -58,8 +54,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "5-3-2": {
     attackBias: -0.6,
-    pros: ["안정적인 3백 + 윙백", "투톱으로 역습 마무리 유리"],
-    cons: ["중원 숫자 열세", "윙백 체력 부담 큼"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "lb", label: "LWB", position: "DEF", x: 10, y: 70 },
@@ -76,8 +70,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "4-5-1": {
     attackBias: -0.4,
-    pros: ["중원 숫자 우위로 점유 안정", "측면 미드필더의 폭넓은 수비 커버"],
-    cons: ["최전방 1명, 고립되기 쉬움", "역습 마무리 인원 부족"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "lb", label: "LB", position: "DEF", x: 14, y: 72 },
@@ -94,8 +86,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "4-4-2": {
     attackBias: 0.0,
-    pros: ["공수 균형이 좋은 표준형", "투톱 조합으로 득점 루트 다양"],
-    cons: ["중앙 미드필더 2명, 허리가 얇을 수 있음", "측면이 뚫리면 백업이 느림"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "lb", label: "LB", position: "DEF", x: 12, y: 70 },
@@ -112,8 +102,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "4-2-3-1": {
     attackBias: 0.1,
-    pros: ["더블 볼란치로 중원 장악", "3명의 공격형 미드필더로 창의성 확보"],
-    cons: ["최전방 고립 위험", "윙어가 수비 가담 안 하면 측면 노출"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "lb", label: "LB", position: "DEF", x: 14, y: 72 },
@@ -130,8 +118,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "4-1-2-3": {
     attackBias: 0.45,
-    pros: ["수비형 미드필더를 통한 안정적인 빌드업", "양쪽 윙어를 활용한 넓은 공격 전개"],
-    cons: ["수비형 미드필더 주변에 부담이 집중됨", "윙어의 수비 가담이 부족하면 측면 노출"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "lb", label: "LB", position: "DEF", x: 15, y: 72 },
@@ -148,8 +134,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "3-5-2": {
     attackBias: 0.2,
-    pros: ["중원 5명으로 점유율 우위", "윙백 오버래핑으로 폭 넓은 공격"],
-    cons: ["윙백 뒷공간 역습에 취약", "3백이 스피드 있는 공격수에 약함"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "cb1", label: "CB", position: "DEF", x: 30, y: 78 },
@@ -166,8 +150,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "3-4-1-2": {
     attackBias: 0.3,
-    pros: ["투톱과 공격형 미드필더의 중앙 연계", "윙백을 통한 폭과 중원 숫자 확보"],
-    cons: ["윙백 뒤 공간이 역습에 노출될 수 있음", "공격형 미드필더가 고립되면 전개가 단조로움"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "cb1", label: "CB", position: "DEF", x: 30, y: 78 },
@@ -184,8 +166,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "4-3-3": {
     attackBias: 0.5,
-    pros: ["양 윙어로 폭넓은 공격 전개", "전방 압박에 유리한 인원 배치"],
-    cons: ["미드필더 3명, 수적 열세 가능", "풀백 오버래핑 시 뒷공간 노출"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "lb", label: "LB", position: "DEF", x: 15, y: 72 },
@@ -202,8 +182,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "3-4-3": {
     attackBias: 0.9,
-    pros: ["최전방 3명, 최다 공격 인원", "높은 라인의 압박으로 주도권 장악"],
-    cons: ["수비수 3명, 뒷공간 취약", "체력 소모가 커 후반 붕괴 위험"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "cb1", label: "CB", position: "DEF", x: 30, y: 78 },
@@ -220,8 +198,6 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
   },
   "5-2-3": {
     attackBias: -0.1,
-    pros: ["수비 시 5백의 안정성과 전방 3명의 역습", "윙백과 윙어를 활용한 측면 전개"],
-    cons: ["중앙 미드필더가 두 명뿐이라 수적 열세 가능", "윙백의 체력 부담과 전환 속도 의존"],
     slots: [
       { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
       { id: "lwb", label: "LWB", position: "DEF", x: 9, y: 67 },

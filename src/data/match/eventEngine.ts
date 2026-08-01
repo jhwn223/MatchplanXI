@@ -201,7 +201,7 @@ export function simulatePeriodWithWorld(
     0.5 +
       eloEdge * 0.06 +
       creativityEdge * 0.08 -
-      input.attackBias * 0.025 +
+      (input.attackBias - (input.oppAttackBias ?? 0)) * 0.025 +
       tacticalPossessionEdge +
       (input.isHome ? 0.018 : -0.018),
     0.36,
@@ -616,9 +616,26 @@ export function simulatePeriodWithWorld(
     // clock, so stop rather than spin.
     if (!attackers.length || !defenders.length || !keeperPlayer) break;
 
+    /**
+     * Winning the ball deep against a side that has committed bodies forward
+     * is a counter-attack: it happens rarely, but it arrives at a defence that
+     * is not yet set. This is the only route to goal a shape built to defend
+     * has, and without it such a shape had no attack at all — it took a third
+     * of the shots of an attacking one and converted them no better, so
+     * committing players to defence was pure loss.
+     */
+    const possessionStartX = side === "user" ? world.ball.x : 100 - world.ball.x;
+    const opponentUpfield =
+      commitment(defendingSide)[2] + commitment(defendingSide)[1] * 0.35;
+    const counterAttack = clamp(
+      ((46 - possessionStartX) / 46) * (opponentUpfield - 2.4) * 0.55,
+      0,
+      1.2,
+    );
+
     const sideTactics = side === "user" ? userTactics : oppTactics;
     const defendingTactics = side === "user" ? oppTactics : userTactics;
-    const formationAttackBias = side === "user" ? input.attackBias : 0;
+    const formationAttackBias = side === "user" ? input.attackBias : input.oppAttackBias ?? 0;
     const sideAttackBias = clamp(formationAttackBias + sideTactics.attackBias, -1.5, 1.5);
     const directness = clamp(sideAttackBias * 0.45 + sideTactics.directnessBias, -1.4, 1.4);
     const counterEdge = clamp(sideTactics.counterBias - defendingTactics.counterBias, -1.5, 1.5);
@@ -665,12 +682,13 @@ export function simulatePeriodWithWorld(
      */
     const outnumberedHere = () => {
       const ballCanonical = side === "user" ? world.ball.x : 100 - world.ball.x;
-      const attackingThird = thirdOf(ballCanonical);
-      return clamp(
-        commitment(defendingSide)[2 - attackingThird] - commitment(side)[attackingThird],
-        -2,
-        4,
-      );
+      // Only the middle third. Being outnumbered in the attacking third is the
+      // normal condition of attacking — every defence has more bodies in its
+      // own box than the attack does — and counting it here punished any shape
+      // with a lone striker so heavily it could barely build a move at all.
+      // What happens near the goal is already modelled by defensive cover.
+      if (thirdOf(ballCanonical) !== 1) return 0;
+      return clamp(commitment(defendingSide)[1] - commitment(side)[1], -2, 4);
     };
     let throughOnGoal = false;
     // How far up the pitch the defending side holds its last line. A line on
@@ -1153,7 +1171,7 @@ export function simulatePeriodWithWorld(
         if (rng() < passChance) {
           running[side].passesCompleted++;
           if (carrierStats) carrierStats.passesCompleted++;
-          const baseProgress = receiver.position === "FWD" ? 1.05 : receiver.position === "MID" ? 0.72 : 0.38;
+          const baseProgress = receiver.position === "FWD" ? 0.95 : receiver.position === "MID" ? 0.82 : 0.55;
           progress +=
             baseProgress *
             clamp(1 + directness * 0.2 + counterEdge * 0.08, 0.72, 1.35) *
@@ -1191,14 +1209,18 @@ export function simulatePeriodWithWorld(
       // A possession reaching the final third is not automatically a shot.
       // These rates keep a normal match near 24-28 combined attempts while
       // preserving the relative effect of roles and attacking instructions.
-      const roleShotChance = carrier.position === "FWD" ? 0.10 : carrier.position === "MID" ? 0.043 : 0.012;
+      const roleShotChance = carrier.position === "FWD" ? 0.088 : carrier.position === "MID" ? 0.052 : 0.019;
       // Whether the defence is actually there. A packed box is why standing
       // strikers in it produces nothing, and an empty one is why a side that
       // keeps nobody home concedes every time the ball arrives. Without this
       // the engine resolved everything as a 1v1 against one picked opponent,
       // so fielding no defenders at all was free.
       const cover = defensiveThirdCover(world, defendingSide);
-      const openness = clamp((5 - cover) / 5, 0, 1);
+      // The scale has to keep rewarding bodies past a back four, or it
+      // saturates exactly where defensive formations live: a 5-4-1 got no more
+      // credit for its extra defenders than a 4-3-3, so committing players to
+      // defence cost attacking output and bought nothing back.
+      const openness = clamp((6.2 - cover) / 3.8, 0, 1.25);
       // Through on goal is a chance regardless of how many bodies are behind
       // the ball, because they have all been beaten.
       // There is only so much room in front of a goal. Bodies past a full
@@ -1206,7 +1228,7 @@ export function simulatePeriodWithWorld(
       // building the move that would reach them — so stacking the attacking
       // third has to give diminishing returns rather than multiplying chances.
       const crowding = clamp(1 - Math.max(0, commitment(side)[2] - 4) * 0.13, 0.4, 1);
-      const spaceToShoot = (throughOnGoal ? 1.5 : 0.55 + openness * 0.78) * crowding;
+      const spaceToShoot = (throughOnGoal ? 1.4 : 0.27 + openness * 0.66) * crowding;
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
       // The final touch has to reach the edge of the penalty area before a
@@ -1231,7 +1253,7 @@ export function simulatePeriodWithWorld(
           // possession's progress let a side manufacture chances simply by
           // stationing six forwards in the box: every one of them was a
           // shooter the moment the ball reached him. Progress has to earn it.
-          rng() < (roleShotChance * 0.40 + progress * 0.071 + tacticShotBias) * spaceToShoot ||
+          rng() < (roleShotChance * 0.40 + progress * 0.071 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.28) ||
           (action === maxActions - 1 && rng() < 0.02 * spaceToShoot)
         );
       if (!shootNow) continue;
@@ -1297,6 +1319,8 @@ export function simulatePeriodWithWorld(
         forcedShotPenalty +
         // An unguarded box is a chance; a crowded one is a blocked effort.
         openness * 0.04 +
+        // A defence that has not reset yet is the whole value of a counter.
+        counterAttack * 0.10 +
         (throughOnGoal ? 0.10 : 0);
       const baseXg = carrier.position === "FWD" ? 0.058 : carrier.position === "MID" ? 0.035 : 0.020;
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.03, 0.01, 0.45);
@@ -1341,7 +1365,7 @@ export function simulatePeriodWithWorld(
       // range. The former 1.2 boost was compensating for an older, low-quality
       // shot model and now over-converted the better chances created by the
       // positional simulation.
-      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.8, 0.01, 0.74);
+      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.74, 0.01, 0.74);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
         if (shooterStats) {

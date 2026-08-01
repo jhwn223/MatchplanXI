@@ -1,5 +1,5 @@
 import type { ConditionBreakdown } from "../../data/conditionEngine";
-import { slotsOf, type FormationKey, type FormationSlot } from "../../data/formation";
+import { FORMATIONS, slotsOf, type FormationKey, type FormationSlot } from "../../data/formation";
 import type { PlacedPlayerLite, SimInput } from "../../data/matchSim";
 import { buildTeamAbilityProfile } from "../../data/playerAbility";
 import type { TeamMatch } from "../../data/tournament";
@@ -139,6 +139,7 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     oppElo: opponent?.elo_rating ?? 1600,
     conditionIndex: teamIndex,
     attackBias: effectiveAttackBias,
+    oppAttackBias: FORMATIONS[opponentFormation].attackBias,
     isHome: activeMatch.isHome,
     elevation: activeMatch.elevation,
     placed,

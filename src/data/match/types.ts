@@ -219,7 +219,14 @@ export interface SimInput {
   userElo: number;
   oppElo: number;
   conditionIndex: number;
+  /** How attacking the user's formation is, from its shape. */
   attackBias: number;
+  /**
+   * The same for the opposition. Previously only the user's formation carried
+   * an attacking bias and the opponent's was read as zero, so their shape
+   * changed where their players stood but never how they played.
+   */
+  oppAttackBias?: number;
   userTactics?: SimTacticProfile;
   oppTactics?: SimTacticProfile;
   isHome: boolean;
