@@ -3,6 +3,7 @@ import { slotsOf } from "./formation";
 import {
   defaultRoleForSlot,
   resolvedRoleForSlot,
+  roleDefinition,
   roleGroupForSlot,
   rolesForSlot,
 } from "./playerRoles";
@@ -24,5 +25,13 @@ describe("formation slot roles", () => {
     const striker = formation.find((slot) => slot.label === "ST")!;
     expect(resolvedRoleForSlot({ [striker.id]: "pressingForward" }, striker)).toBe("pressingForward");
     expect(resolvedRoleForSlot({ [striker.id]: "lineKeeper" }, striker)).toBe(defaultRoleForSlot(striker));
+  });
+
+  test("uses full role names and explains both the action and its tradeoff", () => {
+    const insideForward = roleDefinition("insideForward");
+
+    expect(insideForward.label).toBe("인사이드 포워드");
+    expect(insideForward.benefit).toContain("중앙과 박스 안");
+    expect(insideForward.cost).toContain("공격 폭");
   });
 });
