@@ -40,7 +40,6 @@ interface Props {
   squadControls?: ArenaSquadControls;
   onApplyTactics: (tactics: TeamTactics) => void;
   onFormationChange?: (formation: FormationKey) => void;
-  onClose: () => void;
   dismissalNotice?: string | null;
   discipline?: Map<number, PlayerDiscipline>;
 }
@@ -64,7 +63,6 @@ export function ArenaMatchCenter({
   squadControls,
   onApplyTactics,
   onFormationChange,
-  onClose,
   dismissalNotice,
   discipline: suppliedDiscipline,
 }: Props) {
@@ -109,7 +107,6 @@ export function ArenaMatchCenter({
             </button>
           ))}
         </nav>
-        <button type="button" className="match-center__close" onClick={onClose}>계속 경기 ▶</button>
       </header>
 
       {activeTab === "overview" && (

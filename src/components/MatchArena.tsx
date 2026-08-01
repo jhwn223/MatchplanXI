@@ -187,6 +187,7 @@ export function MatchArena({
   onPlayerDismissed,
   onPeriodComplete,
   onComplete,
+  onCommitSubstitutions,
   onClose,
   onSchedule,
   onNext,
@@ -417,6 +418,7 @@ export function MatchArena({
     setActivePanel(null);
     pausedRef.current = pausedBeforePanelRef.current;
     setPaused(pausedBeforePanelRef.current);
+    onCommitSubstitutions?.();
   }
 
   function togglePause() {
@@ -822,7 +824,6 @@ export function MatchArena({
             onFormationChange={onFormationChange}
             dismissalNotice={dismissalNotice}
             discipline={discipline}
-            onClose={closeMatchCenter}
           />
         )}
 
@@ -942,8 +943,14 @@ export function MatchArena({
               </button>
             ))}
             {/* One entry point: the match centre already carries tabs for
-                개요 · 평점 · 분석 · 스쿼드 · 상대 분석 alongside 전술. */}
-            <button type="button" className="arena-ctrl arena-ctrl--section arena-ctrl--skip" data-active={activePanel != null || undefined} onClick={() => openMatchCenter("tactics")}>✎ 전술 변경</button>
+                개요 · 평점 · 분석 · 스쿼드 · 상대 분석 alongside 전술. Once it's
+                open this same slot becomes the way back out, so there's a
+                single obvious place to look for either action. */}
+            {activePanel != null ? (
+              <button type="button" className="arena-ctrl arena-ctrl--section arena-ctrl--skip" data-active onClick={closeMatchCenter}>▶ 경기 재개</button>
+            ) : (
+              <button type="button" className="arena-ctrl arena-ctrl--section arena-ctrl--skip" onClick={() => openMatchCenter("tactics")}>✎ 전술 변경</button>
+            )}
             </div>
           </div>
         ) : final ? (

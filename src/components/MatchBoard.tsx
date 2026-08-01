@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
+  closestCenter,
   pointerWithin,
-  rectIntersection,
   type CollisionDetection,
+  type Modifier,
 } from "@dnd-kit/core";
+import { getEventCoordinates } from "@dnd-kit/utilities";
 import {
   BENCH_ZONE_ID,
   FORMATIONS,
@@ -62,14 +64,38 @@ import { disciplineFromEvents } from "./playerDiscipline";
  * sideways swapped him with whoever stood there.
  *
  * Bringing a player on from the bench stays forgiving: that gesture aims at a
- * slot rather than at a coordinate, so it falls back to rectangles when the
- * cursor lands just outside one.
+ * slot rather than at a coordinate, so it falls back to the geometrically
+ * nearest slot when the cursor lands just outside one. Rectangle intersection
+ * used to be that fallback, but with cards packed tightly it could match
+ * whichever neighbour the drag card's box happened to overlap most — not
+ * necessarily the slot closest to the cursor (e.g. dropping near a defender
+ * could land on a midfielder two slots over). closestCenter picks by actual
+ * distance instead, so it always lands on the nearest slot.
  */
 const lineupCollisionDetection: CollisionDetection = (args) => {
   const underPointer = pointerWithin(args);
   if (underPointer.length) return underPointer;
   const from = (args.active.data.current as { from?: string } | undefined)?.from;
-  return from === BENCH_ZONE_ID ? rectIntersection(args) : [];
+  return from === BENCH_ZONE_ID ? closestCenter(args) : [];
+};
+
+/**
+ * Pin the floating drag card's centre to the cursor. The overlay normally
+ * starts from the source card's measured rect, and anything transforming
+ * that card at measure time (hover lift, an in-flight spring) bakes a
+ * constant offset into the whole drag — the ghost trails the cursor by a
+ * fixed distance, intermittently. Deriving the position from the cursor
+ * itself sidesteps the measurement entirely.
+ */
+const snapDragToCursor: Modifier = ({ activatorEvent, draggingNodeRect, transform }) => {
+  if (!draggingNodeRect || !activatorEvent) return transform;
+  const activatorCoordinates = getEventCoordinates(activatorEvent);
+  if (!activatorCoordinates) return transform;
+  return {
+    ...transform,
+    x: transform.x + (activatorCoordinates.x - draggingNodeRect.left) - draggingNodeRect.width / 2,
+    y: transform.y + (activatorCoordinates.y - draggingNodeRect.top) - draggingNodeRect.height / 2,
+  };
 };
 
 export function MatchBoard({
@@ -238,7 +264,6 @@ export function MatchBoard({
     maxSubs,
     maxOnPitch: requiredPlayers,
     playDrop,
-    setBenchedOut,
     setActiveDragId,
   });
   function selectFormation(key: FormationKey) {
@@ -337,6 +362,23 @@ export function MatchBoard({
     onChangeLineup({ ...lineup, tacticStyleKey: null, teamTactics: next });
   }
 
+  // Swaps made while editing the lineup (half-time, or the live squad panel)
+  // are a draft — dragging a player to the bench doesn't lock them out, so a
+  // wrong drag can still be undone. This is the actual "sub" moment: whoever
+  // from the original XI is off the pitch right now gets permanently benched.
+  // Called when leaving that editing screen (starting the next segment, or
+  // resuming a paused live match), never on every drag.
+  function commitBenchedOut() {
+    if (!startingXI) return;
+    const justBenched = [...startingXI].filter((id) => !placedIds.has(id));
+    if (justBenched.length === 0) return;
+    setBenchedOut((previous) => {
+      const next = new Set(previous);
+      for (const id of justBenched) next.add(id);
+      return next;
+    });
+  }
+
   useEffect(() => {
     if (!activeSimInput || phase === "idle") return;
     const refreshed = buildSimInput();
@@ -358,6 +400,7 @@ export function MatchBoard({
   function startSecondHalf() {
     const input = buildSimInput();
     if (!input || !half1) return;
+    commitBenchedOut();
     setActiveSimInput(input);
     setPhase("half2");
   }
@@ -365,6 +408,7 @@ export function MatchBoard({
   function startExtraTime() {
     const input = buildSimInput();
     if (!input || !regSim) return;
+    commitBenchedOut();
     setActiveSimInput(input);
     setPhase("extratime");
   }
@@ -513,7 +557,7 @@ export function MatchBoard({
         onSelectPlayer={setSelectedPlayer}
       />
 
-      <DragOverlay dropAnimation={null}>
+      <DragOverlay dropAnimation={null} modifiers={[snapDragToCursor]}>
         {activePlayer && (
           <PlayerCardVisual
             player={activePlayer}
@@ -550,6 +594,7 @@ export function MatchBoard({
         onSecondHalfComplete={completeSecondHalf}
         onExtraTimeComplete={completeExtraTime}
         onPhaseChange={setPhase}
+        onCommitSubstitutions={commitBenchedOut}
         onClose={closeArena}
         onSchedule={() => {
           closeArena();

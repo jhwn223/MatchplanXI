@@ -34,6 +34,12 @@ interface Props {
   onSecondHalfComplete: (period: HalfResult) => ArenaSim;
   onExtraTimeComplete: (period: HalfResult) => ArenaSim;
   onPhaseChange: (phase: MatchPhase) => void;
+  /**
+   * Call when the user actually resumes/leaves the live squad-edit screen
+   * (e.g. the "경기 재개" action) — this is the point where any bench swaps
+   * made while paused become permanent. Nothing before that call is final.
+   */
+  onCommitSubstitutions: () => void;
   onClose: () => void;
   onSchedule: () => void;
   onNextMatch: () => void;
@@ -64,6 +70,7 @@ export function MatchArenaOverlays({
   onSecondHalfComplete,
   onExtraTimeComplete,
   onPhaseChange,
+  onCommitSubstitutions,
   onClose,
   onSchedule,
   onNextMatch,
@@ -89,6 +96,7 @@ export function MatchArenaOverlays({
     onOpponentTacticChange,
     onFormationChange,
     onPlayerDismissed,
+    onCommitSubstitutions,
     onClose,
     onSchedule,
   } as const;

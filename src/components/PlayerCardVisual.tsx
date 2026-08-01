@@ -59,7 +59,12 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
         layoutId={useLayoutId ? `player-${player.player_id}` : undefined}
         initial={false}
         animate={VARIANTS[state]}
-        whileTap={state === "idle" && !ineligible ? { scale: 1.05 } : undefined}
+        // No whileTap scale here on purpose: this element is also the drag
+        // source (see PlayerCard.tsx), and dnd-kit measures its rect right as
+        // the drag activates. A tap-scale still in effect at that moment
+        // throws the measurement off by a fixed amount, so the floating
+        // DragOverlay copy trails the cursor at a constant offset for the
+        // whole drag.
         transition={state === "dragging-source" ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 28 }}
       >
         <motion.div

@@ -5,17 +5,15 @@ import type { Player, Position } from "./types";
 
 export type Slots = Record<string, number | null>;
 
-/** Coarse position tiers, back of the pitch to the front. */
-const POSITION_TIER: Record<Position, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
-
 /**
  * Whether a player of `playerPos` may be placed in a slot of `slotPos`.
- * GK is a wall (GK only in GK, GK can't go outfield); outfield players may
- * cover adjacent tiers only (DEF↔MID↔FWD), so FWD↔DEF is not allowed.
+ * GK is a wall (GK only in GK, GK can't go outfield); any outfield player
+ * may take any outfield slot — playing out of position is the manager's
+ * call, and the ability profile already prices the mismatch.
  */
 export function canPlaceInSlot(playerPos: Position, slotPos: Position): boolean {
   if (playerPos === "GK" || slotPos === "GK") return playerPos === slotPos;
-  return Math.abs(POSITION_TIER[playerPos] - POSITION_TIER[slotPos]) <= 1;
+  return true;
 }
 
 export function emptySlots(formation: FormationKey): Slots {
