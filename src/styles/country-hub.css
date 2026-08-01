@@ -28,6 +28,44 @@
   line-height: 1.6;
   font-size: 14px;
 }
+/* Tactical pitch graphic, rendered inside the shared circular
+   .country-select__hero-visual frame (that wrapper's own shape lives in
+   light-theme.css, which is not this role's file — only its contents live
+   here, sized to sit inside the existing circle). */
+.tactic-pitch {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 52%;
+  aspect-ratio: 68 / 100;
+  transform: translate(-50%, -50%);
+  border-radius: 14px;
+  box-shadow: 0 16px 32px rgba(0, 60, 26, 0.22), 0 2px 6px rgba(0, 60, 26, 0.12);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 8.5%, transparent 8.5% 17%),
+    linear-gradient(175deg, #1c8a45, #0d5c2b 65%, #0a4d24);
+}
+.tactic-pitch svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tactic-pitch__lines { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 0.6; }
+.tactic-pitch__link { stroke: rgba(255, 255, 255, 0.35); stroke-width: 0.5; }
+.tactic-pitch__dot { fill: #f4fbf1; stroke: #0a4d24; stroke-width: 0.6; }
+.tactic-pitch__dot--lead { fill: #ffd44d; }
+.tactic-pitch__chip {
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  box-shadow: 0 4px 10px rgba(0, 60, 26, 0.28);
+  white-space: nowrap;
+}
+
 .groups {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

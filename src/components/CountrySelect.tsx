@@ -16,14 +16,14 @@ export function CountrySelect({ teams, onPick }: Props) {
       <AppTopbar active="squad" />
       <header className="country-select__header">
         <div className="country-select__hero-copy">
-          <span className="country-select__eyebrow">2026 WORLD CUP TACTICAL SIMULATION</span>
-          <h1 className="country-select__title">고도를 읽고,<br />경기를 설계하세요.</h1>
+          <span className="country-select__eyebrow">MATCHPLAN XI · 2026 WORLD CUP</span>
+          <h1 className="country-select__title">당신이 감독이라면?</h1>
           <p className="country-select__kicker">
-            고도와 체력, 이동 거리를 분석해 월드컵의 흐름을 바꾸는 전술 시뮬레이터
+            고도, 체력, 이동거리 — 데이터가 말해주지 않는 것까지 읽어내는 전술 시뮬레이터
           </p>
           <p className="country-select__subtitle">
-            한 국가의 감독이 되어 실제 대진을 따라가세요. 선수 능력과 컨디션을 비교하고,
-            경기장 환경에 맞는 선발과 포메이션을 결정합니다.
+            48개국 중 하나를 맡아 실제 월드컵 대진표를 그대로 따라갑니다. 선수 컨디션을 살피고,
+            경기장 환경에 맞춰 선발과 포메이션을 짜세요.
           </p>
           <div className="country-select__metrics" aria-label="대회 데이터 요약">
             <div><strong>48</strong><span>국가</span></div>
@@ -32,13 +32,30 @@ export function CountrySelect({ teams, onPick }: Props) {
           </div>
         </div>
         <div className="country-select__hero-visual" aria-hidden="true">
-          <div className="altitude-orbit altitude-orbit--one" />
-          <div className="altitude-orbit altitude-orbit--two" />
-          <div className="altitude-mountain">
-            <span>2,240m</span>
+          <div className="tactic-pitch">
+            <svg viewBox="0 0 68 100" preserveAspectRatio="none">
+              <rect className="tactic-pitch__lines" x="2" y="2" width="64" height="96" rx="2" />
+              <line className="tactic-pitch__lines" x1="2" y1="50" x2="66" y2="50" />
+              <circle className="tactic-pitch__lines" cx="34" cy="50" r="9.15" />
+              <rect className="tactic-pitch__lines" x="14" y="2" width="40" height="16" />
+              <rect className="tactic-pitch__lines" x="14" y="82" width="40" height="16" />
+              <path className="tactic-pitch__link" d="M34,92 L10,72 M34,92 L26,76 M34,92 L42,76 M34,92 L58,72" />
+              <path className="tactic-pitch__link" d="M10,72 L18,52 M26,76 L18,52 M26,76 L34,56 M42,76 L34,56 M42,76 L50,52 M58,72 L50,52" />
+              <path className="tactic-pitch__link" d="M18,52 L14,22 M18,52 L34,16 M34,56 L34,16 M50,52 L34,16 M50,52 L54,22" />
+              <circle className="tactic-pitch__dot" cx="34" cy="92" r="3.2" />
+              <circle className="tactic-pitch__dot" cx="10" cy="72" r="3.2" />
+              <circle className="tactic-pitch__dot" cx="26" cy="76" r="3.2" />
+              <circle className="tactic-pitch__dot" cx="42" cy="76" r="3.2" />
+              <circle className="tactic-pitch__dot" cx="58" cy="72" r="3.2" />
+              <circle className="tactic-pitch__dot" cx="18" cy="52" r="3.2" />
+              <circle className="tactic-pitch__dot" cx="34" cy="56" r="3.2" />
+              <circle className="tactic-pitch__dot" cx="50" cy="52" r="3.2" />
+              <circle className="tactic-pitch__dot" cx="14" cy="22" r="3.2" />
+              <circle className="tactic-pitch__dot tactic-pitch__dot--lead" cx="34" cy="16" r="3.6" />
+              <circle className="tactic-pitch__dot" cx="54" cy="22" r="3.2" />
+            </svg>
+            <span className="tactic-pitch__chip">4-3-3</span>
           </div>
-          <div className="altitude-scan" />
-          <p>ENVIRONMENT ENGINE</p>
         </div>
       </header>
 
