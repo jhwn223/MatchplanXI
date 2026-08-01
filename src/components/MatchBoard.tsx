@@ -130,6 +130,8 @@ export function MatchBoard({
   const [dismissedUserIds, setDismissedUserIds] = useState<Set<number>>(new Set());
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const pitchRef = useRef<HTMLDivElement>(null);
+  const entryMinutesRef = useRef<Map<number, number>>(new Map());
+  const liveMinuteRef = useRef(0);
   const playDrop = useDropSound(soundOn);
 
   const formation = slotsOf(lineup.formation);
@@ -326,6 +328,19 @@ export function MatchBoard({
     });
   }
 
+  /**
+   * When each player currently on the pitch came on, so fatigue is charged for
+   * time played rather than time on the clock. Kickoff stamps the whole XI with
+   * zero; anyone who appears later is stamped with the minute he arrived.
+   */
+  function stampEntryMinutes(minute: number) {
+    entryMinutesRef.current = new Map(entryMinutesRef.current);
+    for (const id of placedIds) {
+      if (!entryMinutesRef.current.has(id)) entryMinutesRef.current.set(id, minute);
+    }
+    return entryMinutesRef.current;
+  }
+
   function buildSimInput() {
     return buildMatchSimInput({
       placedIds,
@@ -334,6 +349,7 @@ export function MatchBoard({
       lineup,
       playersById,
       conditions,
+      entryMinutes: entryMinutesRef.current,
       opponentEleven,
       opponentConditions,
       opponentTactics: opponentPlan?.tactics,
@@ -349,6 +365,8 @@ export function MatchBoard({
   }
 
   function kickoff() {
+    entryMinutesRef.current = new Map();
+    stampEntryMinutes(0);
     const input = buildSimInput();
     if (!input) return;
     setActiveSimInput(input);
@@ -385,6 +403,9 @@ export function MatchBoard({
 
   useEffect(() => {
     if (!activeSimInput || phase === "idle") return;
+    // Anyone newly on the pitch has just been brought on, so his fatigue
+    // starts from now rather than from kickoff.
+    stampEntryMinutes(liveMinuteRef.current);
     const refreshed = buildSimInput();
     if (!refreshed) return;
     setActiveSimInput((current) =>
@@ -596,6 +617,9 @@ export function MatchBoard({
         onOpponentTacticChange={setLiveOpponentTactics}
         onFormationChange={selectFormation}
         onPlayerDismissed={handlePlayerDismissed}
+        onMinuteChange={(minute) => {
+          liveMinuteRef.current = minute;
+        }}
         onFirstHalfComplete={completeFirstHalf}
         onSecondHalfComplete={completeSecondHalf}
         onExtraTimeComplete={completeExtraTime}

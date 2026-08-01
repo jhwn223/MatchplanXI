@@ -13,7 +13,8 @@ import type { Lineup } from "./types";
 export function toSimPlayer(
   player: Player,
   slot: Pick<FormationSlot, "id" | "label" | "position" | "x" | "y">,
-  condition: number
+  condition: number,
+  enteredAtMinute = 0,
 ): PlacedPlayerLite {
   const ability = player.ability;
   const base = ability?.overall ?? 65;
@@ -28,6 +29,7 @@ export function toSimPlayer(
     position: slot.position,
     baseX: 100 - slot.y,
     baseY: slot.x,
+    enteredAtMinute,
     overall: base,
     pace: ability?.pace ?? base,
     acceleration: ability?.acceleration ?? ability?.pace ?? base,
@@ -69,6 +71,8 @@ interface BuildSimInputOptions {
   lineup: Lineup;
   playersById: Map<number, Player>;
   conditions: Map<number, ConditionBreakdown>;
+  /** Match minute each player came on, keyed by player id; absent means a starter. */
+  entryMinutes?: Map<number, number>;
   opponentEleven: Player[];
   opponentConditions: Map<number, ConditionBreakdown>;
   activeMatch: TeamMatch;
@@ -90,6 +94,7 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     lineup,
     playersById,
     conditions,
+    entryMinutes,
     opponentEleven,
     opponentConditions,
     activeMatch,
@@ -113,7 +118,8 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
       return toSimPlayer(
         player,
         { ...slot, x: coordinate.x, y: coordinate.y },
-        conditions.get(player.player_id)?.score ?? 65
+        conditions.get(player.player_id)?.score ?? 65,
+        entryMinutes?.get(player.player_id) ?? 0,
       );
     })
     .filter((player): player is PlacedPlayerLite => player != null);

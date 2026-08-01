@@ -186,6 +186,7 @@ export function MatchArena({
   onOpponentTacticChange,
   onFormationChange,
   onPlayerDismissed,
+  onMinuteChange,
   onPeriodComplete,
   onComplete,
   onCommitSubstitutions,
@@ -703,6 +704,11 @@ export function MatchArena({
     oppXg: observedOppXg,
   };
   const liveSnapshot = snapshotAtMinute(sim.liveSnapshots ?? [], hud.minute);
+  // The board owns the lineup, so it needs the clock to stamp a substitution
+  // with the minute the player actually came on.
+  useEffect(() => {
+    onMinuteChange?.(hud.minute);
+  }, [hud.minute, onMinuteChange]);
   // Bookings are read from the card events rather than the running totals so
   // each one carries the minute it happened, and the periods already played
   // are prepended so the list keeps growing across the interval.

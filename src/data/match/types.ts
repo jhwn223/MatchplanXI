@@ -12,6 +12,12 @@ export interface PlacedPlayerLite {
   /** Canonical coordinates: x moves from own goal (0) to opponent goal (100), y is left-to-right. */
   baseX: number;
   baseY: number;
+  /**
+   * Match minute this player came on; 0 for a starter. Fatigue is charged
+   * against time actually spent on the pitch, so a substitute arrives with
+   * fresh legs instead of carrying the whole match clock.
+   */
+  enteredAtMinute?: number;
   overall: number;
   pace: number;
   acceleration: number;

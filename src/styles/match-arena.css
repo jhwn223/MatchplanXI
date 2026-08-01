@@ -342,6 +342,7 @@
 /* The panel is capped so the score header and playback controls stay visible;
    each tab scrolls inside it rather than running off the bottom of the modal. */
 .match-center {
+  --arena-management-pitch-height: min(62vh, 548px, calc(72vh - 152px));
   min-height: min(540px, 72vh);
   max-height: 72vh;
   display: flex;
@@ -735,51 +736,197 @@
 .arena-ctrl--section { font-size: 11px; }
 .arena-squad-board {
   display: grid;
-  /* The pitch column is capped rather than left at a bare 1fr: a portrait
-     board can only grow so tall before it runs out of modal height, so an
-     unbounded 1fr just left dead space beside a small board. Capping the
-     track and centering the row turns that dead space into balanced outer
-     margins instead. */
-  grid-template-columns: minmax(320px, 560px) minmax(240px, 320px);
+  grid-template-columns: minmax(300px, 400px) minmax(250px, 340px) minmax(300px, 400px);
+  align-items: start;
   justify-content: center;
-  gap: 18px;
-  padding: 16px 22px 20px;
+  gap: 16px;
+  width: calc(100% - 44px);
+  height: var(--arena-management-pitch-height);
+  max-width: 1172px;
+  margin: 8px auto 28px;
+  padding: 0;
   min-height: 0;
+  overflow: visible;
 }
+
+.match-center > .arena-squad-board { overflow: visible; }
+
 .arena-squad-board__pitch {
   min-width: 0;
+  height: var(--arena-management-pitch-height);
   display: flex;
   flex-direction: column;
 }
-/* The pitch is a portrait 68:100 box that fills its column by default, which
-   made it far taller than the modal. Sizing it by height instead keeps the
-   whole lineup on screen and lets the width follow the aspect ratio. The
-   third min() term caps it to what .match-center (72vh) actually has left
-   after its own header and this section's header/padding — without that,
-   the pitch column can grow taller than .match-center's budget, forcing the
-   whole squad-board row (pitch + bench together) to scroll and cutting the
-   bench off mid-list instead of using its own internal scroll. */
+
 .arena-squad-board .pitch {
   width: auto;
-  height: min(62vh, 540px, calc(72vh - 160px));
+  height: var(--arena-management-pitch-height);
+  flex: 0 0 auto;
   margin: 0 auto;
+  border-width: 2px;
+  border-radius: 14px;
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, .055) 0,
+      rgba(255, 255, 255, .055) 10%,
+      rgba(0, 0, 0, .035) 10%,
+      rgba(0, 0, 0, .035) 20%
+    ),
+    linear-gradient(180deg, #3f7249 0%, #315f3b 100%);
+  box-shadow: 0 10px 22px rgba(20, 48, 26, .16);
 }
-/* Capped the same way as the pitch above, so the bench's own scrollbar is
-   what handles overflow instead of the shared row needing to scroll. */
+
 .arena-squad-board .bench {
+  align-self: start;
   min-height: 0;
-  max-height: min(58vh, 520px, calc(72vh - 100px));
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  box-sizing: border-box;
   overflow-y: auto;
 }
-.arena-squad-board__pitch > header {
+
+.arena-squad-board__controls {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 12px;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  gap: 8px;
 }
-.arena-squad-board__pitch h3 { margin: 0 0 3px; font-size: 14px; }
-.arena-squad-board__pitch p { margin: 0; color: var(--text-dim); font-size: 11px; }
+
+.arena-squad-board__team {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 64px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 1px solid #c8d9c7;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #f9fcf7, #edf5e9);
+}
+
+.arena-squad-board__team > span {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 11px;
+  background: #173f24;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.arena-squad-board__team > span small {
+  color: inherit;
+  font-size: 8px;
+  line-height: 1;
+}
+
+.arena-squad-board__flag {
+  width: 27px;
+  height: 19px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 4px;
+}
+
+.arena-squad-board__team small,
+.arena-squad-board__team p {
+  display: block;
+  margin: 0;
+  color: #728070;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.arena-squad-board__team h2 {
+  margin: 2px 0 3px;
+  font-size: 16px;
+  line-height: 1.1;
+}
+
+.arena-squad-board__status {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.arena-squad-board__status > label,
+.arena-squad-board__status > div {
+  display: flex;
+  min-width: 0;
+  min-height: 72px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 9px 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel);
+}
+
+.arena-squad-board__status span {
+  margin-bottom: 5px;
+  color: var(--text-dim);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.arena-squad-board__status strong {
+  color: var(--accent);
+  font-size: 15px;
+}
+
+.arena-squad-board__status .match-formation-select {
+  width: 100%;
+  min-height: 30px;
+}
+
+.arena-squad-board__guide {
+  flex: 1 1 auto;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.arena-squad-board__guide h3 {
+  margin: 0 0 9px;
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.arena-squad-board__guide ul {
+  margin: 0;
+  padding-left: 17px;
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.arena-squad-board__reset {
+  min-height: 40px;
+  border: 1px solid #c8d9c7;
+  border-radius: 10px;
+  background: #edf5e9;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.arena-squad-board__reset:hover {
+  border-color: var(--accent);
+  background: #e1f1df;
+}
+
 .arena-squad-board__meta {
   display: flex;
   align-items: center;
@@ -789,9 +936,174 @@
   font-size: 11px;
   font-weight: 700;
 }
-.arena-opponent-board { padding: 20px 22px 26px; overflow-y: auto; min-height: 0; }
+.arena-opponent-board {
+  min-height: 0;
+  padding: 8px 22px 28px;
+  overflow: hidden;
+}
+
+.match-center > .arena-opponent-board { overflow: hidden; }
+
+/* Match the squad/substitution workspace, but reserve a separate rail for the
+   opposition bench: lineup pitch -> report -> substitutes. The pre-match
+   report keeps its own vertical layout because every override is arena-scoped. */
+.arena-opponent-board .opponent-report {
+  display: grid;
+  grid-template-columns: minmax(300px, 400px) minmax(250px, 340px) minmax(300px, 400px);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "lineup header bench"
+    "lineup metrics bench"
+    "lineup tactics bench"
+    "lineup scout bench"
+    "lineup evidence bench";
+  align-items: start;
+  justify-content: center;
+  gap: 8px 16px;
+  height: var(--arena-management-pitch-height);
+  max-width: 1172px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.arena-opponent-board .opponent-report__header {
+  grid-area: header;
+  min-height: 64px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.arena-opponent-board .opponent-report__header > span {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+}
+
+.arena-opponent-board .opponent-report__metrics {
+  grid-area: metrics;
+  align-self: stretch;
+  margin: 0;
+  gap: 5px;
+}
+
+.arena-opponent-board .opponent-report__metrics > div {
+  display: flex;
+  min-height: 58px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px;
+}
+
+.arena-opponent-board .opponent-report__lineup {
+  grid-area: lineup;
+  min-width: 0;
+  height: var(--arena-management-pitch-height);
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.arena-opponent-board .opponent-report__lineup .pitch.pitch--compact {
+  width: auto;
+  max-width: none;
+  height: var(--arena-management-pitch-height);
+  flex: 0 0 auto;
+  margin: 0 auto;
+}
+
+.arena-opponent-board .pitch--compact .pitch-slot {
+  transform: translate(-50%, -50%);
+}
+
+.arena-opponent-board .pitch--compact .player-card--slot {
+  width: 78px;
+}
+
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__name,
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__sub {
+  max-width: 78px;
+}
+
+.arena-opponent-board .opponent-report__shape {
+  grid-area: tactics;
+  margin-top: 0;
+  padding: 10px 12px;
+}
+
+.arena-opponent-board .opponent-report__scout {
+  grid-area: scout;
+  margin-top: 0;
+  gap: 6px;
+}
+
+.arena-opponent-board .opponent-report__scout > div { padding: 9px 10px; }
+
+.arena-opponent-board .opponent-report__evidence {
+  grid-area: evidence;
+  align-self: end;
+  margin-top: 0;
+}
+
+.arena-opponent-board .opponent-report__bench {
+  grid-area: bench;
+  align-self: start;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  box-sizing: border-box;
+  margin-top: 0;
+  padding: 14px 12px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.arena-opponent-board .opponent-report__bench .opponent-lineup-list {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+@media (max-width: 1180px) {
+  .arena-squad-board,
+  .arena-opponent-board .opponent-report {
+    grid-template-columns: minmax(280px, 1fr) minmax(230px, 340px) minmax(280px, 1fr);
+    gap: 8px 12px;
+  }
+}
+
 @media (max-width: 900px) {
-  .arena-squad-board { grid-template-columns: 1fr; }
+  .match-center > .arena-squad-board,
+  .match-center > .arena-opponent-board { overflow-y: auto; }
+
+  .arena-squad-board {
+    display: block;
+    height: auto;
+    max-width: none;
+  }
+
+  .arena-squad-board__pitch { height: min(62vh, 548px); }
+  .arena-squad-board__controls { height: auto; margin-top: 10px; }
+  .arena-squad-board .bench { height: auto; max-height: 520px; margin-top: 10px; }
+
+  .arena-opponent-board .opponent-report {
+    display: block;
+  }
+
+  .arena-opponent-board .opponent-report__metrics,
+  .arena-opponent-board .opponent-report__lineup,
+  .arena-opponent-board .opponent-report__shape,
+  .arena-opponent-board .opponent-report__scout,
+  .arena-opponent-board .opponent-report__evidence,
+  .arena-opponent-board .opponent-report__bench {
+    margin-top: 10px;
+  }
+
+  .arena-opponent-board .opponent-report__bench .opponent-lineup-list {
+    grid-template-columns: 1fr;
+  }
 }
 .arena-team-tactics {
   position: relative;
