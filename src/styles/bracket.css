@@ -153,6 +153,13 @@
   font-weight: 800;
   letter-spacing: 0.4px;
 }
+/* .hub__header (row layout, light theme) is space-between for its usual
+   two children (back button + title-block); the results header only has
+   the title-block, so space-between left-packs it instead of centering.
+   Chained selector (not just .final-results__header) is needed to out-
+   specificity light-theme.css's .hub__header rule, which loads after
+   bracket.css and would otherwise win on equal single-class specificity. */
+.hub__header.final-results__header { justify-content: center; }
 .final-results__header .hub__title-block { justify-content: center; }
 .final-results__header .hub__title { text-align: center; }
 .final-results__header .hub__meta { text-align: center; }
