@@ -55,7 +55,10 @@ function ScorerList({
 }: {
   scorers: { playerId: number; minute: number; name: string }[];
 }) {
-  if (!scorers.length) return null;
+  // Always render the <ul>, even empty — it reserves the same slot on both
+  // sides of the scoreboard, so a team with only a card (no goal) doesn't
+  // end up with its booking line sitting one slot higher than the other
+  // side's and throwing the two columns out of alignment.
   const groupedScorers = Array.from(
     scorers.reduce((groups, scorer) => {
       const existing = groups.get(scorer.playerId);
@@ -90,7 +93,7 @@ function BookingList({
 }: {
   bookings: { minute: number; name: string; red: boolean }[];
 }) {
-  if (!bookings.length) return null;
+  // Always render the <ul> — see the comment in ScorerList above.
   return (
     <ul className="arena-bookings">
       {bookings.map((booking, index) => (
