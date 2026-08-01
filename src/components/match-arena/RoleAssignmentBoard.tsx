@@ -75,7 +75,6 @@ export function RoleAssignmentBoard({
             <small>{selected.label} POSITION ROLE</small>
             <h3>{player?.player_name ?? `${selected.label} 슬롯`}</h3>
           </div>
-          <span>{roleDefinition(currentRole).label}</span>
         </header>
         <div className="role-board__options" role="radiogroup" aria-label={`${selected.label} 역할 선택`}>
           {options.map((option) => (
