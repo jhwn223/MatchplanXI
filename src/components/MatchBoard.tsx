@@ -551,6 +551,10 @@ export function MatchBoard({
         onExtraTimeComplete={completeExtraTime}
         onPhaseChange={setPhase}
         onClose={closeArena}
+        onSchedule={() => {
+          closeArena();
+          onBack();
+        }}
         onNextMatch={() => {
           closeArena();
           onNextMatch();

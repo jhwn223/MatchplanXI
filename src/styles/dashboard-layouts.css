@@ -196,82 +196,178 @@
 .arena-ctrl--end { color: var(--danger); margin-left: 4px; }
 .arena-live-controls + .sim-compare { border-top: 1px solid var(--border); }
 
-/* Full-time summary follows the Stitch result-dashboard composition. */
+/* Compact full-time summary: the score already lives in ArenaScoreHeader. */
 .sim-compare--final {
-  display: grid;
-  grid-template-columns: minmax(0, .9fr) minmax(0, 1.35fr);
-  gap: 18px;
-  max-height: min(72vh, 760px);
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: min(68vh, 680px);
+  padding: 20px 28px 24px;
   background: var(--bg);
 }
-.sim-compare--final .sim-compare__et,
-.sim-compare--final .sim-compare__row,
-.sim-compare--final .sim-compare__verdict,
-.sim-compare--final .sim-compare__tactics,
-.sim-compare--final .sim-compare__actions {
-  grid-column: 1 / -1;
-}
-.sim-compare--final .sim-compare__row {
-  margin: 0;
-  padding: 20px;
+.fulltime-outcome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 76px;
+  padding: 15px 20px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-left: 5px solid var(--accent);
+  border-radius: 12px;
+  background: #fff;
+}
+.fulltime-outcome[data-result="패배"] { border-left-color: var(--danger); }
+.fulltime-outcome[data-result="무승부"] { border-left-color: #d49a18; }
+.fulltime-outcome > div:first-child {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 2px 12px;
+}
+.fulltime-outcome__eyebrow {
+  grid-column: 1 / -1;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .12em;
+}
+.fulltime-outcome strong {
+  color: var(--text);
+  font-size: 25px;
+  line-height: 1;
+}
+.fulltime-outcome p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.fulltime-outcome__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.fulltime-outcome__meta span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 700;
+}
+.fulltime-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, .85fr);
+  gap: 16px;
+}
+.fulltime-grid[data-single] { grid-template-columns: 1fr; }
+.fulltime-card {
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
   background: #fff;
   box-shadow: var(--shadow-card);
 }
-.sim-compare--final .sim-compare__col {
+.fulltime-card__header {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 92px;
-  border: 0;
-  background: var(--panel-2);
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 11px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--border);
 }
-.sim-compare--final .sim-compare__label {
+.fulltime-card__header span {
+  display: block;
+  margin-bottom: 3px;
   color: var(--accent);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .1em;
 }
-.sim-compare--final .sim-compare__val {
+.fulltime-card__header h3 {
+  margin: 0;
   color: var(--text);
-  font-size: 36px;
+  font-size: 17px;
+}
+.fulltime-stats__teams {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  color: var(--text-dim);
+  font-size: 10px;
+  text-align: right;
+}
+.fulltime-stat-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(110px, .8fr) minmax(90px, 1fr);
+  align-items: center;
+  min-height: 39px;
+  border-bottom: 1px solid var(--border);
   font-variant-numeric: tabular-nums;
 }
-.sim-compare--final .sim-compare__verdict {
-  margin: 0;
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 750;
-  text-align: center;
-}
-.sim-compare--final .sim-compare__tactics {
-  margin: -10px 0 0;
-  color: var(--text-dim);
-  text-align: center;
-}
-.sim-compare--final .team-stats,
-.sim-compare--final .leaderboard {
-  min-height: 210px;
-  margin: 0;
-  padding: 20px;
-  border-radius: 14px;
-  box-shadow: var(--shadow-card);
-}
-.sim-compare--final .team-stats__title,
-.sim-compare--final .leaderboard__title {
-  margin-bottom: 18px;
+.fulltime-stat-row:last-child { border-bottom: 0; }
+.fulltime-stat-row strong {
   color: var(--accent);
-  font-size: 16px;
+  font-size: 13px;
 }
-.sim-compare--final .stat-bar { margin-bottom: 20px; }
-.sim-compare--final .stat-bar__track { height: 8px; }
-.sim-compare--final .leaderboard__row { min-height: 30px; padding: 6px 8px; }
-.sim-compare--final .sim-compare__actions {
-  justify-content: center;
-  padding-top: 2px;
+.fulltime-stat-row strong:last-child {
+  color: var(--danger);
+  text-align: right;
+}
+.fulltime-stat-row span {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 650;
+  text-align: center;
+}
+.fulltime-motm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+}
+.fulltime-motm > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.fulltime-motm span { font-size: 9px; font-weight: 850; letter-spacing: .12em; opacity: .75; }
+.fulltime-motm strong { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.fulltime-motm small { margin-top: 2px; font-size: 10px; opacity: .8; }
+.fulltime-motm b {
+  display: grid;
+  place-items: center;
+  min-width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .18);
+  font-size: 18px;
+}
+.fulltime-performers__list { margin-top: 8px; }
+.fulltime-player-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 43px;
+  border-bottom: 1px solid var(--border);
+}
+.fulltime-player-row:last-child { border-bottom: 0; }
+.fulltime-player-row > span { color: var(--text-dim); font-size: 10px; font-weight: 800; }
+.fulltime-player-row > div { display: flex; flex-direction: column; min-width: 0; }
+.fulltime-player-row strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.fulltime-player-row small { color: var(--text-dim); font-size: 9px; }
+.fulltime-player-row b { color: var(--accent); font-size: 14px; }
+.fulltime-actions {
+  justify-content: flex-end;
+  padding-top: 0;
 }
 .sim-compare--final .sim-btn { flex: 0 1 190px; min-height: 42px; }
 
@@ -283,9 +379,7 @@
   .arena-events { border-left: 0; border-top: 1px solid var(--border); }
   .arena-score { padding: 20px 16px; }
   .arena-score__team > div > strong { font-size: 14px; }
-  .sim-compare--final { grid-template-columns: 1fr; }
-  .sim-compare--final .team-stats,
-  .sim-compare--final .leaderboard { grid-column: 1; }
+  .fulltime-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 620px) {
@@ -298,5 +392,11 @@
   .arena-score__team > div > strong { display: none; }
   .arena-score__nums { font-size: 30px; }
   .arena-live-controls { padding: 16px; }
+  .sim-compare--final { padding: 16px; }
+  .fulltime-outcome { align-items: flex-start; flex-direction: column; }
+  .fulltime-outcome__meta { justify-content: flex-start; }
+  .fulltime-stat-row { grid-template-columns: minmax(70px, 1fr) 95px minmax(70px, 1fr); }
+  .fulltime-actions { flex-wrap: wrap; }
+  .fulltime-actions .sim-btn { flex: 1 1 140px; }
 }
 

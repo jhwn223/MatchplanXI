@@ -225,7 +225,50 @@ describe("match engine invariants", () => {
     expect(wideSpread).toBeGreaterThan(narrowSpread + 10);
   });
 
-  test("a full match stays inside broad football calibration limits", () => {
+  test("all attack directions produce distinct pass and heat-map patterns", () => {
+    const simulateFocus = (patch: Partial<SimTacticProfile>) => [311, 312].map((seed) =>
+      simulatePeriod(input(seed, tactics(patch)), 1, 30, 0),
+    );
+    const left = simulateFocus({ focusBias: -1 });
+    const balanced = simulateFocus({ focusBias: 0, centralFocusBias: 0 });
+    const right = simulateFocus({ focusBias: 1 });
+    const central = simulateFocus({ focusBias: 0, centralFocusBias: 1, widthBias: -0.2 });
+    const attackingIds = new Set(
+      input(0).placed
+        .filter((player) => player.position === "MID" || player.position === "FWD")
+        .map((player) => player.playerId),
+    );
+    const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const passEndY = (results: ReturnType<typeof simulatePeriod>[]) => mean(
+      results.flatMap((result) => result.events
+        .filter((event) => event.side === "user" && event.type === "pass" && event.success)
+        .map((event) => event.endY ?? 50)),
+    );
+    const attackingHeatY = (results: ReturnType<typeof simulatePeriod>[]) => mean(
+      results.flatMap((result) => result.positionSamples
+        .filter((sample) => sample.side === "user" && attackingIds.has(sample.playerId))
+        .map((sample) => sample.y)),
+    );
+    const passCentralDeviation = (results: ReturnType<typeof simulatePeriod>[]) => mean(
+      results.flatMap((result) => result.events
+        .filter((event) => event.side === "user" && event.type === "pass" && event.success)
+        .map((event) => Math.abs((event.endY ?? 50) - 50))),
+    );
+    const heatCentralDeviation = (results: ReturnType<typeof simulatePeriod>[]) => mean(
+      results.flatMap((result) => result.positionSamples
+        .filter((sample) => sample.side === "user" && attackingIds.has(sample.playerId))
+        .map((sample) => Math.abs(sample.y - 50))),
+    );
+
+    expect(passEndY(right) - passEndY(left)).toBeGreaterThan(9);
+    expect(attackingHeatY(right) - attackingHeatY(left)).toBeGreaterThan(15);
+    expect(passEndY(balanced)).toBeGreaterThan(passEndY(left));
+    expect(passEndY(balanced)).toBeLessThan(passEndY(right));
+    expect(passCentralDeviation(central)).toBeLessThan(passCentralDeviation(balanced) - 3);
+    expect(heatCentralDeviation(central)).toBeLessThan(heatCentralDeviation(balanced) - 3);
+  });
+
+  test("a full match stays inside football calibration limits in both halves", () => {
     const results = Array.from({ length: 30 }, (_, seed) =>
       simulatePeriod(input(seed + 1), 1, 90, 0),
     );
@@ -233,12 +276,32 @@ describe("match engine invariants", () => {
       values.reduce((sum, value) => sum + value, 0) / values.length;
     const passes = average(results.map((result) => result.teamStats.user.passesAttempted));
     const shots = average(results.map((result) => result.teamStats.user.shots));
+    const combinedShots = average(results.map(
+      (result) => result.teamStats.user.shots + result.teamStats.opp.shots,
+    ));
+    const combinedShotsOnTarget = average(results.map(
+      (result) => result.teamStats.user.shotsOnTarget + result.teamStats.opp.shotsOnTarget,
+    ));
+    const firstHalfShots = average(results.map((result) => result.events.filter(
+      (event) => event.type === "shot" && event.minute <= 45,
+    ).length));
+    const secondHalfShots = average(results.map((result) => result.events.filter(
+      (event) => event.type === "shot" && event.minute > 45,
+    ).length));
     const fouls = average(results.map((result) => result.teamStats.user.fouls));
     const offsides = average(results.map((result) => result.teamStats.user.offsides));
     expect(passes).toBeGreaterThan(220);
     expect(passes).toBeLessThan(850);
     expect(shots).toBeGreaterThan(3);
-    expect(shots).toBeLessThan(35);
+    expect(shots).toBeLessThan(18);
+    expect(combinedShots).toBeGreaterThanOrEqual(20);
+    expect(combinedShots).toBeLessThanOrEqual(29);
+    expect(firstHalfShots).toBeGreaterThanOrEqual(9);
+    expect(firstHalfShots).toBeLessThanOrEqual(15);
+    expect(secondHalfShots).toBeGreaterThanOrEqual(9);
+    expect(secondHalfShots).toBeLessThanOrEqual(15);
+    expect(combinedShotsOnTarget).toBeGreaterThanOrEqual(7);
+    expect(combinedShotsOnTarget).toBeLessThanOrEqual(12);
     expect(fouls).toBeGreaterThan(0);
     expect(fouls).toBeLessThan(30);
     expect(offsides).toBeLessThan(8);

@@ -3,6 +3,37 @@ import type { MatchSide, PlacedPlayerLite } from "../types";
 import type { MatchWorld, WorldPlayerState } from "./types";
 
 /**
+ * Scores how well a lateral lane matches the selected attacking side.
+ *
+ * `focusBias` is expressed from the team's point of view: -1 is its left
+ * flank and +1 is its right flank. Because the two teams attack in opposite
+ * directions, their right flanks are opposite sides of the shared pitch.
+ */
+export function attackFocusLaneWeight(
+  y: number,
+  focusBias: number,
+  attackDirection: 1 | -1,
+  centralFocusBias = 0,
+) {
+  const focus = clamp(focusBias, -1, 1);
+  const lane = clamp((y - 50) / 42, -1, 1);
+  const alignment = lane * focus * attackDirection;
+  const centralFocus = clamp(centralFocusBias, 0, 1);
+  const centrality = 1 - Math.abs(lane);
+  const flankWeight = alignment * Math.abs(focus) * 0.68;
+  const centralWeight = centralFocus * (centrality * 0.7 - (1 - centrality) * 0.55);
+  return clamp(1 + flankWeight + centralWeight, 0.36, 1.7);
+}
+
+/** The visible centre of the flank a focused attack is trying to occupy. */
+export function attackFocusLaneY(
+  focusBias: number,
+  attackDirection: 1 | -1,
+) {
+  return 50 + clamp(focusBias, -1, 1) * attackDirection * 27;
+}
+
+/**
  * Pitch coordinates stay far inside the range where Math.hypot's overflow
  * guarding earns its cost, and these run on every simulation tick.
  */
@@ -131,6 +162,8 @@ export function passOptionScore(
   passer: PlacedPlayerLite,
   receiver: PlacedPlayerLite,
   directness: number,
+  focusBias = 0,
+  centralFocusBias = 0,
 ) {
   const start = worldPlayer(world, side, passer);
   const end = worldPlayer(world, side, receiver);
@@ -148,6 +181,12 @@ export function passOptionScore(
         receiver.position === "DEF" ? 1.45 : 1.7;
   const intelligence =
     0.5 + (receiver.positioning + receiver.reactions + receiver.ballControl) / 270;
-  return Math.max(0.01, roleWeight * intelligence * distanceFit * space * forwardFit);
+  const focusFit = attackFocusLaneWeight(
+    end.y,
+    focusBias,
+    direction,
+    centralFocusBias,
+  );
+  return Math.max(0.01, roleWeight * intelligence * distanceFit * space * forwardFit * focusFit);
 }
 

@@ -8,6 +8,8 @@ export interface FormationShapeProfile {
   pressBias: number;
   defensiveLineBias: number;
   widthBias: number;
+  /** Pulls the front and midfield lines into the central lane. */
+  centralFocusBias?: number;
   focusBias: number;
   /** Full-backs joining the attack. */
   overlapBias?: number;
@@ -28,6 +30,7 @@ export const BALANCED_SHAPE_PROFILE: FormationShapeProfile = {
   pressBias: 0,
   defensiveLineBias: 0,
   widthBias: 0,
+  centralFocusBias: 0,
   focusBias: 0,
   overlapBias: 0,
   directnessBias: 0,
@@ -130,13 +133,24 @@ export function formationAnchor({
 
   const widthBase = hasBall ? 0.96 : 0.8;
   const overlapWidth = hasBall && isFullBack ? Math.max(0, overlap) * 0.12 : 0;
-  const widthScale = clamp(widthBase + profile.widthBias * 0.2 + overlapWidth, 0.62, 1.26);
+  const centralFocus = clamp(profile.centralFocusBias ?? 0, 0, 1);
+  const centralNarrowing = hasBall
+    ? centralFocus * (role === "FWD" ? 0.3 : role === "MID" ? 0.25 : role === "DEF" ? 0.1 : 0)
+    : centralFocus * (role === "FWD" || role === "MID" ? 0.08 : 0.04);
+  const widthScale = clamp(
+    widthBase + profile.widthBias * 0.2 + overlapWidth - centralNarrowing,
+    0.5,
+    1.26,
+  );
   const ballShift = hasBall ? 0.14 : 0.2;
   // Attacking down one side has to be legible on a heat map, so the shift is
   // real and the players who actually move over — the front and middle lines —
   // shift furthest. A little of it survives out of possession as well.
-  const focusStrength = role === "FWD" ? 11 : role === "MID" ? 8 : role === "DEF" ? 4 : 1;
-  const focusShift = profile.focusBias * focusStrength * (hasBall ? 1 : 0.45);
+  const focusStrength = role === "FWD" ? 14 : role === "MID" ? 11 : role === "DEF" ? 5 : 1;
+  // Right/left is relative to the team's attacking direction. A side that
+  // attacks the opposite goal therefore uses the opposite half of the shared
+  // pitch for its own right flank.
+  const focusShift = profile.focusBias * direction * focusStrength * (hasBall ? 1 : 0.35);
   const y = clamp(
     50 + (baseY - 50) * widthScale + (ball.y - 50) * ballShift + focusShift,
     4,

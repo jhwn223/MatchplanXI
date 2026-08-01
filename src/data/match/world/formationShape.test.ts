@@ -67,4 +67,53 @@ describe("elastic formation shape", () => {
     const wideSpread = lane(80, 1) - lane(20, 1);
     expect(wideSpread).toBeGreaterThan(narrowSpread + 15);
   });
+
+  test("attack focus visibly moves the attacking lines toward the selected flank", () => {
+    const focusedAnchor = (direction: 1 | -1, focusBias: number) => formationAnchor({
+      direction,
+      role: "FWD",
+      baseX: 74,
+      baseY: 50,
+      ball: { x: direction === 1 ? 66 : 34, y: 50 },
+      phase: "finalThird",
+      hasBall: true,
+      profile: {
+        attackBias: 0,
+        pressBias: 0,
+        defensiveLineBias: 0,
+        widthBias: 0,
+        focusBias,
+      },
+    }).y;
+
+    const userLeft = focusedAnchor(1, -1);
+    const userRight = focusedAnchor(1, 1);
+    const opponentRight = focusedAnchor(-1, 1);
+    expect(userRight - userLeft).toBeGreaterThan(25);
+    expect(userRight).toBeGreaterThan(50);
+    expect(opponentRight).toBeLessThan(50);
+  });
+
+  test("central focus narrows the attacking lanes while balanced keeps their natural spread", () => {
+    const lane = (baseY: number, centralFocusBias: number) => formationAnchor({
+      direction: 1,
+      role: "FWD",
+      baseX: 74,
+      baseY,
+      ball: { x: 66, y: 50 },
+      phase: "finalThird",
+      hasBall: true,
+      profile: {
+        attackBias: 0,
+        pressBias: 0,
+        defensiveLineBias: 0,
+        widthBias: 0,
+        focusBias: 0,
+        centralFocusBias,
+      },
+    }).y;
+    const balancedSpread = lane(80, 0) - lane(20, 0);
+    const centralSpread = lane(80, 1) - lane(20, 1);
+    expect(centralSpread).toBeLessThan(balancedSpread - 12);
+  });
 });

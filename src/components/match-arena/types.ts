@@ -97,5 +97,7 @@ export interface MatchArenaProps {
   onPeriodComplete: (period: HalfResult) => ArenaSim;
   onComplete: () => void;
   onClose: () => void;
+  /** Leave the finished match and return to the schedule/bracket screen. */
+  onSchedule?: () => void;
   onNext?: () => void;
 }

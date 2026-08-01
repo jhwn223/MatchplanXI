@@ -5,6 +5,7 @@ import {
   constrainToAnchor,
   formationAnchor,
 } from "../../data/match/world/formationShape";
+import { attackFocusLaneY } from "../../data/match/world/perception";
 import { clamp } from "./runtimeMath";
 import type { ArenaDot, ArenaMatchPhase, ArenaState } from "./runtimeTypes";
 
@@ -457,6 +458,9 @@ export function updateArenaMovement(
     const flightChaser = state.ball.flightTarget?.owner === index || state.ball.flightTarget?.chaser === index;
     const phase = movement.phaseByTeam[dot.team];
     const shape = relativeShapeTarget(state, dot, positionTargets.get(dot.playerId), phase);
+    const profile = state.shapeProfiles?.[dot.team] ?? BALANCED_SHAPE_PROFILE;
+    const focusedLaneY = attackFocusLaneY(profile.focusBias, direction(dot.team));
+    const focusAmount = Math.max(Math.abs(profile.focusBias), profile.centralFocusBias ?? 0);
     let target: MovementTarget;
 
     if (scripted) {
@@ -476,9 +480,10 @@ export function updateArenaMovement(
         action: "move",
       };
     } else if (state.ball.owner === index) {
+      const focusPull = focusAmount * (focusedLaneY - dot.y) * 0.16;
       const desired = {
         x: dot.x + direction(dot.team) * (phase === "transitionAttack" ? 5 : 3),
-        y: dot.y + (shape.y - dot.y) * 0.28,
+        y: dot.y + (shape.y - dot.y) * 0.28 + focusPull,
       };
       const carrying = constrainToAnchor(
         shape,
@@ -495,9 +500,10 @@ export function updateArenaMovement(
       const supportRank = supporterIndices.indexOf(index);
       if (supportRank >= 0 && dot.role !== "FWD") {
         const awareness = clamp((dot.positioning + dot.vision) / 180, 0.72, 1.08);
+        const focusSupport = focusAmount * (focusedLaneY - state.ball.y) * 0.22;
         const desired = {
           x: state.ball.x - direction(dot.team) * (8 / awareness),
-          y: state.ball.y + (supportRank === 0 ? -9 : 9) / awareness,
+          y: state.ball.y + (supportRank === 0 ? -9 : 9) / awareness + focusSupport,
         };
         const support = constrainToAnchor(shape, desired, 5, 14);
         target = {

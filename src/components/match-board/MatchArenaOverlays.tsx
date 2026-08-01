@@ -35,6 +35,7 @@ interface Props {
   onExtraTimeComplete: (period: HalfResult) => ArenaSim;
   onPhaseChange: (phase: MatchPhase) => void;
   onClose: () => void;
+  onSchedule: () => void;
   onNextMatch: () => void;
 }
 
@@ -64,6 +65,7 @@ export function MatchArenaOverlays({
   onExtraTimeComplete,
   onPhaseChange,
   onClose,
+  onSchedule,
   onNextMatch,
 }: Props) {
   const shared = {
@@ -88,6 +90,7 @@ export function MatchArenaOverlays({
     onFormationChange,
     onPlayerDismissed,
     onClose,
+    onSchedule,
   } as const;
 
   return (

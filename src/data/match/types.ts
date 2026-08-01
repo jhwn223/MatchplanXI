@@ -191,6 +191,9 @@ export interface SimTacticProfile {
   defensiveLineBias: number;
   tacklingBias: number;
   widthBias: number;
+  /** Positive concentrates possession and movement through the middle lane. */
+  centralFocusBias: number;
+  /** -1 targets the left flank, +1 targets the right flank, 0 has no side bias. */
   focusBias: number;
   setPieceBias: number;
   /** Where the block starts pressing, independent of how deep it defends. */

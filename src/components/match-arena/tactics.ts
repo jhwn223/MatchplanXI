@@ -298,9 +298,27 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
   const teamWidth = { narrow: -1, balanced: 0, wide: 1 }[tactics.width];
 
   return {
-    attackBias: clamp(chanceAttack[tactics.chanceCreation] + boxCommitment * 0.3 + mentality * 0.5 + strikerAttack, -1, 1),
+    // Individual roles mostly shape that player's movement. They should only
+    // nudge team-wide risk; otherwise the default poacher silently turns the
+    // visible "balanced" preset into an attacking one.
+    attackBias: clamp(
+      chanceAttack[tactics.chanceCreation] +
+        boxCommitment * 0.3 +
+        mentality * 0.5 +
+        strikerAttack * 0.25,
+      -1,
+      1,
+    ),
     pressBias: clamp(defensePress[tactics.defenseStyle] * 0.45 + depth * 0.2 + pressing * 0.55 + workRate * 0.2, -1, 1),
-    overlapBias: clamp(teamWidth * 0.3 + boxCommitment * 0.2 + setPieceCommitment * 0.1 + widePlay * 0.35 + fullbackOverlap * 0.7, -1, 1),
+    overlapBias: clamp(
+      teamWidth * 0.3 +
+        boxCommitment * 0.2 +
+        setPieceCommitment * 0.1 +
+        widePlay * 0.35 +
+        fullbackOverlap * 0.35,
+      -1,
+      1,
+    ),
     directnessBias: clamp(buildDirectness[tactics.buildUpPlay] * 0.4 + passing * 0.55 + strikerDirectness * 0.35, -1, 1),
     counterBias: clamp(
       (tactics.buildUpPlay === "fastBuildUp" ? 0.72 : tactics.buildUpPlay === "longPass" ? 0.4 : 0) +
@@ -315,6 +333,7 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
     defensiveLineBias: clamp(defensiveLine * 0.75 + depth * 0.25, -1, 1),
     tacklingBias: clamp(tackling * 0.8 + (tactics.marking === "man" ? 0.2 : -0.05), -1, 1),
     widthBias: clamp(teamWidth * 0.6 + focusWidth * 0.25 + widePlay * 0.25, -1, 1),
+    centralFocusBias: tactics.attackFocus === "central" ? 1 : 0,
     focusBias: focus,
     setPieceBias: clamp(setPieceCommitment, -1, 1),
     engagementBias: { deep: -1, middle: 0, high: 1 }[tactics.lineOfEngagement],

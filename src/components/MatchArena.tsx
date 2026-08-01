@@ -50,15 +50,35 @@ function inheritedYellowCards(events: MatchEvent[] | undefined) {
   return cards;
 }
 
-function ScorerList({ scorers }: { scorers: { minute: number; name: string }[] }) {
+function ScorerList({
+  scorers,
+}: {
+  scorers: { playerId: number; minute: number; name: string }[];
+}) {
   if (!scorers.length) return null;
+  const groupedScorers = Array.from(
+    scorers.reduce((groups, scorer) => {
+      const existing = groups.get(scorer.playerId);
+      if (existing) {
+        existing.minutes.push(scorer.minute);
+      } else {
+        groups.set(scorer.playerId, {
+          playerId: scorer.playerId,
+          name: scorer.name,
+          minutes: [scorer.minute],
+        });
+      }
+      return groups;
+    }, new Map<number, { playerId: number; name: string; minutes: number[] }>()),
+    ([, scorer]) => scorer,
+  );
   return (
     <ul className="arena-scorers">
-      {scorers.map((scorer, index) => (
-        <li key={`${scorer.minute}-${scorer.name}-${index}`}>
+      {groupedScorers.map((scorer) => (
+        <li key={scorer.playerId}>
           <i aria-hidden="true">⚽</i>
           <span>{scorer.name}</span>
-          <em>{scorer.minute}′</em>
+          <em>{scorer.minutes.map((minute) => `${minute}′`).join(", ")}</em>
         </li>
       ))}
     </ul>
@@ -168,6 +188,7 @@ export function MatchArena({
   onPeriodComplete,
   onComplete,
   onClose,
+  onSchedule,
   onNext,
 }: MatchArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -718,7 +739,11 @@ export function MatchArena({
   const scorers = (side: "user" | "opp") =>
     timeline
       .filter((event) => event.side === side && event.type === "goal")
-      .map((event) => ({ minute: event.minute, name: event.actor }));
+      .map((event) => ({
+        playerId: event.actorId,
+        minute: event.minute,
+        name: event.actor,
+      }));
   // 연장전(90~120분)은 한 화면 안에서 105분을 기준으로 연장 전반/후반 두 구간으로 나눠서 게이지를 채운다.
   const isExtraTime = endMinute > 90;
   const extraTimeHalf = isExtraTime && hud.minute >= 105;
@@ -934,6 +959,7 @@ export function MatchArena({
             onInterimContinue={onInterimContinue}
             onReplay={replay}
             onClose={onClose}
+            onSchedule={onSchedule}
             onNext={onNext}
           />
         ) : (
