@@ -9,7 +9,7 @@ import {
   type TeamTactics,
 } from "./tactics";
 
-type TacticsTab = "quick" | "roles" | "general" | "attack" | "defense";
+type TacticsTab = "quick" | "style" | "roles" | "general" | "attack" | "defense";
 
 interface Props {
   userTeamName: string;
@@ -94,6 +94,7 @@ export function ArenaTacticsPanel({
         <nav className="match-tactics-tabs" aria-label="전술 설정 분류">
           {([
             ["quick", "빠른 지시"],
+            ["style", "스타일"],
             ["general", "일반"],
             ["attack", "공격"],
             ["defense", "수비"],
@@ -109,7 +110,7 @@ export function ArenaTacticsPanel({
           {tab === "quick" && (
             <div className="quick-tactics">
               <div className="quick-tactics__grid">
-                {QUICK_TACTICS.map((preset) => (
+                {QUICK_TACTICS.filter((preset) => preset.group === "orientation").map((preset) => (
                   <button
                     type="button"
                     key={preset.key}
@@ -123,6 +124,27 @@ export function ArenaTacticsPanel({
               </div>
               <p>
                 빠른 지시는 여러 세부 설정을 한 번에 변경합니다. 선택 즉시 저장되며,
+                경기 중에는 다음 플레이부터 반영됩니다.
+              </p>
+            </div>
+          )}
+          {tab === "style" && (
+            <div className="quick-tactics">
+              <div className="quick-tactics__grid">
+                {QUICK_TACTICS.filter((preset) => preset.group === "style").map((preset) => (
+                  <button
+                    type="button"
+                    key={preset.key}
+                    data-active={selectedQuick === preset.key || undefined}
+                    onClick={() => commit(applyQuickTactic(draft, preset.key), preset.key)}
+                  >
+                    <strong>{preset.label}</strong>
+                    <span>{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+              <p>
+                경기 전에 고른 전술 스타일과 같은 기준입니다. 선택 즉시 저장되며,
                 경기 중에는 다음 플레이부터 반영됩니다.
               </p>
             </div>
