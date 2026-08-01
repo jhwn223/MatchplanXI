@@ -13,6 +13,8 @@ export interface FormationShapeProfile {
   focusBias: number;
   /** Full-backs joining the attack. */
   overlapBias?: number;
+  /** How far the full-backs run beyond the ball on their own flank. */
+  fullbackPushBias?: number;
   /** Direct play stretches the block; short passing keeps it compact. */
   directnessBias?: number;
   /** Urgency to get bodies past the ball once the team has it. */
@@ -100,8 +102,7 @@ export function formationAnchor({
   const overlapAdvance = !isFullBack
     ? 0
     : hasBall
-      ? Math.max(0, overlap) * (onBallSide ? 22 + attackProgress * 48 : 5) -
-        Math.max(0, -overlap) * 3
+      ? Math.max(0, overlap) * (onBallSide ? 8 : 4) - Math.max(0, -overlap) * 3
       : 0;
   // Urgency pushes bodies beyond the ball; it only applies in possession.
   const tempoAdvance = hasBall ? (role === "MID" ? tempo * 2.4 : role === "FWD" ? tempo * 1.6 : 0) : 0;
@@ -133,14 +134,33 @@ export function formationAnchor({
             hasBall ? 0.92 : 0.86) * (role === "GK" ? 1 : stretch);
   const structuredBaseX =
     role === "GK" ? baseX : 50 + (baseX - 50) * longitudinalScale;
-  const canonicalX = clamp(
+  const linePosition = clamp(
     structuredBaseX + (role === "GK" ? blockShift * 0.08 : blockShift) + roleAdvance,
     role === "GK" ? 2 : 5,
     role === "GK" ? 18 : 95,
   );
+  // An overlapping full-back is a run past the ball, not a defender nudged a
+  // few metres up his line. Expressing it as an offset on the back four meant
+  // he never once reached the final third in a whole match while the winger
+  // ahead of him was getting to the byline. Once the attack is down his side
+  // he leaves the line entirely and goes beyond it.
+  const fullbackPush = clamp(profile.fullbackPushBias ?? 0, -1, 1);
+  const overlapRun =
+    isFullBack && hasBall && onBallSide && fullbackPush > 0
+      ? clamp(fullbackPush * (0.6 + attackProgress * 1.05), 0, 0.95)
+      : 0;
+  const bylineTarget = Math.min(93, canonicalBallX + 9);
+  const canonicalX =
+    overlapRun > 0 && bylineTarget > linePosition
+      ? linePosition + (bylineTarget - linePosition) * overlapRun
+      : linePosition;
 
   const widthBase = hasBall ? 0.96 : 0.8;
-  const overlapWidth = hasBall && isFullBack ? Math.max(0, overlap) * 0.12 : 0;
+  // A full-back holds the touchline, and holds it hardest while he is running
+  // past the ball — that is where the width for a cross comes from.
+  const overlapWidth = !isFullBack || !hasBall
+    ? 0
+    : Math.max(0, overlap) * 0.1 + overlapRun * 0.22;
   const centralFocus = clamp(profile.centralFocusBias ?? 0, 0, 1);
   const centralNarrowing = hasBall
     ? centralFocus * (role === "FWD" ? 0.3 : role === "MID" ? 0.25 : role === "DEF" ? 0.1 : 0)
@@ -154,7 +174,7 @@ export function formationAnchor({
   // Attacking down one side has to be legible on a heat map, so the shift is
   // real and the players who actually move over — the front and middle lines —
   // shift furthest. A little of it survives out of possession as well.
-  const focusStrength = role === "FWD" ? 14 : role === "MID" ? 11 : role === "DEF" ? 5 : 1;
+  const focusStrength = role === "FWD" ? 19 : role === "MID" ? 14 : role === "DEF" ? 6 : 1;
   // Right/left is relative to the team's attacking direction. A side that
   // attacks the opposite goal therefore uses the opposite half of the shared
   // pitch for its own right flank.
