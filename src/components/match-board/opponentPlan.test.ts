@@ -90,4 +90,22 @@ describe("opponent scouting report", () => {
     expect(plan.weaknesses).toContain("높은 크로스와 공중볼 공격 위력 부족");
     expect(plan.weaknesses).toContain("세트피스와 높은 크로스 수비 취약");
   });
+
+  test("keeps both relative strengths and weaknesses populated", () => {
+    for (const [index, players] of squads.entries()) {
+      const plan = buildOpponentPlan({
+        team: team(index + 1),
+        squad: players,
+        referencePlayers,
+        elevation: 0,
+        isHome: false,
+        seed: index + 1,
+      });
+
+      expect(plan.strengths.length).toBeGreaterThanOrEqual(2);
+      expect(plan.weaknesses.length).toBeGreaterThanOrEqual(2);
+      expect(plan.strengths.length).toBeLessThanOrEqual(5);
+      expect(plan.weaknesses.length).toBeLessThanOrEqual(5);
+    }
+  });
 });

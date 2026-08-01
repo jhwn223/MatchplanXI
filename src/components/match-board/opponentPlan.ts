@@ -149,12 +149,16 @@ function groupSquads(players: Player[]) {
   return [...groups.values()].filter((squad) => squad.length > 0);
 }
 
-function claimsAtPercentile(
+interface RankedScoutClaim extends ScoutClaim {
+  percentile: number;
+}
+
+function rankedClaims(
   metrics: TeamScoutMetrics,
   references: TeamScoutMetrics[],
   claims: ScoutClaim[],
   side: "strength" | "weakness",
-) {
+): RankedScoutClaim[] {
   return claims
     .map((claim) => ({
       ...claim,
@@ -163,9 +167,23 @@ function claimsAtPercentile(
         metrics[claim.metric],
       ),
     }))
-    .filter(({ percentile }) => side === "strength" ? percentile >= 0.75 : percentile <= 0.25)
-    .sort((a, b) => side === "strength" ? b.percentile - a.percentile : a.percentile - b.percentile)
-    .map(({ label }) => label);
+    .sort((a, b) => side === "strength" ? b.percentile - a.percentile : a.percentile - b.percentile);
+}
+
+function selectClaims(
+  ranked: RankedScoutClaim[],
+  side: "strength" | "weakness",
+  excludedMetrics = new Set<ScoutMetric>(),
+) {
+  const candidates = ranked.filter(({ metric }) => !excludedMetrics.has(metric));
+  const selected = candidates.slice(0, 2);
+  for (const candidate of candidates.slice(2)) {
+    const isDistinctive = side === "strength"
+      ? candidate.percentile >= 0.75
+      : candidate.percentile <= 0.25;
+    if (isDistinctive && selected.length < 5) selected.push(candidate);
+  }
+  return selected;
 }
 
 function altitudeAdaptationFor(team: Team, elevation: number, isHome: boolean) {
@@ -241,18 +259,28 @@ export function buildOpponentPlan({
   ];
   const weaknessClaims: ScoutClaim[] = [
     { metric: "centerBackPace", label: "센터백의 뒷공간 대응 속도" },
+    { metric: "pace", label: "공격 전환과 수비 복귀 속도" },
     { metric: "stamina", label: "후반 체력과 압박 유지력" },
     { metric: "passing", label: "강한 압박을 받을 때 빌드업 안정성" },
     { metric: "finishing", label: "기회 대비 마무리 효율" },
     { metric: "defending", label: "박스 앞 중앙 수비 간격" },
+    { metric: "physical", label: "몸싸움과 압박 지속력" },
+    { metric: "crossing", label: "측면 크로스의 정확도" },
     { metric: "aerialAttack", label: "높은 크로스와 공중볼 공격 위력 부족" },
     { metric: "aerialDefense", label: "세트피스와 높은 크로스 수비 취약" },
   ];
-  const strengths = claimsAtPercentile(metrics, referenceMetrics, strengthClaims, "strength");
-  const weaknesses = claimsAtPercentile(metrics, referenceMetrics, weaknessClaims, "weakness");
+  const selectedStrengths = selectClaims(
+    rankedClaims(metrics, referenceMetrics, strengthClaims, "strength"),
+    "strength",
+  );
+  const selectedWeaknesses = selectClaims(
+    rankedClaims(metrics, referenceMetrics, weaknessClaims, "weakness"),
+    "weakness",
+    new Set(selectedStrengths.map(({ metric }) => metric)),
+  );
+  const strengths = selectedStrengths.map(({ label }) => label);
+  const weaknesses = selectedWeaknesses.map(({ label }) => label);
   if (altitudeAdaptation >= 15) strengths.unshift("고지대 환경 적응력");
-  if (!strengths.length) strengths.push("데이터상 두드러지는 단일 강점 없음");
-  if (!weaknesses.length) weaknesses.push("데이터상 두드러지는 단일 약점 없음");
 
   const observedFormation = getObservedFormation(team.fifa_code);
   if (observedFormation) {
