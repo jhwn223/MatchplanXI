@@ -5,7 +5,9 @@ import {
   closestCenter,
   pointerWithin,
   type CollisionDetection,
+  type Modifier,
 } from "@dnd-kit/core";
+import { getEventCoordinates } from "@dnd-kit/utilities";
 import {
   BENCH_ZONE_ID,
   FORMATIONS,
@@ -75,6 +77,25 @@ const lineupCollisionDetection: CollisionDetection = (args) => {
   if (underPointer.length) return underPointer;
   const from = (args.active.data.current as { from?: string } | undefined)?.from;
   return from === BENCH_ZONE_ID ? closestCenter(args) : [];
+};
+
+/**
+ * Pin the floating drag card's centre to the cursor. The overlay normally
+ * starts from the source card's measured rect, and anything transforming
+ * that card at measure time (hover lift, an in-flight spring) bakes a
+ * constant offset into the whole drag — the ghost trails the cursor by a
+ * fixed distance, intermittently. Deriving the position from the cursor
+ * itself sidesteps the measurement entirely.
+ */
+const snapDragToCursor: Modifier = ({ activatorEvent, draggingNodeRect, transform }) => {
+  if (!draggingNodeRect || !activatorEvent) return transform;
+  const activatorCoordinates = getEventCoordinates(activatorEvent);
+  if (!activatorCoordinates) return transform;
+  return {
+    ...transform,
+    x: transform.x + (activatorCoordinates.x - draggingNodeRect.left) - draggingNodeRect.width / 2,
+    y: transform.y + (activatorCoordinates.y - draggingNodeRect.top) - draggingNodeRect.height / 2,
+  };
 };
 
 export function MatchBoard({
@@ -536,7 +557,7 @@ export function MatchBoard({
         onSelectPlayer={setSelectedPlayer}
       />
 
-      <DragOverlay dropAnimation={null}>
+      <DragOverlay dropAnimation={null} modifiers={[snapDragToCursor]}>
         {activePlayer && (
           <PlayerCardVisual
             player={activePlayer}
