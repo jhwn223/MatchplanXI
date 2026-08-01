@@ -13,7 +13,13 @@
 }
 .arena-score {
   display: flex;
-  align-items: center;
+  /* dashboard-layouts.css's later .arena-score rule wins on `display`
+     (grid) but not on align-items (only set here), so this value still
+     governs the live grid layout. `center` let the shorter team column
+     (no scorer/booking content) center within the shared row track while
+     the taller column (with a booking line) sat higher — misaligning the
+     two team-name rows. Stretch keeps both flush to the row's top. */
+  align-items: stretch;
   gap: 12px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
@@ -107,6 +113,16 @@
   margin: 6px 0 0;
   padding: 0;
   list-style: none;
+  /* .arena-score__team--away sets align-items: flex-end, which would shrink
+     this to 0 width when empty, making it disappear entirely instead of
+     reserving the same slot the home side keeps. align-self (not width:
+     100%) avoids a circular-sizing blowout since the parent column itself
+     is auto/shrink-to-fit width. */
+  align-self: stretch;
+  /* Without this, an empty list is 0 tall while a scored side's list is
+     16.5px, so the .arena-bookings row below starts at a different height
+     on each team's column the moment only one side has scored. */
+  min-height: 16.5px;
 }
 .arena-score__team--away .arena-scorers { justify-content: flex-end; }
 .arena-scorers li {
@@ -132,6 +148,14 @@
   padding: 6px 0 0;
   border-top: 1px dashed var(--border);
   list-style: none;
+  /* Same reasoning as .arena-scorers above: without this, it collapses to
+     0 width on the away side (align-items: flex-end) while staying full
+     width on the home side (align-items: stretch). */
+  align-self: stretch;
+  /* Reserve the height of one populated line (15px li + 6px padding-top +
+     1px border) so a booked side and an unbooked side start at the same
+     spot rather than the row growing only when a card actually lands. */
+  min-height: 22px;
 }
 .arena-score__team--away .arena-bookings { justify-content: flex-end; }
 .arena-bookings li {

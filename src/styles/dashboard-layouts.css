@@ -145,7 +145,7 @@
   min-height: 124px;
   padding: 24px 34px;
 }
-.arena-score__team { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.arena-score__team { display: flex; flex-direction: column; justify-content: flex-start; gap: 6px; }
 .arena-score__team > small { color: var(--text-dim); font-size: 9px; letter-spacing: .12em; }
 .arena-score__team > div { display: flex; align-items: center; gap: 12px; }
 .arena-score__team > div > span { min-width: 42px; min-height: 38px; padding: 3px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 7px; color: #003915; font-size: 9px; font-weight: 850; }
