@@ -3,16 +3,13 @@ import { slotsOf, type FormationKey } from "../../data/formation";
 import type { Player, Team } from "../../data/types";
 import { PlayerPhoto } from "../player-photo/PlayerPhoto";
 import { TeamFlag } from "../TeamFlag";
-import type { TeamTactics } from "../match-arena/tactics";
-import type { OpponentPlan, TacticalMatchup } from "./opponentPlan";
+import type { OpponentPlan } from "./opponentPlan";
 
 interface Props {
   opponent: Team;
   players: Player[];
   conditions: Map<number, ConditionBreakdown>;
   plan: OpponentPlan;
-  matchups: TacticalMatchup[];
-  onApplyMatchup: (patch: Partial<TeamTactics>) => void;
 }
 
 export function OpponentAnalysisPanel({
@@ -20,8 +17,6 @@ export function OpponentAnalysisPanel({
   players,
   conditions,
   plan,
-  matchups,
-  onApplyMatchup,
 }: Props) {
   const averageCondition = players.length
     ? Math.round(
@@ -105,6 +100,9 @@ export function OpponentAnalysisPanel({
       </section>
 
       <section className="opponent-report__section opponent-report__scout">
+        <small className="opponent-report__scout-basis">
+          48개국 선수단 능력치·신장 분포 기준 상·하위 25%
+        </small>
         <div>
           <h3>강점</h3>
           <ul>{plan.strengths.map((item) => <li key={item}>{item}</li>)}</ul>
@@ -115,26 +113,6 @@ export function OpponentAnalysisPanel({
         </div>
       </section>
 
-      <section className="opponent-report__section">
-        <h3>전술 상성 분석</h3>
-        <div className="matchup-list">
-          {matchups.map((matchup) => (
-            <article key={matchup.id} className="matchup-card" data-status={matchup.status}>
-              <div>
-                <span>{matchup.status === "effective" ? "✓ 대응 중" : matchup.status === "warning" ? "△ 대응 필요" : "분석"}</span>
-                <strong>{matchup.title}</strong>
-              </div>
-              <p>{matchup.detail}</p>
-              <small>{matchup.recommendation}</small>
-              {Object.keys(matchup.patch).length > 0 && (
-                <button type="button" onClick={() => onApplyMatchup(matchup.patch)}>
-                  추천 대응 적용
-                </button>
-              )}
-            </article>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

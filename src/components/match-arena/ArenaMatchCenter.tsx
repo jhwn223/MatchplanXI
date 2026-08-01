@@ -218,8 +218,6 @@ export function ArenaMatchCenter({
               players={opponentPlayers}
               conditions={squadControls.opponentConditions}
               plan={squadControls.opponentPlan}
-              matchups={squadControls.matchups}
-              onApplyMatchup={(patch) => onApplyTactics({ ...tactics, ...patch })}
             />
           </div>
         ) : (

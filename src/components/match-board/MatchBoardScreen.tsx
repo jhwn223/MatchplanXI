@@ -25,7 +25,7 @@ import {
   type TeamTactics,
 } from "../match-arena/tactics";
 import { OpponentAnalysisPanel } from "./OpponentAnalysisPanel";
-import type { OpponentPlan, TacticalMatchup } from "./opponentPlan";
+import type { OpponentPlan } from "./opponentPlan";
 import type { Lineup, MatchPhase } from "./types";
 import type { PlayerDiscipline } from "../playerDiscipline";
 
@@ -35,7 +35,6 @@ interface Props {
   opponentPlayers: Player[];
   opponentConditions: Map<number, ConditionBreakdown>;
   opponentPlan: OpponentPlan | null;
-  matchups: TacticalMatchup[];
   activeMatch: TeamMatch;
   phase: MatchPhase;
   lineup: Lineup;
@@ -81,7 +80,6 @@ export function MatchBoardScreen({
   opponentPlayers,
   opponentConditions,
   opponentPlan,
-  matchups,
   activeMatch,
   phase,
   lineup,
@@ -388,8 +386,6 @@ export function MatchBoardScreen({
               players={opponentPlayers}
               conditions={opponentConditions}
               plan={opponentPlan}
-              matchups={matchups}
-              onApplyMatchup={(patch) => updateTactics({ ...teamTactics, ...patch })}
             />
           ) : (
             <div className="opponent-report opponent-report--empty">
