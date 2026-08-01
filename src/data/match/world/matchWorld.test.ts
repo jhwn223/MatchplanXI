@@ -45,6 +45,41 @@ describe("authoritative match world", () => {
     expect(closedScore).toBeLessThan(openScore);
   });
 
+  test("receiver utility strongly prefers the selected attacking flank", () => {
+    const input = testInput(51);
+    const tactics = { user: testTactics(), opp: testTactics() };
+    const world = createMatchWorld(input, 20, tactics);
+    const passer = input.placed[6];
+    const leftReceiver = input.placed[8];
+    const rightReceiver = input.placed[10];
+    const passerState = world.players.user.get(passer.playerId);
+    const leftState = world.players.user.get(leftReceiver.playerId);
+    const rightState = world.players.user.get(rightReceiver.playerId);
+    if (!passerState || !leftState || !rightState) throw new Error("attacking states missing");
+    passerState.x = 52;
+    passerState.y = 50;
+    leftState.x = rightState.x = 70;
+    leftState.y = 18;
+    rightState.y = 82;
+    for (const defender of world.players.opp.values()) {
+      defender.x = 90;
+      defender.y = 50;
+    }
+
+    const leftScore = passOptionScore(world, "user", passer, leftReceiver, 0, 1);
+    const rightScore = passOptionScore(world, "user", passer, rightReceiver, 0, 1);
+    expect(rightScore).toBeGreaterThan(leftScore * 2.5);
+
+    const centralReceiver = input.placed[9];
+    const centralState = world.players.user.get(centralReceiver.playerId);
+    if (!centralState) throw new Error("central receiver missing");
+    centralState.x = 70;
+    centralState.y = 50;
+    const centralScore = passOptionScore(world, "user", passer, centralReceiver, 0, 0, 1);
+    const centralPlanWideScore = passOptionScore(world, "user", passer, rightReceiver, 0, 0, 1);
+    expect(centralScore).toBeGreaterThan(centralPlanWideScore * 2);
+  });
+
   test("distance is calculated from current state rather than formation homes", () => {
     const input = testInput(6);
     const tactics = { user: testTactics(), opp: testTactics() };

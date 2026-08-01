@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
-import { topAssists, topScorers, type Leaderboard, type LeaderboardEntry } from "../../data/leaderboard";
+import type { Leaderboard } from "../../data/leaderboard";
 import type { LiveMatchSnapshot, PlayerMatchStats, SimComparison, TeamStats } from "../../data/matchSim";
-import { generateTacticAnalysis, type TacticStyleKey } from "../../data/tactics";
+import type { TacticStyleKey } from "../../data/tactics";
 
 interface ResultSim {
   userGoals: number;
@@ -29,6 +29,7 @@ interface Props {
   onInterimContinue?: () => void;
   onReplay: () => void;
   onClose: () => void;
+  onSchedule?: () => void;
   onNext?: () => void;
 }
 
@@ -39,11 +40,10 @@ export function ArenaResultPanel({
   interimCta,
   userTeamName,
   oppTeamName,
-  tacticStyleKey,
-  leaderboard,
   onInterimContinue,
   onReplay,
   onClose,
+  onSchedule,
   onNext,
 }: Props) {
   if (!final) {
@@ -76,42 +76,186 @@ export function ArenaResultPanel({
   }
 
   const comparison = sim.comparison;
+  const live = sim.liveSnapshots?.at(-1);
+  const players = live?.players ?? [];
+  const outcome = sim.userGoals > sim.oppGoals ? "승리" : sim.userGoals < sim.oppGoals ? "패배" : "무승부";
   return (
     <motion.div className="sim-compare sim-compare--final" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      {sim.wentToExtraTime && (
-        <p className="sim-compare__et">
-          90분 {sim.regulationUserGoals}-{sim.regulationOppGoals} → 연장 {sim.userGoals}-{sim.oppGoals}
-          {sim.penalties && ` → 승부차기 ${sim.penalties.userGoals}-${sim.penalties.oppGoals} (${sim.penalties.winner === "user" ? userTeamName : oppTeamName} 승)`}
-        </p>
-      )}
-      <div className="sim-compare__row">
-        <div className="sim-compare__col">
-          <span className="sim-compare__label">내 전술 결과</span>
-          <span className="sim-compare__val">{sim.userGoals} - {sim.oppGoals}</span>
+      <section className="fulltime-outcome" data-result={outcome}>
+        <div>
+          <span className="fulltime-outcome__eyebrow">FULL TIME</span>
+          <strong>{outcome}</strong>
+          <p>{userTeamName}의 경기가 종료되었습니다.</p>
         </div>
-        {comparison?.hasActual && (
-          <div className="sim-compare__col">
-            <span className="sim-compare__label">실제 결과</span>
-            <span className="sim-compare__val">{comparison.actualUserGoals} - {comparison.actualOppGoals}</span>
-          </div>
+        <div className="fulltime-outcome__meta">
+          {sim.wentToExtraTime && (
+            <span>
+              90분 {sim.regulationUserGoals}-{sim.regulationOppGoals}
+              {sim.penalties
+                ? ` · 승부차기 ${sim.penalties.userGoals}-${sim.penalties.oppGoals}`
+                : " · 연장전 종료"}
+            </span>
+          )}
+          {comparison?.hasActual && (
+            <span>실제 경기 결과 {comparison.actualUserGoals}-{comparison.actualOppGoals}</span>
+          )}
+          {!sim.wentToExtraTime && !comparison?.hasActual && (
+            <span>90분 경기 종료</span>
+          )}
+        </div>
+      </section>
+
+      <div className="fulltime-grid" data-single={!players.length || undefined}>
+        {sim.teamStats && (
+          <FullTimeStatsPanel
+            stats={sim.teamStats}
+            userXg={sim.userXg ?? live?.userXg ?? 0}
+            oppXg={sim.oppXg ?? live?.oppXg ?? 0}
+            userTeamName={userTeamName}
+            oppTeamName={oppTeamName}
+          />
+        )}
+        {players.length > 0 && (
+          <TopPerformersPanel
+            players={players}
+            userTeamName={userTeamName}
+            oppTeamName={oppTeamName}
+          />
         )}
       </div>
-      {comparison && (
-        <>
-          <p className="sim-compare__verdict">{comparison.verdict}</p>
-          <p className="sim-compare__tactics">🧩 {comparison.tacticsNote}</p>
-        </>
-      )}
-      {sim.teamStats && <TeamStatsPanel stats={sim.teamStats} />}
-      {sim.teamStats && <TacticAnalysisPanel tacticStyleKey={tacticStyleKey} stats={sim.teamStats.user} />}
-      <TournamentLeaders teamName={userTeamName} leaderboard={leaderboard} />
-      <div className="sim-compare__actions">
+
+      <div className="sim-compare__actions fulltime-actions">
         <button type="button" className="sim-btn sim-btn--ghost" onClick={onReplay}>다시 보기</button>
-        <button type="button" className="sim-btn" onClick={onClose}>확인</button>
+        <button type="button" className="sim-btn sim-btn--ghost" onClick={onSchedule ?? onClose}>경기 일정으로</button>
         {onNext && <button type="button" className="sim-btn sim-btn--accent" onClick={onNext}>다음 경기 →</button>}
       </div>
     </motion.div>
   );
+}
+function FullTimeStatsPanel({
+  stats,
+  userXg,
+  oppXg,
+  userTeamName,
+  oppTeamName,
+}: {
+  stats: { user: TeamStats; opp: TeamStats };
+  userXg: number;
+  oppXg: number;
+  userTeamName: string;
+  oppTeamName: string;
+}) {
+  return (
+    <section className="fulltime-card fulltime-stats">
+      <header className="fulltime-card__header">
+        <div>
+          <span>MATCH STATS</span>
+          <h3>경기 통계</h3>
+        </div>
+        <div className="fulltime-stats__teams" aria-hidden="true">
+          <strong>{userTeamName}</strong>
+          <strong>{oppTeamName}</strong>
+        </div>
+      </header>
+      <div className="fulltime-stats__body">
+        <FullTimeStatRow label="점유율" user={`${stats.user.possession}%`} opp={`${stats.opp.possession}%`} />
+        <FullTimeStatRow
+          label="슈팅 · 유효슈팅"
+          user={`${stats.user.shots} · ${stats.user.shotsOnTarget}`}
+          opp={`${stats.opp.shots} · ${stats.opp.shotsOnTarget}`}
+        />
+        <FullTimeStatRow label="기대 득점 (xG)" user={userXg.toFixed(2)} opp={oppXg.toFixed(2)} />
+        <FullTimeStatRow
+          label="패스 성공"
+          user={`${stats.user.passSuccessRate}% · ${stats.user.passesCompleted}/${stats.user.passesAttempted}`}
+          opp={`${stats.opp.passSuccessRate}% · ${stats.opp.passesCompleted}/${stats.opp.passesAttempted}`}
+        />
+        <FullTimeStatRow
+          label="볼 탈취"
+          user={String(stats.user.tacklesWon + stats.user.interceptions)}
+          opp={String(stats.opp.tacklesWon + stats.opp.interceptions)}
+        />
+        <FullTimeStatRow
+          label="파울 · 카드"
+          user={`${stats.user.fouls} · ${stats.user.yellowCards}/${stats.user.redCards}`}
+          opp={`${stats.opp.fouls} · ${stats.opp.yellowCards}/${stats.opp.redCards}`}
+        />
+      </div>
+    </section>
+  );
+}
+function FullTimeStatRow({ label, user, opp }: { label: string; user: string; opp: string }) {
+  return (
+    <div className="fulltime-stat-row">
+      <strong>{user}</strong>
+      <span>{label}</span>
+      <strong>{opp}</strong>
+    </div>
+  );
+}
+
+function TopPerformersPanel({
+  players,
+  userTeamName,
+  oppTeamName,
+}: {
+  players: PlayerMatchStats[];
+  userTeamName: string;
+  oppTeamName: string;
+}) {
+  const ranked = [...players]
+    .filter((player) => player.minutesPlayed > 0)
+    .sort((a, b) =>
+      b.rating - a.rating ||
+      b.goals + b.assists - (a.goals + a.assists) ||
+      b.minutesPlayed - a.minutesPlayed,
+    )
+    .slice(0, 4);
+  const [best, ...rest] = ranked;
+  if (!best) return null;
+
+  return (
+    <section className="fulltime-card fulltime-performers">
+      <header className="fulltime-card__header">
+        <div>
+          <span>TOP PERFORMANCE</span>
+          <h3>주요 선수</h3>
+        </div>
+      </header>
+      <div className="fulltime-motm">
+        <div>
+          <span>MVP</span>
+          <strong>{best.name}</strong>
+          <small>{best.side === "user" ? userTeamName : oppTeamName} · {performanceSummary(best)}</small>
+        </div>
+        <b>{best.rating.toFixed(1)}</b>
+      </div>
+      <div className="fulltime-performers__list">
+        {rest.map((player, index) => (
+          <div className="fulltime-player-row" key={`${player.side}-${player.playerId}`}>
+            <span>{index + 2}</span>
+            <div>
+              <strong>{player.name}</strong>
+              <small>{player.side === "user" ? userTeamName : oppTeamName} · {performanceSummary(player)}</small>
+            </div>
+            <b>{player.rating.toFixed(1)}</b>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function performanceSummary(player: PlayerMatchStats): string {
+  const details: string[] = [];
+  if (player.goals) details.push(`${player.goals}골`);
+  if (player.assists) details.push(`${player.assists}도움`);
+  if (!details.length && player.position === "GK") details.push(`${player.saves}선방`);
+  if (!details.length && (player.tacklesWon || player.interceptions)) {
+    details.push(`볼 탈취 ${player.tacklesWon + player.interceptions}`);
+  }
+  if (!details.length) details.push(`${player.position} · ${player.minutesPlayed}분`);
+  return details.join(" · ");
 }
 
 function sumDistance(players: PlayerMatchStats[] | undefined, side: "user" | "opp"): number {
@@ -182,64 +326,6 @@ function PlayerConditionRow({ player }: { player: PlayerMatchStats }) {
   );
 }
 
-function TacticAnalysisPanel({ tacticStyleKey, stats }: { tacticStyleKey?: TacticStyleKey | null; stats: TeamStats }) {
-  const lines = generateTacticAnalysis(tacticStyleKey, stats);
-  if (!lines.length) return null;
-  return (
-    <div className="tactic-analysis">
-      <h4 className="tactic-analysis__title">🤖 AI 전술 분석</h4>
-      <ul className="tactic-analysis__list">
-        {lines.map((line, index) => (
-          <li key={index}>{line}</li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function TeamStatsPanel({ stats }: { stats: { user: TeamStats; opp: TeamStats } }) {
-  return (
-    <div className="team-stats">
-      <h4 className="team-stats__title">팀 스탯</h4>
-      <TeamStatBar label="점유율" userVal={stats.user.possession} oppVal={stats.opp.possession} />
-      <TeamStatBar
-        label="패스 성공률"
-        userVal={stats.user.passSuccessRate}
-        oppVal={stats.opp.passSuccessRate}
-        userSub={`${stats.user.passesCompleted}/${stats.user.passesAttempted}`}
-        oppSub={`${stats.opp.passesCompleted}/${stats.opp.passesAttempted}`}
-      />
-      <TeamStatBar
-        label="GK 선방률"
-        userVal={stats.user.saveRate}
-        oppVal={stats.opp.saveRate}
-        userSub={`${stats.user.saves}/${stats.user.shotsFaced} 선방`}
-        oppSub={`${stats.opp.saves}/${stats.opp.shotsFaced} 선방`}
-      />
-      <TeamStatBar
-        label="슈팅"
-        userVal={stats.user.shots}
-        oppVal={stats.opp.shots}
-        userSub={`${stats.user.shotsOnTarget} 유효`}
-        oppSub={`${stats.opp.shotsOnTarget} 유효`}
-        suffix=""
-      />
-    </div>
-  );
-}
-
-function TournamentLeaders({ teamName, leaderboard }: { teamName: string; leaderboard: Leaderboard }) {
-  return (
-    <div className="leaderboard">
-      <h4 className="leaderboard__title">🏆 대회 누적 순위 — {teamName}</h4>
-      <div className="leaderboard__cols">
-        <LeaderboardCol title="⚽ 득점왕" rows={topScorers(leaderboard)} field="goals" />
-        <LeaderboardCol title="🎯 어시스트왕" rows={topAssists(leaderboard)} field="assists" />
-      </div>
-    </div>
-  );
-}
-
 function TeamStatBar({
   label,
   userVal,
@@ -272,21 +358,3 @@ function TeamStatBar({
   );
 }
 
-function LeaderboardCol({ title, rows, field }: { title: string; rows: LeaderboardEntry[]; field: "goals" | "assists" }) {
-  return (
-    <div className="leaderboard__col">
-      <h5 className="leaderboard__col-title">{title}</h5>
-      {rows.length === 0 ? <p className="leaderboard__empty">아직 기록 없음</p> : (
-        <ol className="leaderboard__list">
-          {rows.map((row, index) => (
-            <li key={`${row.name}-${index}`} className="leaderboard__row">
-              <span className="leaderboard__rank">{index + 1}</span>
-              <span className="leaderboard__name">{row.name}</span>
-              <span className="leaderboard__count">{row[field]}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
-  );
-}

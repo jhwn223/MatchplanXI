@@ -6,7 +6,7 @@ import {
   constrainToAnchor,
   formationAnchor,
 } from "./formationShape";
-import { offsideLineFor } from "./perception";
+import { attackFocusLaneY, offsideLineFor } from "./perception";
 import type {
   DefensiveRole,
   MatchPhase,
@@ -219,6 +219,9 @@ function targetForPlayer(
   const hasBall = effectivePossessionSide(world) === side;
   const ownsBall = world.ball.ownerSide === side && world.ball.ownerId === player.playerId;
   const shape = formationLineTarget(world, state, tactics);
+  const profile = tactics[side];
+  const focusedLaneY = attackFocusLaneY(profile.focusBias, dir);
+  const focusAmount = Math.max(Math.abs(profile.focusBias), profile.centralFocusBias);
 
   if (player.position === "GK") {
     const goalX = ownGoalX(side);
@@ -231,9 +234,10 @@ function targetForPlayer(
     };
   }
   if (ownsBall) {
+    const focusPull = focusAmount * (focusedLaneY - state.y) * 0.16;
     const desired = {
       x: state.x + dir * (phase === "transitionAttack" ? 5 : 3),
-      y: state.y + (shape.y - state.y) * 0.28,
+      y: state.y + (shape.y - state.y) * 0.28 + focusPull,
     };
     return {
       point: constrainToAnchor(
@@ -248,9 +252,10 @@ function targetForPlayer(
   if (hasBall) {
     const nearbySupportRank = nearbySupportIds.indexOf(player.playerId);
     if (nearbySupportRank >= 0 && player.position !== "FWD") {
+      const focusSupport = focusAmount * (focusedLaneY - world.ball.y) * 0.22;
       const desired = {
         x: world.ball.x - dir * (7 + nearbySupportRank * 2),
-        y: world.ball.y + (nearbySupportRank === 0 ? -10 : 10),
+        y: world.ball.y + (nearbySupportRank === 0 ? -10 : 10) + focusSupport,
       };
       return {
         point: constrainToAnchor(shape, desired, 5, 14),

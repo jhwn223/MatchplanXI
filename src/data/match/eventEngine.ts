@@ -16,6 +16,7 @@ import {
   beginPossession,
 } from "./world/movementEngine";
 import {
+  attackFocusLaneWeight,
   isPlayerOffside,
   passOptionScore,
   worldDistance,
@@ -341,7 +342,7 @@ export function simulatePeriodWithWorld(
       // A booked player pulls out of challenges he would otherwise make, so
       // treating every foul alike produced far more second yellows than the
       // real game sees.
-      (alreadyBooked ? 0.35 : 1);
+      (alreadyBooked ? 0.3 : 1);
     if (rng() >= bookingChance) return;
     if (alreadyBooked) {
       // Second caution: the referee sends him off rather than booking twice.
@@ -469,7 +470,7 @@ export function simulatePeriodWithWorld(
       advanceClock(DEAD_BALL_SECONDS.goal);
       return;
     }
-    if (rng() < 0.55) {
+    if (rng() < 0.45) {
       running[side].shotsOnTarget++;
       running[defendingSide].saves++;
       if (shooterStats) shooterStats.shotsOnTarget++;
@@ -602,7 +603,15 @@ export function simulatePeriodWithWorld(
           // Keep illegal receivers selectable so natural offside mistakes are
           // still possible, but strongly prefer a legal passing lane.
           const offsideFit = isPlayerOffside(world, side, player) ? 0.13 : 1;
-          return passOptionScore(world, side, passer, player, directness) * offsideFit;
+          return passOptionScore(
+            world,
+            side,
+            passer,
+            player,
+            directness,
+            sideTactics.focusBias,
+            sideTactics.centralFocusBias,
+          ) * offsideFit;
         },
         rng
       );
@@ -866,10 +875,17 @@ export function simulatePeriodWithWorld(
             const forwardFit = clamp(1 + forwardDistance * directness / 55, 0.45, 1.8);
             const distanceFit = 1 / (1 + Math.max(0, distance - (22 + directness * 8)) / 22);
             const offsideFit = isPlayerOffside(world, side, player) ? 0.13 : 1;
+            const focusFit = attackFocusLaneWeight(
+              receiverHome.y,
+              sideTactics.focusBias,
+              side === "user" ? 1 : -1,
+              sideTactics.centralFocusBias,
+            );
             return forwardWeight *
               (0.45 + (player.positioning + player.pace + player.reactions) / 300) *
               forwardFit *
               distanceFit *
+              focusFit *
               offsideFit;
           },
           rng
@@ -957,15 +973,18 @@ export function simulatePeriodWithWorld(
       }
 
       const tacticShotBias =
-        sideAttackBias * 0.06 +
-        sideTactics.overlapBias * 0.012 +
-        counterEdge * 0.022 +
-        sideTactics.tempoBias * 0.016 +
-        sideTactics.shootingBias * 0.055 +
+        sideAttackBias * 0.045 +
+        sideTactics.overlapBias * 0.009 +
+        counterEdge * 0.017 +
+        sideTactics.tempoBias * 0.012 +
+        sideTactics.shootingBias * 0.042 +
         // Bodies sent forward instead of held back arrive in the box.
-        Math.max(0, -sideTactics.restDefenseBias) * 0.03 +
-        matchupEdge * 0.24;
-      const roleShotChance = carrier.position === "FWD" ? 0.11 : carrier.position === "MID" ? 0.05 : 0.015;
+        Math.max(0, -sideTactics.restDefenseBias) * 0.022 +
+        matchupEdge * 0.18;
+      // A possession reaching the final third is not automatically a shot.
+      // These rates keep a normal match near 24-28 combined attempts while
+      // preserving the relative effect of roles and attacking instructions.
+      const roleShotChance = carrier.position === "FWD" ? 0.08 : carrier.position === "MID" ? 0.035 : 0.009;
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
       // The final touch has to reach the edge of the penalty area before a
@@ -976,8 +995,8 @@ export function simulatePeriodWithWorld(
         carrier.position !== "GK" &&
         canonicalShotX >= 66 &&
         (
-          rng() < roleShotChance + progress * 0.045 + tacticShotBias ||
-          (action === maxActions - 1 && rng() < 0.08)
+          rng() < roleShotChance + progress * 0.034 + tacticShotBias ||
+          (action === maxActions - 1 && rng() < 0.04)
         );
       if (!shootNow) continue;
 
@@ -1009,6 +1028,13 @@ export function simulatePeriodWithWorld(
         (player) => 0.4 + (player.defending + player.defensiveAwareness) / 140,
         rng
       );
+      // Tactical risk must create some better chances, but it must not turn
+      // every shot into a one-on-one. The previous linear multiplier could
+      // add 0.32 xG to every attempt. A saturating curve keeps exposed space
+      // meaningful while preventing repeated 6-4 and 7-3 scorelines.
+      const exposureChanceBoost =
+        0.065 * (1 - Math.exp(-Math.max(0, defendingExposure) * 1.25));
+      const matchupChanceBoost = clamp(matchupEdge * 0.055, -0.025, 0.04);
       const chanceCreation =
         (carrier.positioning - marker.defensiveAwareness) / 900 +
         ((lastPasser?.vision ?? carrier.vision) - 65) / 1300 +
@@ -1024,8 +1050,8 @@ export function simulatePeriodWithWorld(
         // press leave grass behind them, and a side that keeps few players
         // home is punished on the break — without this, committing everyone
         // forward was free and pure upside.
-        defendingExposure * 0.16 +
-        matchupEdge * 0.11;
+        exposureChanceBoost +
+        matchupChanceBoost;
       const baseXg = carrier.position === "FWD" ? 0.06 : carrier.position === "MID" ? 0.038 : 0.022;
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.045, 0.012, 0.48);
       running[side].shots++;
@@ -1065,7 +1091,11 @@ export function simulatePeriodWithWorld(
       ], "goalkeeping", defendingTactics) * defendingWorkRate;
       const finishingMultiplier = clamp(0.84 + (shootingTechnique - 60) / 160, 0.68, 1.28);
       const keeperMultiplier = clamp(0.85 - (keeperQuality - 65) / 260, 0.62, 0.98);
-      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier, 0.01, 0.72);
+      // Keep normal conversion close to football's roughly ten-percent
+      // range. The former 1.2 boost was compensating for an older, low-quality
+      // shot model and now over-converted the better chances created by the
+      // positional simulation.
+      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.06, 0.01, 0.72);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
         if (shooterStats) {
@@ -1117,9 +1147,9 @@ export function simulatePeriodWithWorld(
         break;
       }
       const onTargetChance = clamp(
-        0.4 + (shootingTechnique - 65) / 150 - sideTactics.shootingBias * 0.055,
-        0.2,
-        0.86
+        0.27 + (shootingTechnique - 65) / 175 - sideTactics.shootingBias * 0.045,
+        0.14,
+        0.68
       );
       if (rng() >= onTargetChance) {
         recordBigChanceMiss();

@@ -28,8 +28,8 @@ export function tacticalHome(
   side: MatchSide,
   tactics: SimTacticProfile,
 ): PitchPoint {
-  const widthScale = 1 + tactics.widthBias * 0.28;
-  const focusShift = tactics.focusBias * 7;
+  const widthScale = (1 + tactics.widthBias * 0.28) * (1 - tactics.centralFocusBias * 0.22);
+  const focusShift = tactics.focusBias * (side === "user" ? 1 : -1) * 7;
   const roleAdvance =
     player.position === "GK"
       ? Math.max(0, tactics.defensiveLineBias) * 2
