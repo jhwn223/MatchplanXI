@@ -789,7 +789,7 @@
   border-radius: 50%;
   background: #0b5627;
   box-shadow: 0 2px 5px rgba(0,0,0,.22);
-  font-size: 11px;
+  font-size: 12px;
 }
 .role-board__slot > span {
   display: block;
@@ -799,14 +799,14 @@
   white-space: nowrap;
   text-shadow: 0 1px 2px rgba(0,0,0,.7);
 }
-.role-board__slot > span { font-size: 10px; font-weight: 850; }
+.role-board__slot > span { font-size: 12px; font-weight: 850; }
 .role-board__slot > small {
   width: 100px;
   display: block;
   margin-top: 2px;
   overflow: hidden;
   color: #d7f6dc;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 850;
   line-height: 1.15;
   text-wrap: balance;
@@ -817,23 +817,22 @@
 .role-board__editor > header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   min-height: 72px;
   padding: 2px 4px 14px;
   border-bottom: 1px solid var(--border);
 }
-.role-board__editor > header small { color: var(--accent); font-size: 9px; font-weight: 900; }
-.role-board__editor > header h3 { margin: 4px 0 0; color: var(--text); font-size: 18px; }
-.role-board__editor > header > span { max-width: 190px; color: var(--accent); font-size: 13px; font-weight: 900; text-align: right; }
+.role-board__editor > header small { color: var(--accent); font-size: 11px; font-weight: 900; }
+.role-board__editor > header h3 { margin: 4px 0 0; color: var(--text); font-size: 20px; }
 .role-board__options { display: grid; }
 .role-board__options > button {
-  min-height: 104px;
+  min-height: 118px;
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr);
   align-items: center;
   gap: 14px;
-  padding: 14px 10px;
+  padding: 17px 12px;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
@@ -847,13 +846,13 @@
 .role-board__check { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid #9eb39f; border-radius: 50%; color: #fff; font-size: 12px; }
 .role-board__options > button[data-active] .role-board__check { border-color: var(--accent); background: var(--accent); }
 .role-board__option-copy { min-width: 0; }
-.role-board__option-copy > strong { display: block; font-size: 14px; }
-.role-board__option-copy > small { display: grid; gap: 6px; margin-top: 8px; font-size: 10px; line-height: 1.45; }
+.role-board__option-copy > strong { display: block; font-size: 16px; }
+.role-board__option-copy > small { display: grid; gap: 8px; margin-top: 10px; font-size: 12px; line-height: 1.5; }
 .role-board__option-copy > small b,
-.role-board__option-copy > small i { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 7px; font-weight: 650; font-style: normal; }
+.role-board__option-copy > small i { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 9px; font-weight: 650; font-style: normal; }
 .role-board__option-copy > small b { color: #256b3d; }
 .role-board__option-copy > small i { color: #9a4c44; }
-.role-board__option-copy > small span { font-size: 8px; font-weight: 900; }
+.role-board__option-copy > small span { font-size: 10px; font-weight: 900; }
 .quick-tactics__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .quick-tactics__grid button {
   min-height: 92px;
