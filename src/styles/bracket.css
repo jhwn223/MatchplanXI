@@ -45,18 +45,40 @@
 .bracket-col { display: flex; flex-direction: column; }
 .bracket-col__title {
   text-align: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent);
-  margin-bottom: 10px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  opacity: 0.75;
+  margin-bottom: 4px;
 }
 .bracket-col__matches {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-around;
   gap: 8px;
   height: 100%;
 }
+.bracket-col__matches--final { justify-content: center; }
+
+.bracket-connectors { position: absolute; inset: 0; pointer-events: none; }
+.bracket-connectors__stub {
+  position: absolute;
+  height: 2px;
+  background: var(--border);
+  transform: translateY(-1px);
+}
+.bracket-connectors__bar {
+  position: absolute;
+  width: 2px;
+  background: var(--border);
+}
+.bracket-bronze {
+  max-width: 220px;
+  margin: 18px auto 0;
+}
+.bracket-bronze .ko-cell { border-style: dashed; }
 .ko-cell {
   position: relative;
   border: 1px solid var(--border);
@@ -67,6 +89,7 @@
 .ko-cell[data-user] { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(79,209,197,0.3); }
 .ko-cell[data-pending] { border-style: dashed; }
 .ko-row {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -76,10 +99,24 @@
   color: var(--text-dim);
 }
 .ko-row + .ko-row { border-top: 1px solid var(--border); }
-.ko-row[data-win] { color: var(--text); }
+.ko-row[data-win] {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 800;
+}
+.ko-row[data-win]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+}
 .ko-row[data-win] .ko-score { color: var(--accent); }
 .ko-row[data-me] { background: rgba(79,209,197,0.14); color: var(--text); }
-.ko-team { letter-spacing: 0.3px; }
+.ko-team { display: inline-flex; align-items: center; gap: 5px; letter-spacing: 0.3px; }
+.ko-team__flag { width: 14px; height: 10px; object-fit: cover; border-radius: 2px; flex-shrink: 0; }
 .ko-score { font-variant-numeric: tabular-nums; }
 .ko-placement {
   display: block;
@@ -91,12 +128,15 @@
   letter-spacing: 0.04em;
 }
 .ko-pens {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  font-size: 8px;
+  display: inline-block;
+  padding: 1px 4px;
+  font-size: 7px;
   font-weight: 800;
-  color: #fbbf24;
+  letter-spacing: 0.03em;
+  color: #92400e;
+  background: rgba(251,191,36,0.28);
+  border-radius: 3px;
+  vertical-align: middle;
 }
 
 /* ============ Final results (podium + awards) ============ */

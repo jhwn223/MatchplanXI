@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { motion } from "framer-motion";
 import type { Team, TournamentData } from "../data/types";
 import {
@@ -45,6 +45,11 @@ export function Bracket({ data, team, played, koResults, tournamentSeed, leaderb
   const champ = champion(rounds);
   const finalMatch = rounds[4]?.find((match) => match.placement === "final") ?? null;
   const thirdPlaceMatch = rounds[4]?.find((match) => match.placement === "third") ?? null;
+  // 32강~4강만 좌/우로 쪼갠다 — 결승(rounds[4])은 가운데 별도 컬럼에서 그린다.
+  const bracketRounds = rounds.slice(0, 4);
+  const leftHalf = bracketRounds.map((round) => round.slice(0, Math.ceil(round.length / 2)));
+  const rightHalf = bracketRounds.map((round) => round.slice(Math.ceil(round.length / 2))).reverse();
+  const rightRoundLabels = KO_ROUND_KO.slice(0, 4).reverse();
   const thirdPlace = thirdPlaceMatch?.winner ?? null;
   const tournamentComplete = Boolean(champ && finalMatch?.played && thirdPlaceMatch?.played);
   const runnerUp =
@@ -139,10 +144,33 @@ export function Bracket({ data, team, played, koResults, tournamentSeed, leaderb
 
       <div className="bracket-scroll">
         <div className="bracket-grid">
-          {rounds.map((round, ri) => (
-            <div className="bracket-col" key={ri}>
+          {/* Both halves of the draw read outward-in toward the final, like a
+           *  real bracket sheet, instead of one long 32강→결승 line. Round `r`
+           *  match `m` is fed by round `r-1` matches `2m`/`2m+1` (see
+           *  buildBracket), so splitting each round's array at its midpoint by
+           *  index is already exactly the left/right half of the draw. */}
+          {leftHalf.map((round, ri) => (
+            <div className="bracket-col" key={`l-${ri}`}>
               <div className="bracket-col__title">{KO_ROUND_KO[ri]}</div>
               <div className="bracket-col__matches">
+                <BracketConnectors count={round.length} attach="right" />
+                {round.map((m) => (
+                  <MatchCell key={m.id} m={m} teamName={team.team_name} />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="bracket-col bracket-col--final" key="final">
+            <div className="bracket-col__title">{KO_ROUND_KO[4]}</div>
+            <div className="bracket-col__matches bracket-col__matches--final">
+              {finalMatch && <MatchCell key={finalMatch.id} m={finalMatch} teamName={team.team_name} />}
+            </div>
+          </div>
+          {rightHalf.map((round, ri) => (
+            <div className="bracket-col" key={`r-${ri}`}>
+              <div className="bracket-col__title">{rightRoundLabels[ri]}</div>
+              <div className="bracket-col__matches">
+                <BracketConnectors count={round.length} attach="left" />
                 {round.map((m) => (
                   <MatchCell key={m.id} m={m} teamName={team.team_name} />
                 ))}
@@ -150,7 +178,55 @@ export function Bracket({ data, team, played, koResults, tournamentSeed, leaderb
             </div>
           ))}
         </div>
+        {thirdPlaceMatch && (
+          <div className="bracket-bronze">
+            <MatchCell key={thirdPlaceMatch.id} m={thirdPlaceMatch} teamName={team.team_name} />
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+const CONNECTOR_STUB = 6; // px — half the .bracket-grid column gap, so the two stubs meet exactly mid-gap
+
+/** Draws the tree lines between one round's matches and the next round's
+ *  column: a short stub into each match, a vertical bar joining each pair,
+ *  and a stub continuing out toward the next column's matching midpoint. */
+function BracketConnectors({ count, attach }: { count: number; attach: "left" | "right" }) {
+  if (count < 2) return null;
+  const centers = Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 100);
+  const pairs: { top: number; height: number; mid: number }[] = [];
+  for (let i = 0; i + 1 < count; i += 2) {
+    const top = Math.min(centers[i], centers[i + 1]);
+    const height = Math.abs(centers[i + 1] - centers[i]);
+    pairs.push({ top, height, mid: top + height / 2 });
+  }
+
+  const flushStyle = (top: number): CSSProperties =>
+    attach === "right"
+      ? { top: `${top}%`, right: 0, width: CONNECTOR_STUB }
+      : { top: `${top}%`, left: 0, width: CONNECTOR_STUB };
+  const outStyle = (top: number): CSSProperties =>
+    attach === "right"
+      ? { top: `${top}%`, right: -CONNECTOR_STUB, width: CONNECTOR_STUB }
+      : { top: `${top}%`, left: -CONNECTOR_STUB, width: CONNECTOR_STUB };
+  const barStyle = (top: number, height: number): CSSProperties =>
+    attach === "right"
+      ? { top: `${top}%`, height: `${height}%`, right: -CONNECTOR_STUB }
+      : { top: `${top}%`, height: `${height}%`, left: -CONNECTOR_STUB };
+
+  return (
+    <div className="bracket-connectors" aria-hidden="true">
+      {centers.map((top, i) => (
+        <span key={`in-${i}`} className="bracket-connectors__stub" style={flushStyle(top)} />
+      ))}
+      {pairs.map((p, i) => (
+        <span key={`bar-${i}`} className="bracket-connectors__bar" style={barStyle(p.top, p.height)} />
+      ))}
+      {pairs.map((p, i) => (
+        <span key={`out-${i}`} className="bracket-connectors__stub" style={outStyle(p.mid)} />
+      ))}
     </div>
   );
 }
@@ -385,14 +461,21 @@ function MatchCell({ m, teamName }: { m: KOMatch; teamName: string }) {
     <div className="ko-cell" data-user={m.isUser || undefined} data-pending={m.a && m.b && !m.played ? true : undefined}>
       {m.placement === "third" && <span className="ko-placement">3위 결정전</span>}
       <div className="ko-row" data-win={aWin || undefined} data-me={aMe || undefined}>
-        <span className="ko-team">{teamLabel(m.a)}</span>
+        <span className="ko-team">
+          {m.a && <TeamFlag fifaCode={m.a.code} className="ko-team__flag" />}
+          {teamLabel(m.a)}
+          {m.pens && aWin && <span className="ko-pens">PK</span>}
+        </span>
         <span className="ko-score">{m.aGoals ?? ""}</span>
       </div>
       <div className="ko-row" data-win={bWin || undefined} data-me={bMe || undefined}>
-        <span className="ko-team">{teamLabel(m.b)}</span>
+        <span className="ko-team">
+          {m.b && <TeamFlag fifaCode={m.b.code} className="ko-team__flag" />}
+          {teamLabel(m.b)}
+          {m.pens && bWin && <span className="ko-pens">PK</span>}
+        </span>
         <span className="ko-score">{m.bGoals ?? ""}</span>
       </div>
-      {m.pens && <span className="ko-pens">PK</span>}
     </div>
   );
 }
