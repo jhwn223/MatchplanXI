@@ -67,8 +67,7 @@ export function OpponentAnalysisPanel({
         </div>
       </div>
 
-      <section className="opponent-report__section">
-        <h3>예상 선발 라인업</h3>
+      <section className="opponent-report__section opponent-report__lineup">
         <OpponentLineupPitch
           formation={plan.formation}
           players={players}
@@ -100,7 +99,7 @@ export function OpponentAnalysisPanel({
         </div>
       )}
 
-      <section className="opponent-report__section">
+      <section className="opponent-report__section opponent-report__bench">
         <h3>상대 교체 명단 <b>{bench.length}명</b></h3>
         {bench.length === 0 ? (
           <p className="opponent-bench-empty">교체 가능한 선수가 없습니다.</p>

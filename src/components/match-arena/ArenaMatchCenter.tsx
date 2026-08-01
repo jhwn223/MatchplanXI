@@ -4,6 +4,7 @@ import { FORMATION_KEYS, slotsOf, type FormationKey, type SlotPositions } from "
 import type { Player } from "../../data/types";
 import { Bench } from "../Bench";
 import { Pitch } from "../Pitch";
+import { TeamFlag } from "../TeamFlag";
 import { OpponentAnalysisPanel } from "../match-board/OpponentAnalysisPanel";
 import type { ArenaSim, ArenaSquadControls } from "./types";
 import { ArenaEventMap, type EventMapMode } from "./ArenaEventMap";
@@ -157,36 +158,6 @@ export function ArenaMatchCenter({
       {activeTab === "squad" && squadControls && (
         <div className="arena-squad-board">
           <section className="arena-squad-board__pitch">
-            {dismissalNotice && (
-              <div className="arena-dismissal-notice" role="alert">{dismissalNotice}</div>
-            )}
-            <header>
-              <div>
-                <h3>선수 배치</h3>
-                <p>드래그로 위치를 조정하고, 벤치에서 끌어와 교체합니다. 다음 플레이부터 반영됩니다.</p>
-              </div>
-              <div className="arena-squad-board__meta">
-                {onFormationChange && (
-                  <select
-                    className="match-formation-select"
-                    value={formation}
-                    onChange={(event) => onFormationChange(event.target.value as FormationKey)}
-                    aria-label="경기 중 포메이션 변경"
-                  >
-                    {FORMATION_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
-                  </select>
-                )}
-                <span>교체 {squadControls.subsUsed}/{squadControls.maxSubs}</span>
-                <button
-                  type="button"
-                  className="pitch-reset"
-                  onClick={squadControls.onResetPositions}
-                  title="기본 위치로 되돌리기"
-                >
-                  ↺
-                </button>
-              </div>
-            </header>
             <Pitch
               formation={slotsOf(formation)}
               slots={slots}
@@ -199,6 +170,58 @@ export function ArenaMatchCenter({
               discipline={discipline}
             />
           </section>
+          <aside className="arena-squad-board__controls">
+            <header className="arena-squad-board__team">
+              <span>
+                <TeamFlag fifaCode={userCode} className="arena-squad-board__flag" />
+                <small>{userCode}</small>
+              </span>
+              <div>
+                <small>SQUAD MANAGEMENT</small>
+                <h2>{userTeamName}</h2>
+                <p>선수 배치와 교체는 다음 플레이부터 반영됩니다.</p>
+              </div>
+            </header>
+            {dismissalNotice && (
+              <div className="arena-dismissal-notice" role="alert">{dismissalNotice}</div>
+            )}
+            <div className="arena-squad-board__status">
+              <label>
+                <span>현재 포메이션</span>
+                {onFormationChange ? (
+                  <select
+                    className="match-formation-select"
+                    value={formation}
+                    onChange={(event) => onFormationChange(event.target.value as FormationKey)}
+                    aria-label="경기 중 포메이션 변경"
+                  >
+                    {FORMATION_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+                  </select>
+                ) : (
+                  <strong>{formation}</strong>
+                )}
+              </label>
+              <div>
+                <span>교체 사용</span>
+                <strong>{squadControls.subsUsed}/{squadControls.maxSubs}</strong>
+              </div>
+            </div>
+            <section className="arena-squad-board__guide">
+              <h3>선수 배치</h3>
+              <ul>
+                <li>피치 안에서 드래그해 선수 위치를 조정합니다.</li>
+                <li>오른쪽 명단에서 피치로 끌어와 교체합니다.</li>
+                <li>선수 카드를 누르면 상세 능력치를 확인할 수 있습니다.</li>
+              </ul>
+            </section>
+            <button
+              type="button"
+              className="arena-squad-board__reset"
+              onClick={squadControls.onResetPositions}
+            >
+              ↺ 기본 위치로 되돌리기
+            </button>
+          </aside>
           <Bench
             benchPlayers={squadControls.benchPlayers}
             conditions={liveConditions ?? squadControls.conditions}

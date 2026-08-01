@@ -124,7 +124,9 @@ export function finalizePlayerStats(
   periodStartMinute = 0
 ): PlayerMatchStats[] {
   const result: PlayerMatchStats[] = [];
-  const minutesPlayed = Math.max(0, minute - periodStartMinute);
+  /** A substitute's clock starts when he came on, not when the period did. */
+  const minutesFor = (player: PlacedPlayerLite) =>
+    Math.max(0, minute - Math.max(periodStartMinute, player.enteredAtMinute ?? 0));
   for (const side of ["user", "opp"] as const) {
     const players = side === "user" ? input.placed : input.oppPlaced;
     const tactics = tacticsForSide(input, side);
@@ -135,6 +137,7 @@ export function finalizePlayerStats(
     for (const player of players) {
       const stat = stats[side].get(player.playerId);
       if (!stat) continue;
+      const minutesPlayed = minutesFor(player);
       const finalized = {
         ...stat,
         condition: currentCondition(player, minute, input.elevation, tactics),

@@ -31,6 +31,7 @@ interface Props {
   onOpponentTacticChange: (tactics: TeamTactics) => void;
   onFormationChange: (formation: FormationKey) => void;
   onPlayerDismissed: (side: MatchSide, playerId: number) => void;
+  onMinuteChange: (minute: number) => void;
   onFirstHalfComplete: (period: HalfResult) => ArenaSim;
   onSecondHalfComplete: (period: HalfResult) => ArenaSim;
   onExtraTimeComplete: (period: HalfResult) => ArenaSim;
@@ -68,6 +69,7 @@ export function MatchArenaOverlays({
   onOpponentTacticChange,
   onFormationChange,
   onPlayerDismissed,
+  onMinuteChange,
   onFirstHalfComplete,
   onSecondHalfComplete,
   onExtraTimeComplete,
@@ -99,6 +101,7 @@ export function MatchArenaOverlays({
     onOpponentTacticChange,
     onFormationChange,
     onPlayerDismissed,
+    onMinuteChange,
     onCommitSubstitutions,
     onClose,
     onSchedule,

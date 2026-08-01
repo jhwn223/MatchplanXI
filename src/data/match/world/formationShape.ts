@@ -70,12 +70,12 @@ export function formationAnchor({
 }: FormationAnchorInput): WorldPoint {
   const canonicalBallX = direction === 1 ? ball.x : 100 - ball.x;
   const shiftGain =
-    phase === "buildUp" ? 0.38 :
-      phase === "transitionAttack" ? 0.62 :
-        phase === "transitionDefense" ? 0.5 :
-          phase === "finalThird" ? 0.58 :
-            hasBall ? 0.54 : 0.46;
-  const blockShift = clamp((canonicalBallX - 50) * shiftGain, -18, 18);
+    phase === "buildUp" ? 0.3 :
+      phase === "transitionAttack" ? 0.46 :
+        phase === "transitionDefense" ? 0.38 :
+          phase === "finalThird" ? 0.42 :
+            hasBall ? 0.4 : 0.34;
+  const blockShift = clamp((canonicalBallX - 50) * shiftGain, -13, 13);
   const overlap = profile.overlapBias ?? 0;
   const directness = profile.directnessBias ?? 0;
   const tempo = profile.tempoBias ?? 0;
@@ -118,11 +118,19 @@ export function formationAnchor({
   // Compactness is the dedicated control for the gap between the lines;
   // directness stretches the side as a side effect of how it plays.
   const stretch = 1 + directness * 0.16 - compactness * 0.09;
+  // The block concertinas, but it must not collapse into one line. Squeezing
+  // every slot 20% towards halfway and then translating the whole shape with
+  // the ball meant a striker stood in midfield whenever his side defended, so
+  // a side fielding six forwards and no midfielders still had five bodies in
+  // the middle third — measured, and all but identical to a normal 4-3-3.
+  // Every formation converged on the same occupancy, which is exactly why the
+  // manager's shape did not decide anything.
   const longitudinalScale =
     (role === "GK" ? 1 :
-      phase === "transitionAttack" ? 0.9 :
-        phase === "transitionDefense" ? 0.8 :
-          hasBall ? 0.86 : 0.78) * (role === "GK" ? 1 : stretch);
+      phase === "transitionAttack" ? 0.92 :
+        phase === "transitionDefense" ? 0.85 :
+          phase === "finalThird" ? 0.87 :
+            hasBall ? 0.92 : 0.86) * (role === "GK" ? 1 : stretch);
   const structuredBaseX =
     role === "GK" ? baseX : 50 + (baseX - 50) * longitudinalScale;
   const canonicalX = clamp(

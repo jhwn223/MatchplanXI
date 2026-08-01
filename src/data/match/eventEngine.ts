@@ -662,7 +662,7 @@ export function simulatePeriodWithWorld(
       rng() <
       clamp(
         0.76 -
-          lineRisk * 0.27 -
+          lineRisk * 0.12 -
           (receiver.positioning - 68) / 320 -
           (receiver.pace - 68) / 380 +
           defendingTactics.offsideTrapBias * 0.13,
@@ -1140,19 +1140,22 @@ export function simulatePeriodWithWorld(
         }
       }
 
+      // Attacking instructions buy attempts, but the shape now holds its lines
+      // instead of collapsing onto the ball, so the same instruction reaches
+      // the box far more often than it used to and needs a smaller premium.
       const tacticShotBias =
-        sideAttackBias * 0.034 +
-        sideTactics.overlapBias * 0.007 +
-        counterEdge * 0.013 +
-        sideTactics.tempoBias * 0.009 +
-        sideTactics.shootingBias * 0.032 +
+        sideAttackBias * 0.022 +
+        sideTactics.overlapBias * 0.005 +
+        counterEdge * 0.009 +
+        sideTactics.tempoBias * 0.006 +
+        sideTactics.shootingBias * 0.021 +
         // Bodies sent forward instead of held back arrive in the box.
-        Math.max(0, -sideTactics.restDefenseBias) * 0.016 +
-        matchupEdge * 0.14;
+        Math.max(0, -sideTactics.restDefenseBias) * 0.011 +
+        matchupEdge * 0.1;
       // A possession reaching the final third is not automatically a shot.
       // These rates keep a normal match near 24-28 combined attempts while
       // preserving the relative effect of roles and attacking instructions.
-      const roleShotChance = carrier.position === "FWD" ? 0.148 : carrier.position === "MID" ? 0.063 : 0.017;
+      const roleShotChance = carrier.position === "FWD" ? 0.10 : carrier.position === "MID" ? 0.043 : 0.012;
       // Whether the defence is actually there. A packed box is why standing
       // strikers in it produces nothing, and an empty one is why a side that
       // keeps nobody home concedes every time the ball arrives. Without this
@@ -1167,7 +1170,7 @@ export function simulatePeriodWithWorld(
       // building the move that would reach them — so stacking the attacking
       // third has to give diminishing returns rather than multiplying chances.
       const crowding = clamp(1 - Math.max(0, commitment[side][2] - 4) * 0.13, 0.4, 1);
-      const spaceToShoot = (throughOnGoal ? 1.6 : 0.45 + openness * 1.15) * crowding;
+      const spaceToShoot = (throughOnGoal ? 1.5 : 0.55 + openness * 0.78) * crowding;
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
       // The final touch has to reach the edge of the penalty area before a
@@ -1186,13 +1189,13 @@ export function simulatePeriodWithWorld(
           // A runner who has beaten the last line shoots; he has only the
           // keeper in front of him. Leaving him on the ordinary per-touch
           // rate meant breaking a high line was worth almost nothing.
-          (throughOnGoal && rng() < 0.46) ||
+          (throughOnGoal && rng() < 0.33) ||
           // A shot is the end of a move, not a property of where a player
           // happens to be standing. Weighting the carrier's role far above the
           // possession's progress let a side manufacture chances simply by
           // stationing six forwards in the box: every one of them was a
           // shooter the moment the ball reached him. Progress has to earn it.
-          rng() < (roleShotChance * 0.40 + progress * 0.095 + tacticShotBias) * spaceToShoot ||
+          rng() < (roleShotChance * 0.40 + progress * 0.071 + tacticShotBias) * spaceToShoot ||
           (action === maxActions - 1 && rng() < 0.02 * spaceToShoot)
         );
       if (!shootNow) continue;
@@ -1230,7 +1233,7 @@ export function simulatePeriodWithWorld(
       // add 0.32 xG to every attempt. A saturating curve keeps exposed space
       // meaningful while preventing repeated 6-4 and 7-3 scorelines.
       const exposureChanceBoost =
-        0.028 * (1 - Math.exp(-Math.max(0, defendingExposure) * 1.25));
+        0.021 * (1 - Math.exp(-Math.max(0, defendingExposure) * 1.25));
       const matchupChanceBoost = clamp(matchupEdge * 0.04, -0.02, 0.03);
       // Urgency creates more attempts, not magically cleaner chances. Teams
       // throwing bodies forward or shooting on sight take a larger share of
@@ -1257,7 +1260,7 @@ export function simulatePeriodWithWorld(
         matchupChanceBoost -
         forcedShotPenalty +
         // An unguarded box is a chance; a crowded one is a blocked effort.
-        openness * 0.055 +
+        openness * 0.04 +
         (throughOnGoal ? 0.10 : 0);
       const baseXg = carrier.position === "FWD" ? 0.058 : carrier.position === "MID" ? 0.035 : 0.020;
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.03, 0.01, 0.45);
@@ -1302,7 +1305,7 @@ export function simulatePeriodWithWorld(
       // range. The former 1.2 boost was compensating for an older, low-quality
       // shot model and now over-converted the better chances created by the
       // positional simulation.
-      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.45, 0.01, 0.72);
+      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.8, 0.01, 0.74);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
         if (shooterStats) {

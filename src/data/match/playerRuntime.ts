@@ -85,7 +85,10 @@ export function fatigueBreakdown(
   elevation: number,
   tactics?: SimTacticProfile,
 ): FatigueBreakdown {
-  const elapsed = clamp(minute, 0, 120);
+  // Time on the pitch, not time on the clock. Charging every player for the
+  // whole match meant a substitute came on already exhausted — brought on at
+  // 70 minutes he read as though he had played all seventy of them.
+  const elapsed = clamp(minute - (player.enteredAtMinute ?? 0), 0, 120);
   const load = tactics ?? NO_TACTICAL_LOAD;
   const positionLoad = POSITION_LOAD[player.position] ?? 1;
   const baseLoss = elapsed * 0.25 * positionLoad;

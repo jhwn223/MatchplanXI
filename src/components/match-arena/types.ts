@@ -95,6 +95,8 @@ export interface MatchArenaProps {
   onOpponentTacticChange?: (tactics: TeamTactics) => void;
   onFormationChange?: (formation: FormationKey) => void;
   onPlayerDismissed?: (side: MatchSide, playerId: number) => void;
+  /** Reports the clock so a substitution can be stamped with the minute it happened. */
+  onMinuteChange?: (minute: number) => void;
   onPeriodComplete: (period: HalfResult) => ArenaSim;
   onComplete: () => void;
   /**
