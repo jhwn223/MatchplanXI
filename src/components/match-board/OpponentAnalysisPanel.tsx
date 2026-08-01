@@ -101,7 +101,7 @@ export function OpponentAnalysisPanel({
 
       <section className="opponent-report__section opponent-report__scout">
         <small className="opponent-report__scout-basis">
-          48개국 선수단 능력치·신장 분포 기준 상·하위 25%
+          48개국 선수단 분포와 팀 내 상대 순위를 함께 반영
         </small>
         <div>
           <h3>강점</h3>
