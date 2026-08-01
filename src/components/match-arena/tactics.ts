@@ -11,6 +11,7 @@ export interface LiveIntensity {
 }
 
 import type { SimTacticProfile } from "../../data/matchSim";
+import { TACTIC_STYLES, type TacticStyleKey } from "../../data/tactics";
 
 export type DefenseStyle = "dropBack" | "balanced" | "errorPress" | "lossPress" | "constantPress";
 export type BuildUpPlay = "shortPass" | "balanced" | "longPass" | "fastBuildUp";
@@ -342,17 +343,32 @@ export type QuickTacticKey =
   | "attacking"
   | "highPress"
   | "overload"
-  | "chaseGoal";
+  | "chaseGoal"
+  | TacticStyleKey;
 
-export const QUICK_TACTICS: Array<{ key: QuickTacticKey; label: string; description: string }> = [
-  { key: "defensive", label: "수비 지향", description: "낮은 블록과 안정적인 간격" },
-  { key: "protectLead", label: "리드 지키기", description: "낮은 라인과 신중한 운영" },
-  { key: "balanced", label: "밸런스", description: "공수 균형을 유지하는 기본형" },
-  { key: "control", label: "경기 주도", description: "짧은 패스와 점유율 확보" },
-  { key: "attacking", label: "공격 지향", description: "적극적인 전진과 박스 침투" },
-  { key: "highPress", label: "강한 압박", description: "높은 라인과 즉시 압박" },
-  { key: "overload", label: "측면 과부하", description: "넓은 폭과 풀백 오버래핑" },
-  { key: "chaseGoal", label: "득점 총력", description: "공격 숫자와 템포 극대화" },
+/**
+ * Shown in the "빠른 지시" tab as two groups: a basic 3-way orientation, and
+ * the same 6 tactic styles used pre-match (src/data/tactics.ts) so the label
+ * a manager picks before kickoff stays recognisable during the match too.
+ * "protectLead"/"control"/"highPress"/"overload"/"chaseGoal" still exist as
+ * applyQuickTactic() cases below — the opponent AI (match-board/opponentPlan.ts)
+ * calls them by key directly — they're just not surfaced as buttons anymore.
+ */
+export const QUICK_TACTICS: Array<{
+  key: QuickTacticKey;
+  label: string;
+  description: string;
+  group: "orientation" | "style";
+}> = [
+  { key: "defensive", label: "수비 지향", description: "낮은 블록과 안정적인 간격", group: "orientation" },
+  { key: "balanced", label: "밸런스", description: "공수 균형을 유지하는 기본형", group: "orientation" },
+  { key: "attacking", label: "공격 지향", description: "적극적인 전진과 박스 침투", group: "orientation" },
+  ...TACTIC_STYLES.map((style) => ({
+    key: style.key,
+    label: `${style.emoji} ${style.label}`,
+    description: style.description,
+    group: "style" as const,
+  })),
 ];
 
 export function applyQuickTactic(base: TeamTactics, key: QuickTacticKey): TeamTactics {
@@ -383,9 +399,40 @@ export function applyQuickTactic(base: TeamTactics, key: QuickTacticKey): TeamTa
     ...base, mentality: "positive", tempo: "fast", width: "wide", widePlay: "overlap",
     fullbackRole: "overlap", attackFocus: "balanced",
   };
-  return {
+  if (key === "chaseGoal") return {
     ...base, mentality: "attacking", tempo: "fast", fluidity: "fluid", creativity: "expressive", width: "wide",
     passingStyle: "direct", chanceCreation: "forwardRuns", shooting: "onSight", widePlay: "overlap",
     defensiveLine: "high", pressing: "high", workRate: "intense",
+  };
+  // The 6 pre-match tactic styles (src/data/tactics.ts), translated into the
+  // richer in-match TeamTactics fields so picking a style mid-match keeps the
+  // same footballing identity as picking it before kickoff.
+  if (key === "possession") return {
+    ...base, mentality: "positive", tempo: "slow", passingStyle: "short", buildUpPlay: "shortPass",
+    chanceCreation: "possession", pressing: "low", defensiveLine: "standard", width: "balanced",
+    tackling: "cautious", creativity: "disciplined", fluidity: "balanced",
+  };
+  if (key === "counter") return {
+    ...base, mentality: "cautious", tempo: "fast", passingStyle: "direct", buildUpPlay: "longPass",
+    chanceCreation: "directPassing", pressing: "low", defensiveLine: "low", width: "narrow",
+    tackling: "balanced", workRate: "intense", strikerRole: "poacher",
+  };
+  if (key === "wing") return {
+    ...base, mentality: "positive", tempo: "balanced", width: "wide", widePlay: "overlap",
+    fullbackRole: "overlap", chanceCreation: "balanced", passingStyle: "mixed", pressing: "standard",
+    defensiveLine: "standard",
+  };
+  if (key === "halfspace") return {
+    ...base, mentality: "positive", tempo: "balanced", passingStyle: "mixed", chanceCreation: "directPassing",
+    attackFocus: "central", midfieldRole: "playmaker", creativity: "expressive", fluidity: "fluid", widePlay: "mixed",
+  };
+  if (key === "longball") return {
+    ...base, mentality: "positive", tempo: "fast", passingStyle: "long", buildUpPlay: "longPass",
+    chanceCreation: "directPassing", strikerRole: "target", defensiveLine: "standard", workRate: "balanced",
+  };
+  return {
+    ...base, mentality: "attacking", tempo: "fast", defenseStyle: "constantPress", pressing: "high",
+    defensiveLine: "high", tackling: "aggressive", workRate: "intense", width: "wide",
+    marking: "man",
   };
 }
