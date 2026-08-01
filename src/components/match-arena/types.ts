@@ -96,6 +96,13 @@ export interface MatchArenaProps {
   onPlayerDismissed?: (side: MatchSide, playerId: number) => void;
   onPeriodComplete: (period: HalfResult) => ArenaSim;
   onComplete: () => void;
+  /**
+   * Call when the user resumes the match from the paused squad-edit screen
+   * ("경기 재개") — this is the point where any bench swaps made while paused
+   * become permanent. Optional since not every MatchArena usage exposes the
+   * squad tab.
+   */
+  onCommitSubstitutions?: () => void;
   onClose: () => void;
   /** Leave the finished match and return to the schedule/bracket screen. */
   onSchedule?: () => void;

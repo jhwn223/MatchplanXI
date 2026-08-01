@@ -22,7 +22,6 @@ interface UseLineupDragOptions {
   maxSubs: number;
   maxOnPitch: number;
   playDrop: () => void;
-  setBenchedOut: Dispatch<SetStateAction<Set<number>>>;
   setActiveDragId: Dispatch<SetStateAction<number | null>>;
 }
 
@@ -37,7 +36,6 @@ export function useLineupDrag({
   maxSubs,
   maxOnPitch,
   playDrop,
-  setBenchedOut,
   setActiveDragId,
 }: UseLineupDragOptions) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -106,15 +104,18 @@ export function useLineupDrag({
     if (!targetId || targetId === dragData.from || benchedOut.has(dragData.playerId)) return;
     if (targetId === BENCH_ZONE_ID) {
       if (dragData.from !== BENCH_ZONE_ID) {
+        // This just moves the player to the bench for now — it's still a
+        // draft. Nothing is permanently benched until the caller commits
+        // (see commitBenchedOut in MatchBoard), which happens when the user
+        // actually resumes the match/moves to the next segment. Until then
+        // this can be freely undone, including dragging the same player back.
         onChangeLineup({ ...lineup, slots: { ...lineup.slots, [dragData.from]: null }, presetKey: null });
-        if (startingXI) setBenchedOut((previous) => new Set(previous).add(dragData.playerId));
       }
       return;
     }
 
     const targetSlot = formation.find((slot) => slot.id === targetId);
     if (!targetSlot || !canPlaceInSlot(player.position, targetSlot.position)) return;
-    const previousOccupant = lineup.slots[targetSlot.id];
     const next = { ...lineup.slots };
     if (dragData.from !== BENCH_ZONE_ID) next[dragData.from] = null;
     next[targetSlot.id] = dragData.playerId;
@@ -127,9 +128,6 @@ export function useLineupDrag({
 
     onChangeLineup({ ...lineup, slots: next, presetKey: null });
     playDrop();
-    if (startingXI && dragData.from === BENCH_ZONE_ID && previousOccupant != null) {
-      setBenchedOut((previous) => new Set(previous).add(previousOccupant));
-    }
   }
 
   return { sensors, handleDragStart, handleDragEnd };
