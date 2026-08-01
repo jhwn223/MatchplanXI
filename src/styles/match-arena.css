@@ -735,7 +735,13 @@
 .arena-ctrl--section { font-size: 11px; }
 .arena-squad-board {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  /* The pitch column is capped rather than left at a bare 1fr: a portrait
+     board can only grow so tall before it runs out of modal height, so an
+     unbounded 1fr just left dead space beside a small board. Capping the
+     track and centering the row turns that dead space into balanced outer
+     margins instead. */
+  grid-template-columns: minmax(320px, 560px) minmax(240px, 320px);
+  justify-content: center;
   gap: 18px;
   padding: 16px 22px 20px;
   min-height: 0;
@@ -747,17 +753,22 @@
 }
 /* The pitch is a portrait 68:100 box that fills its column by default, which
    made it far taller than the modal. Sizing it by height instead keeps the
-   whole lineup on screen and lets the width follow the aspect ratio. */
+   whole lineup on screen and lets the width follow the aspect ratio. The
+   third min() term caps it to what .match-center (72vh) actually has left
+   after its own header and this section's header/padding — without that,
+   the pitch column can grow taller than .match-center's budget, forcing the
+   whole squad-board row (pitch + bench together) to scroll and cutting the
+   bench off mid-list instead of using its own internal scroll. */
 .arena-squad-board .pitch {
   width: auto;
-  height: min(52vh, 460px);
+  height: min(62vh, 540px, calc(72vh - 160px));
   margin: 0 auto;
 }
-/* The bench clips its overflow on the board layout, so the full squad list
-   needs its own scroll here rather than being cut off. */
+/* Capped the same way as the pitch above, so the bench's own scrollbar is
+   what handles overflow instead of the shared row needing to scroll. */
 .arena-squad-board .bench {
   min-height: 0;
-  max-height: min(58vh, 520px);
+  max-height: min(58vh, 520px, calc(72vh - 100px));
   overflow-y: auto;
 }
 .arena-squad-board__pitch > header {
