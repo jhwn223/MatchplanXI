@@ -55,7 +55,7 @@ export function TacticsPanel({
           onClick={onAutoFill}
           title={subsLocked ? lockedTitle : undefined}
         >
-          ⚡ 최적 11인 배치 · 역할 지정
+          ⚡ 11인 자동 배치
         </button>
         <span className="tactics-panel__hint">
           감지된 형태 {detectedFormation} · {attackBiasLabel(attackBias)}

@@ -16,7 +16,6 @@ import { TacticsPanel } from "../TacticsPanel";
 import {
   ArenaTacticsPanel,
   TacticItemBoxSelect,
-  type TacticsTab,
 } from "../match-arena/ArenaTacticsPanel";
 import { MatchAnalysis } from "../match-arena/ArenaMatchCenter";
 import { ArenaLiveStats } from "../match-arena/ArenaLiveStats";
@@ -122,7 +121,6 @@ export function MatchBoardScreen({
   onSelectPlayer,
 }: Props) {
   const [workspaceMode, setWorkspaceMode] = useState<"lineup" | "tactics">("lineup");
-  const [tacticsInitialTab, setTacticsInitialTab] = useState<TacticsTab>("quick");
   const [rightPanel, setRightPanel] = useState<"squad" | "opponent">("squad");
   const [halftimeReview, setHalftimeReview] = useState<"stats" | "analysis" | null>(null);
   const match = activeMatch.match;
@@ -135,12 +133,6 @@ export function MatchBoardScreen({
 
   function updateTactics(next: TeamTactics) {
     onTacticsChange(next);
-  }
-
-  function autoFillAndAssignRoles() {
-    onAutoFill();
-    setTacticsInitialTab("roles");
-    setWorkspaceMode("tactics");
   }
 
   return (
@@ -230,10 +222,7 @@ export function MatchBoardScreen({
               role="tab"
               aria-selected={workspaceMode === "tactics"}
               data-active={workspaceMode === "tactics" || undefined}
-              onClick={() => {
-                setTacticsInitialTab("quick");
-                setWorkspaceMode("tactics");
-              }}
+              onClick={() => setWorkspaceMode("tactics")}
             >
               팀 전술
             </button>
@@ -244,7 +233,7 @@ export function MatchBoardScreen({
               detectedFormation={detectedFormation}
               attackBias={effectiveAttackBias}
               onSelectFormation={onSelectFormation}
-              onAutoFill={autoFillAndAssignRoles}
+              onAutoFill={onAutoFill}
               tacticStyleKey={null}
               showStyles={false}
               subsLocked={startingXI != null}
@@ -339,7 +328,6 @@ export function MatchBoardScreen({
                 playersById={playersById}
                 slotRoles={lineup.slotRoles}
                 onRoleChange={onRoleChange}
-                initialTab={tacticsInitialTab}
                 onApply={updateTactics}
               />
             </section>

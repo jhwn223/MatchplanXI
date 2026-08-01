@@ -12,7 +12,7 @@ import {
   type TeamTactics,
 } from "./tactics";
 
-export type TacticsTab = "quick" | "roles" | "general" | "attack" | "defense";
+type TacticsTab = "quick" | "roles" | "general" | "attack" | "defense";
 
 interface Props {
   userTeamName: string;
@@ -25,7 +25,6 @@ interface Props {
   playersById?: Map<number, Player>;
   slotRoles?: SlotRoleAssignments;
   onRoleChange?: (slotId: string, role: PlayerRole) => void;
-  initialTab?: TacticsTab;
   variant?: "match" | "prematch";
 }
 
@@ -66,11 +65,10 @@ export function ArenaTacticsPanel({
   playersById = new Map(),
   slotRoles,
   onRoleChange,
-  initialTab = "quick",
   variant = "match",
 }: Props) {
   const [draft, setDraft] = useState<TeamTactics>(tactics);
-  const [tab, setTab] = useState<TacticsTab>(initialTab);
+  const [tab, setTab] = useState<TacticsTab>("quick");
   const [selectedQuick, setSelectedQuick] = useState<QuickTacticKey | null>(null);
 
   useEffect(() => {

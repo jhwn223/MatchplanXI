@@ -1647,12 +1647,12 @@
 }
 
 .board--prematch[data-workspace="tactics"] .role-board {
-  grid-template-columns: minmax(270px, 0.8fr) minmax(340px, 1.2fr);
-  gap: 28px;
+  grid-template-columns: minmax(350px, 0.95fr) minmax(380px, 1.05fr);
+  gap: 32px;
 }
 
 .board--prematch[data-workspace="tactics"] .role-board__pitch {
-  width: min(100%, 350px);
+  width: min(100%, 440px);
 }
 
 @media (max-width: 980px) {

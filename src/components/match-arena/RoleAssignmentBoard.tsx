@@ -63,7 +63,7 @@ export function RoleAssignmentBoard({
             >
               <strong>{slot.label}</strong>
               <span>{slotPlayer?.player_name?.split(" ").at(-1) ?? "미배치"}</span>
-              <small>{definition.shortLabel}</small>
+              <small>{definition.label}</small>
             </button>
           );
         })}
@@ -75,7 +75,7 @@ export function RoleAssignmentBoard({
             <small>{selected.label} POSITION ROLE</small>
             <h3>{player?.player_name ?? `${selected.label} 슬롯`}</h3>
           </div>
-          <span>{roleDefinition(currentRole).shortLabel}</span>
+          <span>{roleDefinition(currentRole).label}</span>
         </header>
         <div className="role-board__options" role="radiogroup" aria-label={`${selected.label} 역할 선택`}>
           {options.map((option) => (
@@ -90,7 +90,10 @@ export function RoleAssignmentBoard({
               <span className="role-board__check" aria-hidden="true">{currentRole === option.key ? "✓" : ""}</span>
               <span className="role-board__option-copy">
                 <strong>{option.label}</strong>
-                <small><b>{option.benefit}</b><i>{option.cost}</i></small>
+                <small>
+                  <b><span>효과</span>{option.benefit}</b>
+                  <i><span>위험</span>{option.cost}</i>
+                </small>
               </span>
             </button>
           ))}
