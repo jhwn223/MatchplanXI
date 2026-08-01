@@ -728,7 +728,7 @@ export function MatchArena({
   const timelineTicks = Array.from({ length: 7 }, (_, i) => Math.round(segmentStart + ((segmentEnd - segmentStart) * i) / 6));
 
   return (
-    <motion.div className="sim-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+    <motion.div className="sim-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.div
         className="arena-modal"
         initial={{ scale: 0.95, y: 16, opacity: 0 }}
@@ -765,9 +765,6 @@ export function MatchArena({
             <ScorerList scorers={scorers("opp")} />
             <BookingList bookings={bookings("opp")} />
           </div>
-          <button type="button" className="arena-close" onClick={onClose}>
-            ✕
-          </button>
         </div>
 
         {!ended && pendingPenalties && (

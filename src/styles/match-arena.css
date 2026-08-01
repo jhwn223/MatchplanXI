@@ -31,13 +31,6 @@
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
-.arena-close {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 18px;
-  cursor: pointer;
-}
 .arena-canvas-wrap {
   position: relative;
   width: 100%;
