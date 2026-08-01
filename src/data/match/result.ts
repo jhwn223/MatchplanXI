@@ -4,7 +4,52 @@ import { simulatePenalties } from "./penalties";
 import { mulberry32 } from "./random";
 import { combineTeamStatsPair } from "./stats";
 import { tacticsForSide } from "./tactics";
-import type { HalfResult, SimComparison, SimInput, SimResult } from "./types";
+import type {
+  HalfResult,
+  MatchSide,
+  PlayerMatchStats,
+  SimComparison,
+  SimInput,
+  SimResult,
+} from "./types";
+
+function continuationInput(
+  input: SimInput,
+  playerStats: PlayerMatchStats[],
+  minute: number,
+): SimInput {
+  const statsByPlayer = new Map(
+    playerStats.map((stat) => [`${stat.side}:${stat.playerId}`, stat]),
+  );
+  const prepareSide = (side: MatchSide, players: SimInput["placed"]) => players
+    .filter((player) => {
+      const stat = statsByPlayer.get(`${side}:${player.playerId}`);
+      return !stat || (stat.redCards === 0 && stat.injuries === 0);
+    })
+    .map((player) => {
+      const stat = statsByPlayer.get(`${side}:${player.playerId}`);
+      return {
+        ...player,
+        condition: stat?.condition ?? player.condition,
+        enteredAtMinute: minute,
+      };
+    });
+  const inheritedCautions = (side: MatchSide) => Object.fromEntries(
+    playerStats
+      .filter((stat) => stat.side === side && stat.yellowCards > 0 && stat.redCards === 0)
+      .map((stat) => [stat.playerId, stat.yellowCards]),
+  );
+
+  return {
+    ...input,
+    placed: prepareSide("user", input.placed),
+    oppPlaced: prepareSide("opp", input.oppPlaced),
+    initialYellowCards: {
+      user: inheritedCautions("user"),
+      opp: inheritedCautions("opp"),
+    },
+  };
+}
 
 export function combineHalves(input: SimInput, firstHalf: HalfResult, secondHalf: HalfResult): SimResult {
   const userGoals = firstHalf.userGoals + secondHalf.userGoals;
@@ -62,11 +107,14 @@ export function combineExtraTime(input: SimInput, base: SimResult, extraTime: Ha
   const goals = [...base.goals, ...extraTime.goals].sort((a, b) => a.minute - b.minute);
   const events = [...base.events, ...extraTime.events].sort((a, b) => a.minute - b.minute);
   const positionSamples = [...base.positionSamples, ...extraTime.positionSamples].sort((a, b) => a.minute - b.minute);
-  const penalties = userGoals === oppGoals
-    ? simulatePenalties(mulberry32((input.seed + 9_000029) >>> 0), input)
-    : null;
   const outcome = userGoals > oppGoals ? "W" : userGoals < oppGoals ? "L" : "D";
   const playerStats = combinePlayerStats(base.playerStats, extraTime.playerStats);
+  const penalties = userGoals === oppGoals
+    ? simulatePenalties(
+        mulberry32((input.seed + 9_000029) >>> 0),
+        continuationInput(input, playerStats, 120),
+      )
+    : null;
 
   return {
     ...base,
@@ -90,7 +138,12 @@ export function combineExtraTime(input: SimInput, base: SimResult, extraTime: Ha
 export function applyExtraTime(input: SimInput, base: SimResult): SimResult {
   if (!input.isKnockout || base.userGoals !== base.oppGoals) return base;
 
-  return combineExtraTime(input, base, simulatePeriod(input, 91, 120, 9_000029));
+  const extraTimeInput = continuationInput(input, base.playerStats, 90);
+  return combineExtraTime(
+    input,
+    base,
+    simulatePeriod(extraTimeInput, 91, 120, 9_000029),
+  );
 }
 
 function buildComparison(

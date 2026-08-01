@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { simulatePeriod, simulatePeriodWithWorld } from "./eventEngine";
 import { samplePlayerPositions } from "./spatial";
 import { BALANCED_SIM_TACTICS } from "./tactics";
+import { applyExtraTime, combineHalves } from "./result";
 import type { PlacedPlayerLite, SimInput, SimTacticProfile } from "./types";
 import type { MatchWorld } from "./world/types";
 
@@ -138,6 +139,8 @@ describe("match engine invariants", () => {
     expect(first.world.elapsedSeconds).toBe(firstElapsedSeconds);
     expect(second.world.minute).toBe(2);
     expect(second.world.elapsedSeconds).toBeGreaterThan(firstElapsedSeconds);
+    expect(second.world.fatigueByPlayer.user.get(106)?.updatedAtMinute).toBe(2);
+    expect(second.world.fatigueByPlayer.user.get(106)?.condition).toBeLessThan(95);
     expect(second.world).not.toBe(first.world);
     for (const position of firstPositions) {
       const preserved = first.world.players.user.get(position.playerId);
@@ -212,6 +215,37 @@ describe("match engine invariants", () => {
     expect(second.world.players.user.has(removedId)).toBe(false);
     expect(second.world.ball.ownerId).not.toBe(removedId);
     expect(second.world.elapsedSeconds).toBeGreaterThan(first.world.elapsedSeconds);
+  });
+
+  test("dismissed and injured players do not return for extra time", () => {
+    const knockoutInput = input(45);
+    knockoutInput.isKnockout = true;
+    const base = combineHalves(
+      knockoutInput,
+      simulatePeriod(knockoutInput, 1, 45, 999_983),
+      simulatePeriod(knockoutInput, 46, 90, 1_999_966),
+    );
+    base.userGoals = 0;
+    base.oppGoals = 0;
+    const dismissedId = knockoutInput.placed[5].playerId;
+    const injuredId = knockoutInput.placed[6].playerId;
+    const dismissed = base.playerStats.find((stat) => stat.side === "user" && stat.playerId === dismissedId);
+    const injured = base.playerStats.find((stat) => stat.side === "user" && stat.playerId === injuredId);
+    if (!dismissed || !injured) throw new Error("continuation stats missing");
+    dismissed.redCards = 1;
+    injured.injuries = 1;
+
+    const result = applyExtraTime(knockoutInput, base);
+    const unavailable = new Set([dismissedId, injuredId]);
+    const extraTimeEvents = result.events.filter((event) => event.minute >= 91);
+    const extraTimeSamples = result.positionSamples.filter((sample) => sample.minute >= 91);
+
+    expect(result.wentToExtraTime).toBe(true);
+    expect(extraTimeSamples.length).toBeGreaterThan(0);
+    expect(extraTimeEvents.some((event) =>
+      unavailable.has(event.actorId) || (event.targetId != null && unavailable.has(event.targetId))
+    )).toBe(false);
+    expect(extraTimeSamples.some((sample) => unavailable.has(sample.playerId))).toBe(false);
   });
 
   test("position heat samples preserve football roles and respond to width", () => {
