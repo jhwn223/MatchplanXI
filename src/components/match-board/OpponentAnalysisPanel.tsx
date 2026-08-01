@@ -84,7 +84,6 @@ export function OpponentAnalysisPanel({
             <div><dt>압박</dt><dd>{tacticLabel("pressing", plan.tactics.pressing)}</dd></div>
             <div><dt>수비 라인</dt><dd>{tacticLabel("line", plan.tactics.defensiveLine)}</dd></div>
             <div><dt>팀 폭</dt><dd>{tacticLabel("width", plan.tactics.width)}</dd></div>
-            <div><dt>빌드업</dt><dd>{tacticLabel("buildUp", plan.tactics.buildUpPlay)}</dd></div>
             <div><dt>템포</dt><dd>{tacticLabel("tempo", plan.tactics.tempo)}</dd></div>
           </dl>
         </div>
@@ -148,7 +147,7 @@ export function OpponentAnalysisPanel({
 }
 
 function tacticLabel(
-  type: "mentality" | "pressing" | "line" | "width" | "buildUp" | "tempo",
+  type: "mentality" | "pressing" | "line" | "width" | "tempo",
   value: string,
 ) {
   const labels: Record<typeof type, Record<string, string>> = {
@@ -162,12 +161,6 @@ function tacticLabel(
     pressing: { low: "낮음", standard: "보통", high: "강함" },
     line: { low: "낮음", standard: "보통", high: "높음" },
     width: { narrow: "좁게", balanced: "중간", wide: "넓게" },
-    buildUp: {
-      shortPass: "짧은 패스",
-      balanced: "균형",
-      longPass: "긴 패스",
-      fastBuildUp: "빠른 전개",
-    },
     tempo: { slow: "느림", balanced: "보통", fast: "빠름" },
   };
   return labels[type][value] ?? value;

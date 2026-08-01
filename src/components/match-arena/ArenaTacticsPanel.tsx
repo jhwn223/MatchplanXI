@@ -30,7 +30,6 @@ interface Props {
 
 const OPTIONS = {
   defenseStyle: [["dropBack", "후퇴"], ["balanced", "밸런스"], ["errorPress", "터치 실수 시 압박"], ["lossPress", "뺏긴 직후 압박"], ["constantPress", "지속 압박"]],
-  buildUpPlay: [["shortPass", "짧은 패스"], ["balanced", "밸런스"], ["longPass", "긴 패스"], ["fastBuildUp", "빠른 빌드업"]],
   chanceCreation: [["possession", "점유율"], ["balanced", "밸런스"], ["forwardRuns", "전방 침투"]],
   mentality: [["defensive", "수비적"], ["cautious", "신중함"], ["balanced", "균형"], ["positive", "적극적"], ["attacking", "공격적"]],
   tempo: [["slow", "느림"], ["balanced", "보통"], ["fast", "빠름"]],
@@ -40,7 +39,6 @@ const OPTIONS = {
   passingStyle: [["short", "짧은 패스"], ["mixed", "혼합"], ["long", "롱 볼"]],
   attackFocus: [["left", "왼쪽 측면"], ["balanced", "균형"], ["right", "오른쪽 측면"], ["central", "중앙 돌파"]],
   shooting: [["patient", "침착하게 찬스"], ["balanced", "균형"], ["onSight", "보는 즉시 슈팅"]],
-  widePlay: [["mixed", "혼합"], ["overlap", "오버래핑"], ["earlyCross", "얼리 크로스"]],
   defensiveLine: [["low", "낮은 라인"], ["standard", "보통"], ["high", "높은 라인"]],
   pressing: [["standard", "상황별 압박"], ["high", "강한 압박"]],
   marking: [["zonal", "지역 방어"], ["man", "대인 방어"]],
@@ -50,8 +48,6 @@ const OPTIONS = {
   fullbackRole: [["stay", "수비 대기"], ["overlap", "오버래핑"], ["inverted", "인버티드"]],
   width: [["narrow", "좁게"], ["balanced", "중간"], ["wide", "넓게"]],
   lineOfEngagement: [["deep", "로우 블록"], ["middle", "미들 블록"], ["high", "하이 블록"]],
-  compactness: [["compact", "촘촘하게"], ["balanced", "보통"], ["stretched", "넓게 벌려"]],
-  offsideTrap: [["off", "사용 안 함"], ["on", "사용"]],
 } as const;
 
 export function ArenaTacticsPanel({
@@ -159,13 +155,10 @@ export function ArenaTacticsPanel({
           )}
           {tab === "attack" && (
             <div className="tactic-field-grid">
-              <TacticSelect label="빌드업 플레이" value={draft.buildUpPlay} options={OPTIONS.buildUpPlay} onChange={(value) => patch("buildUpPlay", value as TeamTactics["buildUpPlay"])} />
               <TacticSelect label="기회 만들기" value={draft.chanceCreation} options={OPTIONS.chanceCreation} onChange={(value) => patch("chanceCreation", value as TeamTactics["chanceCreation"])} />
               <TacticSelect label="패싱 스타일" value={draft.passingStyle} options={OPTIONS.passingStyle} onChange={(value) => patch("passingStyle", value as TeamTactics["passingStyle"])} />
               <TacticSelect label="공격 방향" value={draft.attackFocus} options={OPTIONS.attackFocus} onChange={(value) => patch("attackFocus", value as TeamTactics["attackFocus"])} />
               <TacticSelect label="슈팅 지시" value={draft.shooting} options={OPTIONS.shooting} onChange={(value) => patch("shooting", value as TeamTactics["shooting"])} />
-              <TacticSelect label="와이드 플레이" value={draft.widePlay} options={OPTIONS.widePlay} onChange={(value) => patch("widePlay", value as TeamTactics["widePlay"])} />
-              <TacticMeter label="잔류 수비 인원" value={draft.restDefense} min={2} max={5} onChange={(value) => patch("restDefense", value)} />
             </div>
           )}
           {tab === "defense" && (
@@ -176,9 +169,6 @@ export function ArenaTacticsPanel({
               <TacticSelect label="마킹 방식" value={draft.marking} options={OPTIONS.marking} onChange={(value) => patch("marking", value as TeamTactics["marking"])} />
               <TacticSelect label="태클 강도" value={draft.tackling} options={OPTIONS.tackling} onChange={(value) => patch("tackling", value as TeamTactics["tackling"])} />
               <TacticSelect label="압박 시작 위치" value={draft.lineOfEngagement} options={OPTIONS.lineOfEngagement} onChange={(value) => patch("lineOfEngagement", value as TeamTactics["lineOfEngagement"])} />
-              <TacticSelect label="라인 간격" value={draft.compactness} options={OPTIONS.compactness} onChange={(value) => patch("compactness", value as TeamTactics["compactness"])} />
-              <TacticSelect label="오프사이드 트랩" value={draft.offsideTrap ? "on" : "off"} options={OPTIONS.offsideTrap} onChange={(value) => patch("offsideTrap", value === "on")} />
-              <TacticMeter label="수비 깊이" value={draft.depth} onChange={(value) => patch("depth", value)} />
             </div>
           )}
         </div>
@@ -262,14 +252,6 @@ export function TacticItemBoxSelect({
 
 const TacticSelect = TacticItemBoxSelect;
 
-function TacticMeter({ label, value, min = 1, max = 10, onChange }: { label: string; value: number; min?: number; max?: number; onChange: (value: number) => void }) {
-  return (
-    <label className="match-tactic-field match-tactic-field--range">
-      <span>{label}<strong>{value}</strong></span>
-      <input type="range" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} />
-    </label>
-  );
-}
 
 /**
  * Drawn from the selected formation's slots rather than a fixed set of points,

@@ -1,7 +1,7 @@
 import type { MatchEvent, PassType, PositionSample } from "../../data/matchSim";
 import { ALL_PASS_TYPES, PASS_TYPE_META } from "./passMap";
 
-export type EventMapMode = "positions" | "shots" | "passes" | "turnovers";
+export type EventMapMode = "positions" | "shots" | "passes" | "turnovers" | "recoveries";
 
 interface Props {
   events: MatchEvent[];
@@ -48,12 +48,16 @@ export function ArenaEventMap({
 }: Props) {
   const elapsed = events
     .filter((event) => event.minute <= minute)
-    .filter((event) => mode === "turnovers" ? event.side === "opp" : event.side === "user")
+    .filter((event) => (mode === "turnovers" ? event.side === "opp" : event.side === "user"))
+    // A turnover is named for the player who lost the ball, so it is filtered
+    // by the victim; every other map belongs to whoever performed the action.
     .filter((event) => !player || (mode === "turnovers" ? event.target === player : event.actor === player));
   const visible = elapsed.filter((event) => {
     if (mode === "shots") return event.type === "shot";
     if (mode === "passes") return event.type === "pass" && passTypes.includes(event.passType ?? "normal");
-    if (mode === "turnovers") return event.type === "tackle" || event.type === "interception";
+    if (mode === "turnovers" || mode === "recoveries") {
+      return event.type === "tackle" || event.type === "interception" || event.type === "recovery";
+    }
     return true;
   });
   const heatSamples = positionSamples
@@ -129,10 +133,24 @@ export function ArenaEventMap({
             </g>
           );
         }
+        // Losing the ball is marked with a cross, winning it back with a
+        // filled disc, so the two maps stay readable on their own.
         return (
           <g key={index}>
-            <circle cx={x} cy={y} r="1.9" fill="none" stroke={color} strokeWidth="0.7" />
-            <path d={`M${x - 1.2} ${y - 1.2}l2.4 2.4m0-2.4l-2.4 2.4`} stroke={color} strokeWidth="0.5" />
+            <circle
+              cx={x}
+              cy={y}
+              r="1.9"
+              fill={mode === "recoveries" ? color : "none"}
+              fillOpacity={mode === "recoveries" ? 0.28 : undefined}
+              stroke={color}
+              strokeWidth="0.7"
+            />
+            {mode === "recoveries" ? (
+              <circle cx={x} cy={y} r="0.7" fill={color} />
+            ) : (
+              <path d={`M${x - 1.2} ${y - 1.2}l2.4 2.4m0-2.4l-2.4 2.4`} stroke={color} strokeWidth="0.5" />
+            )}
           </g>
         );
       })}

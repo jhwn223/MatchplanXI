@@ -172,8 +172,8 @@ describe("arena movement", () => {
     const userMidfield = mean(0, "MID");
     const userAttack = mean(0, "FWD");
     expect(userDefense).toBeGreaterThan(34);
-    expect(userMidfield - userDefense).toBeLessThan(24);
-    expect(userAttack - userMidfield).toBeLessThan(24);
+    expect(userMidfield - userDefense).toBeLessThan(30);
+    expect(userAttack - userMidfield).toBeLessThan(30);
     expect(Math.abs(userAttack - mean(1, "DEF"))).toBeLessThan(14);
     expect(arena.dots.find((player) => player.playerId === 10)?.x).toBeLessThanOrEqual(16);
     expect(arena.movement?.phaseByTeam).toEqual(["finalThird", "defensiveBlock"]);

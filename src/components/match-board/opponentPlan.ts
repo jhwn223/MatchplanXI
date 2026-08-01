@@ -212,7 +212,6 @@ function opponentHighPress(base: TeamTactics): TeamTactics {
     lineOfEngagement: "high",
     pressing: "high",
     tackling: "balanced",
-    depth: 7,
   };
 }
 
@@ -223,7 +222,6 @@ function opponentIncreaseThreat(base: TeamTactics): TeamTactics {
     mentality: "positive",
     tempo: "fast",
     passingStyle: "direct",
-    buildUpPlay: "fastBuildUp",
     chanceCreation: "directPassing",
     shooting: "balanced",
     defensiveLine: "standard",
@@ -445,7 +443,6 @@ export function decideOpponentTacticChange({
       tactics: {
         ...current,
         passingStyle: "direct",
-        buildUpPlay: "fastBuildUp",
         chanceCreation: "forwardRuns",
       },
     };

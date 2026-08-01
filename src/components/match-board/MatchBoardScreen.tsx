@@ -128,7 +128,6 @@ export function MatchBoardScreen({
   const staminaRisk = intensity.attackPress >= 72 || teamTactics.workRate === "intense";
   const spaceRisk =
     teamTactics.defensiveLine === "high" ||
-    teamTactics.depth >= 8 ||
     teamTactics.mentality === "attacking";
 
   function updateTactics(next: TeamTactics) {
@@ -529,7 +528,7 @@ function FormationMiniMap({
 }) {
   const widthLabel = { narrow: "좁게", balanced: "중간", wide: "넓게" }[tactics.width];
   const lineLabel = { low: "낮은 라인", standard: "보통 라인", high: "높은 라인" }[tactics.defensiveLine];
-  const lineBottom = Math.max(13, Math.min(36, 19 + (tactics.depth - 4) * 1.7 + (tactics.defensiveLine === "high" ? 8 : tactics.defensiveLine === "low" ? -5 : 0)));
+  const lineBottom = 19 + (tactics.defensiveLine === "high" ? 8 : tactics.defensiveLine === "low" ? -5 : 0);
   return (
     <div
       className="prematch-mini-pitch"

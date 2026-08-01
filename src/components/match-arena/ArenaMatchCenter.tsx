@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from "react";
-import type { LiveMatchSnapshot, PassType, PlayerMatchStats } from "../../data/matchSim";
+import type { LiveMatchSnapshot, MatchEvent, PassType, PlayerMatchStats } from "../../data/matchSim";
 import { FORMATION_KEYS, slotsOf, type FormationKey, type SlotPositions } from "../../data/formation";
 import type { Player } from "../../data/types";
 import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
@@ -294,6 +294,11 @@ function PlayerRatings({ players }: { players: PlayerMatchStats[] }) {
   );
 }
 
+/** The events that mark a change of possession, whichever side won the ball. */
+function isBallWon(type: MatchEvent["type"]) {
+  return type === "tackle" || type === "interception" || type === "recovery";
+}
+
 export function MatchAnalysis({
   events,
   players,
@@ -329,7 +334,8 @@ export function MatchAnalysis({
     ).length,
     shots: elapsed.filter((event) => event.side === "user" && event.type === "shot").length,
     passes: elapsed.filter((event) => event.side === "user" && event.type === "pass").length,
-    turnovers: elapsed.filter((event) => event.side === "opp" && (event.type === "tackle" || event.type === "interception")).length,
+    turnovers: elapsed.filter((event) => event.side === "opp" && isBallWon(event.type)).length,
+    recoveries: elapsed.filter((event) => event.side === "user" && isBallWon(event.type)).length,
   };
   return (
     <div className="match-analysis-board">
@@ -347,6 +353,7 @@ export function MatchAnalysis({
           ["shots", "슈팅 맵"],
           ["passes", "패스 맵"],
           ["turnovers", "뺏긴 위치"],
+          ["recoveries", "뺏은 위치"],
         ] as const).map(([key, label]) => (
           <button type="button" key={key} data-active={mode === key || undefined} onClick={() => setMode(key)}>
             <span>{label}</span><strong>{counts[key]}</strong>
@@ -354,7 +361,7 @@ export function MatchAnalysis({
         ))}
       </aside>
       <section>
-        <header><h3>{mode === "positions" ? "선수 포지셔닝 히트맵" : mode === "shots" ? "슈팅 위치와 방향" : mode === "passes" ? "패스 진행 방향" : "공을 빼앗긴 위치"}</h3><span>{minute}분까지 실시간 데이터</span></header>
+        <header><h3>{mode === "positions" ? "선수 포지셔닝 히트맵" : mode === "shots" ? "슈팅 위치와 방향" : mode === "passes" ? "패스 진행 방향" : mode === "recoveries" ? "공을 빼앗은 위치" : "공을 빼앗긴 위치"}</h3><span>{minute}분까지 실시간 데이터</span></header>
         {mode === "passes" && (
           <div className="pass-map-legend" aria-label="패스 유형 필터">
             {ALL_PASS_TYPES.map((type) => {

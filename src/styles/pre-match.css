@@ -503,13 +503,6 @@
   z-index: 20;
 }
 
-.board--prematch .match-tactic-field--range {
-  gap: 10px;
-}
-
-.board--prematch .match-tactic-field--range input[type="range"] {
-  width: 100%;
-}
 
 .board--prematch .match-tactic-field--toggle {
   min-height: 58px;

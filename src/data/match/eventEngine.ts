@@ -645,6 +645,9 @@ export function simulatePeriodWithWorld(
     // clock, so stop rather than spin.
     if (!attackers.length || !defenders.length || !keeperPlayer) break;
 
+    const sideTactics = side === "user" ? userTactics : oppTactics;
+    const defendingTactics = side === "user" ? oppTactics : userTactics;
+    const formationAttackBias = side === "user" ? input.attackBias : input.oppAttackBias ?? 0;
     /**
      * Winning the ball deep against a side that has committed bodies forward
      * is a counter-attack: it happens rarely, but it arrives at a defence that
@@ -655,16 +658,19 @@ export function simulatePeriodWithWorld(
      */
     const possessionStartX = side === "user" ? world.ball.x : 100 - world.ball.x;
     const opponentUpfield =
-      commitment(defendingSide)[2] + commitment(defendingSide)[1] * 0.35;
+      commitment(defendingSide)[2] +
+      commitment(defendingSide)[1] * 0.35 +
+      // A side that pushes its line up and keeps nobody home is committed just
+      // as surely as one that fields extra forwards. Reading only the shape
+      // meant an attacking plan was never punished on the break, so it beat
+      // every other instruction instead of trading with them.
+      Math.max(0, defendingTactics.defensiveLineBias) * 1.15 +
+      Math.max(0, -defendingTactics.restDefenseBias) * 1.35;
     const counterAttack = clamp(
       ((46 - possessionStartX) / 46) * (opponentUpfield - 2.4) * 0.55,
       0,
       1.2,
     );
-
-    const sideTactics = side === "user" ? userTactics : oppTactics;
-    const defendingTactics = side === "user" ? oppTactics : userTactics;
-    const formationAttackBias = side === "user" ? input.attackBias : input.oppAttackBias ?? 0;
     const sideAttackBias = clamp(formationAttackBias + sideTactics.attackBias, -1.5, 1.5);
     const directness = clamp(sideAttackBias * 0.45 + sideTactics.directnessBias, -1.4, 1.4);
     const counterEdge = clamp(sideTactics.counterBias - defendingTactics.counterBias, -1.5, 1.5);
@@ -688,10 +694,7 @@ export function simulatePeriodWithWorld(
         Math.max(0, defendingTactics.pressBias) * 0.3 +
         Math.max(0, -defendingTactics.restDefenseBias) * 0.75 +
         Math.max(0, -defendingTactics.compactnessBias) * 0.25 +
-        Math.max(0, defendingTactics.compactnessBias) * Math.max(0, sideTactics.widthBias) * 0.5 +
-        // A sprung trap is the highest-risk defending there is: beat it and
-        // the runner is clean through.
-        defendingTactics.offsideTrapBias * 0.45,
+        Math.max(0, defendingTactics.compactnessBias) * Math.max(0, sideTactics.widthBias) * 0.5,
       0,
       2,
     );
@@ -739,19 +742,12 @@ export function simulatePeriodWithWorld(
         0.76 -
           lineRisk * 0.09 -
           (receiver.positioning - 68) / 320 -
-          (receiver.pace - 68) / 380 +
-          defendingTactics.offsideTrapBias * 0.13,
+          (receiver.pace - 68) / 380,
         0.1,
         0.93,
       );
     /** Returns true when the pass is cut off by the flag. */
     const offsideAgainst = (receiver: PlacedPlayerLite) => {
-      if (
-        defendingTactics.offsideTrapBias > 0 &&
-        rng() < defendingTactics.offsideTrapBias * 0.004
-      ) {
-        return true;
-      }
       if (offsideMargin(world, side, receiver) <= 0) return false;
       if (mistimedRun(receiver)) return true;
       // He timed it, and the run carries him past the last defender. Moving
@@ -823,7 +819,7 @@ export function simulatePeriodWithWorld(
         (player) => {
           // Keep illegal receivers selectable so natural offside mistakes are
           // still possible, but strongly prefer a legal passing lane.
-          const offsideFit = isPlayerOffside(world, side, player) ? 0.08 : 1;
+          const offsideFit = isPlayerOffside(world, side, player) ? 0.05 : 1;
           return passOptionScore(
             world,
             side,
@@ -1123,7 +1119,7 @@ export function simulatePeriodWithWorld(
             // See passOptionScore: a neutral directness still means forward.
             const forwardFit = clamp(1 + forwardDistance * (0.8 + directness) / 55, 0.45, 2.0);
             const distanceFit = 1 / (1 + Math.max(0, distance - (22 + directness * 8)) / 22);
-            const offsideFit = isPlayerOffside(world, side, player) ? 0.08 : 1;
+            const offsideFit = isPlayerOffside(world, side, player) ? 0.05 : 1;
             const focusFit = attackFocusLaneWeight(
               receiverHome.y,
               sideTactics.focusBias,
@@ -1232,13 +1228,13 @@ export function simulatePeriodWithWorld(
       // instead of collapsing onto the ball, so the same instruction reaches
       // the box far more often than it used to and needs a smaller premium.
       const tacticShotBias =
-        sideAttackBias * 0.021 +
+        sideAttackBias * 0.017 +
         sideTactics.overlapBias * 0.005 +
         counterEdge * 0.009 +
         sideTactics.tempoBias * 0.006 +
-        sideTactics.shootingBias * 0.019 +
+        sideTactics.shootingBias * 0.016 +
         // Bodies sent forward instead of held back arrive in the box.
-        Math.max(0, -sideTactics.restDefenseBias) * 0.010 +
+        Math.max(0, -sideTactics.restDefenseBias) * 0.008 +
         matchupEdge * 0.1;
       // A possession reaching the final third is not automatically a shot.
       // These rates keep a normal match near 24-28 combined attempts while
@@ -1289,7 +1285,7 @@ export function simulatePeriodWithWorld(
           // possession's progress let a side manufacture chances simply by
           // stationing six forwards in the box: every one of them was a
           // shooter the moment the ball reached him. Progress has to earn it.
-          rng() < (roleShotChance * 0.40 + progress * 0.071 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.28) ||
+          rng() < (roleShotChance * 0.40 + progress * 0.071 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.115) ||
           (action === maxActions - 1 && rng() < 0.02 * spaceToShoot)
         );
       if (!shootNow) continue;
@@ -1327,7 +1323,7 @@ export function simulatePeriodWithWorld(
       // add 0.32 xG to every attempt. A saturating curve keeps exposed space
       // meaningful while preventing repeated 6-4 and 7-3 scorelines.
       const exposureChanceBoost =
-        0.015 * (1 - Math.exp(-Math.max(0, defendingExposure) * 1.25));
+        0.011 * (1 - Math.exp(-Math.max(0, defendingExposure) * 1.25));
       const matchupChanceBoost = clamp(matchupEdge * 0.04, -0.02, 0.03);
       // Urgency creates more attempts, not magically cleaner chances. Teams
       // throwing bodies forward or shooting on sight take a larger share of
@@ -1360,7 +1356,7 @@ export function simulatePeriodWithWorld(
         // An unguarded box is a chance; a crowded one is a blocked effort.
         openness * 0.04 +
         // A defence that has not reset yet is the whole value of a counter.
-        counterAttack * 0.09 +
+        counterAttack * 0.042 +
         (throughOnGoal ? 0.10 : 0);
       const baseXg = carrier.position === "FWD" ? 0.058 : carrier.position === "MID" ? 0.035 : 0.020;
       const shotXg = clamp(baseXg + chanceCreation + rng() * 0.03, 0.01, 0.45);
@@ -1405,7 +1401,7 @@ export function simulatePeriodWithWorld(
       // range. The former 1.2 boost was compensating for an older, low-quality
       // shot model and now over-converted the better chances created by the
       // positional simulation.
-      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.36, 0.01, 0.72);
+      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.47, 0.01, 0.72);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
         if (shooterStats) {

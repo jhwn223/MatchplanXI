@@ -6,18 +6,27 @@ import type {
   SimTacticProfile,
 } from "./types";
 
+/**
+ * The real 4-3-3, in the canonical coordinates `toSimPlayer` produces
+ * (`baseX = 100 - slot.y`, `baseY = slot.x`).
+ *
+ * This used to be a hand-written approximation, and calibrating against it
+ * hid a large error: with the same tactics the fixture produced 2.7 goals and
+ * 25 shots a match while the 4-3-3 the game actually ships produced 4.9 and
+ * 37. Every guard in the suite was measuring a shape nobody plays.
+ */
 export const TEST_SHAPE = [
   ["GK", 8, 50],
-  ["DEF", 28, 18],
-  ["DEF", 25, 39],
-  ["DEF", 25, 61],
-  ["DEF", 28, 82],
-  ["MID", 48, 25],
-  ["MID", 45, 50],
-  ["MID", 48, 75],
-  ["FWD", 72, 20],
-  ["FWD", 78, 50],
-  ["FWD", 72, 80],
+  ["DEF", 28, 15],
+  ["DEF", 22, 37],
+  ["DEF", 22, 63],
+  ["DEF", 28, 85],
+  ["MID", 50, 25],
+  ["MID", 46, 50],
+  ["MID", 50, 75],
+  ["FWD", 78, 18],
+  ["FWD", 86, 50],
+  ["FWD", 78, 82],
 ] as const;
 
 export function testProfile(overall: number): TeamAbilityProfile {

@@ -30,7 +30,7 @@ export function tacticalCoordinate(
   const widthScale = { narrow: 0.72, balanced: 1, wide: 1.14 }[tactics.width] * fluidityScale * focusScale;
   const lineShift =
     slot.position === "DEF"
-      ? { low: 5, standard: 0, high: -7 }[tactics.defensiveLine] - (tactics.depth - 4) * 0.7
+      ? { low: 5, standard: 0, high: -7 }[tactics.defensiveLine]
       : 0;
   const mentalityShift = {
     defensive: 3,

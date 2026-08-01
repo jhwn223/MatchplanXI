@@ -212,8 +212,6 @@ export interface SimTacticProfile {
   compactnessBias: number;
   /** Positive holds more players back while attacking. */
   restDefenseBias: number;
-  /** Stepping up as a unit to play opponents offside. */
-  offsideTrapBias: number;
 }
 
 export interface SimInput {

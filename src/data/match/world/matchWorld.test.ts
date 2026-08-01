@@ -116,10 +116,14 @@ describe("authoritative match world", () => {
     const midfield = meanX("MID");
     const attack = meanX("FWD");
     expect(defense).toBeGreaterThan(34);
+    // The bound follows the shape the fixture now uses: the shipped 4-3-3 sits
+    // its centre-backs deeper and its front three higher than the hand-written
+    // approximation this suite used to measure, so its lines are genuinely
+    // further apart at rest.
     expect(midfield - defense).toBeGreaterThan(8);
-    expect(midfield - defense).toBeLessThan(24);
+    expect(midfield - defense).toBeLessThan(30);
     expect(attack - midfield).toBeGreaterThan(8);
-    expect(attack - midfield).toBeLessThan(24);
+    expect(attack - midfield).toBeLessThan(30);
     expect(world.phaseBySide.user).toBe("transitionAttack");
     expect(world.phaseBySide.opp).toBe("transitionDefense");
   });
