@@ -425,9 +425,21 @@ export function MatchBoardScreen({
           <strong>{winEstimate}%</strong>
         </div>
         <div className="tactic-risk-list">
-          {staminaRisk && <span className="tactic-risk tactic-risk--warn">△ 높은 체력 소모</span>}
-          {spaceRisk && <span className="tactic-risk">ⓘ 뒷공간 위험</span>}
-          {!staminaRisk && !spaceRisk && <span className="tactic-risk tactic-risk--safe">✓ 전술 균형 양호</span>}
+          {!ready ? (
+            // Evaluating tactical balance against an incomplete XI is
+            // meaningless, so this replaces those badges instead of joining
+            // them — otherwise "전술 균형 양호" reads as reassurance while
+            // the lineup is still empty.
+            <span className="tactic-risk tactic-risk--warn">
+              ⚠ 선수를 배치하지 않았습니다 · 선수를 먼저 배치해주세요 ({placedCount}/{requiredPlayers})
+            </span>
+          ) : (
+            <>
+              {staminaRisk && <span className="tactic-risk tactic-risk--warn">△ 높은 체력 소모</span>}
+              {spaceRisk && <span className="tactic-risk">ⓘ 뒷공간 위험</span>}
+              {!staminaRisk && !spaceRisk && <span className="tactic-risk tactic-risk--safe">✓ 전술 균형 양호</span>}
+            </>
+          )}
         </div>
         <div className="board__action-spacer" />
         <button type="button" className="kickoff-btn" disabled={!ready} onClick={onPrimaryAction}>

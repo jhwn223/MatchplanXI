@@ -472,7 +472,7 @@
 }
 .set-piece-board__participants header { display: flex; justify-content: space-between; align-items: center; }
 .set-piece-board__participants header span { color: var(--accent); font-size: 10px; font-weight: 900; }
-.set-piece-board__participants > div { display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+.set-piece-board__participants > div { display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
 .set-piece-board__participants button {
   display: flex;
   justify-content: space-between;
