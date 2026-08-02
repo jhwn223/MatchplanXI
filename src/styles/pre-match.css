@@ -999,9 +999,14 @@
 }
 
 .prematch-tactic-summary > .prematch-mini-pitch {
-  flex: 1 1 auto;
-  min-height: 120px;
-  aspect-ratio: auto;
+  /* aspect-ratio: auto + flex: 1 1 auto let this fill whatever vertical
+     space was left in the sidebar column, which in narrower/shorter
+     columns (e.g. the 3-column half-time layout) squashed the pitch into
+     a flat, non-proportional strip. A fixed ratio (taller than the base
+     1/1.12 to make room after the itembox shrink below) keeps it looking
+     like an actual pitch regardless of the column's leftover height. */
+  flex: 0 0 auto;
+  aspect-ratio: 1 / 1.22;
 }
 
 .prematch-tactic-summary__copy {
@@ -1628,7 +1633,10 @@
 
 .board--prematch[data-workspace="tactics"] .match-tactic-itembox,
 .board--prematch[data-workspace="tactics"] .match-tactic-field {
-  min-height: 86px;
+  /* Shrunk from 86px so the 포메이션 selector doesn't crowd out the pitch
+     preview below it, which gets that height back via a taller
+     aspect-ratio (see .prematch-tactic-summary > .prematch-mini-pitch). */
+  min-height: 64px;
 }
 
 .board--prematch[data-workspace="tactics"] .match-tactic-itembox {

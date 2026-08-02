@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { slotsOf, type FormationKey } from "../../data/formation";
+import { slotsOf, type FormationKey, type FormationSlot } from "../../data/formation";
 import { tacticalCoordinate } from "../Pitch";
 import { TeamFlag } from "../TeamFlag";
 import type { Player } from "../../data/types";
@@ -104,7 +104,7 @@ export function ArenaTacticsPanel({
   return (
     <section className={`match-tactics-editor match-tactics-editor--${variant}`}>
       {variant === "match" && <div className="match-tactics-editor__summary">
-        <div>
+        <div className="match-tactics-editor__team">
           <span>
             <TeamFlag fifaCode={userCode} className="match-tactics-editor__flag" />
             <small>{userCode}</small>
@@ -113,7 +113,7 @@ export function ArenaTacticsPanel({
           {/* Formation lives with the lineup, on the squad tab. */}
           <small>{formationLabel ?? formation}</small>
         </div>
-        <TacticShape formation={formation} tactics={draft} />
+        <FormationMiniMap formation={slotsOf(formation)} tactics={draft} />
       </div>}
 
       <div className="match-tactics-editor__body">
@@ -443,34 +443,43 @@ export function TacticItemBoxSelect({
 const TacticSelect = TacticItemBoxSelect;
 
 
-/**
- * Drawn from the selected formation's slots rather than a fixed set of points,
- * so switching formation mid-match actually redraws the shape. The pitch runs
- * left-to-right here while slot coordinates are top-down, hence the swap.
- */
-function TacticShape({
+// Shared with the pre-match/half-time tactics screen so the in-match tactics
+// tab shows the same board instead of the smaller, flatter SVG shape it used
+// to render on its own.
+export function FormationMiniMap({
   formation,
   tactics,
 }: {
-  formation: FormationKey;
+  formation: FormationSlot[];
   tactics: TeamTactics;
 }) {
+  const widthLabel = { narrow: "좁게", balanced: "중간", wide: "넓게" }[tactics.width];
+  const lineLabel = { low: "낮은 라인", standard: "보통 라인", high: "높은 라인" }[tactics.defensiveLine];
+  const lineBottom = 19 + (tactics.defensiveLine === "high" ? 8 : tactics.defensiveLine === "low" ? -5 : 0);
   return (
-    <svg className="tactic-shape" viewBox="0 0 100 100" role="img" aria-label="현재 전술 형태">
-      <rect x="2" y="2" width="96" height="96" rx="4" />
-      <line x1="50" y1="2" x2="50" y2="98" />
-      <circle cx="50" cy="50" r="12" />
-      {slotsOf(formation).map((slot) => {
+    <div
+      className="prematch-mini-pitch"
+      aria-label="현재 포메이션과 전술 미리보기"
+      data-pressing={tactics.pressing}
+    >
+      <div className="prematch-mini-pitch__line" />
+      <div className="prematch-mini-pitch__circle" />
+      <div className="prematch-mini-pitch__shape-line" style={{ bottom: `${lineBottom}%` }} />
+      <div className="prematch-mini-pitch__legend">
+        <span>폭 {widthLabel}</span>
+        <span>{lineLabel}</span>
+      </div>
+      {formation.map((slot) => {
         const coordinate = tacticalCoordinate(slot, slot, tactics);
         return (
-          <circle
+          <span
             key={slot.id}
-            cx={Math.max(7, Math.min(93, 100 - coordinate.y))}
-            cy={Math.max(7, Math.min(93, coordinate.x))}
-            r="3.2"
+            title={slot.label}
+            style={{ left: `${coordinate.x}%`, top: `${coordinate.y}%` }}
+            data-position={slot.position}
           />
         );
       })}
-    </svg>
+    </div>
   );
 }
