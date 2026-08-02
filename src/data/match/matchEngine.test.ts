@@ -471,10 +471,37 @@ describe("match engine invariants", () => {
     expect(shots.length).toBeGreaterThan(20);
     for (const shot of shots) {
       const canonicalX = shot.side === "user" ? shot.x ?? 0 : 100 - (shot.x ?? 100);
-      expect(canonicalX).toBeGreaterThanOrEqual(78);
+      if (shot.shotType === "header") {
+        expect(canonicalX).toBeGreaterThanOrEqual(80);
+      } else {
+        expect(canonicalX).toBeGreaterThanOrEqual(77);
+        if (Math.abs((shot.y ?? 50) - 50) >= 32) {
+          expect(canonicalX).toBeGreaterThanOrEqual(92);
+        }
+      }
       const squad = shot.side === "user" ? input(0).placed : input(0).oppPlaced;
       expect(squad.find((player) => player.playerId === shot.actorId)?.position).not.toBe("GK");
     }
+  });
+
+  test("open-play crosses are real actions that can create headed attempts", () => {
+    const matchInput = input(1701, tactics({ widthBias: 1, overlapBias: 1 }));
+    for (const player of matchInput.placed) {
+      if (player.position === "FWD" && Math.abs(player.baseY - 50) > 20) {
+        player.tacticalRole = "winger";
+        player.crossing = 92;
+        player.dribbling = 90;
+      }
+    }
+    const results = Array.from({ length: 24 }, (_, offset) => {
+      const varied = { ...matchInput, seed: matchInput.seed + offset };
+      return simulatePeriod(varied, 1, 90, 0);
+    });
+    const events = results.flatMap((result) => result.events);
+    const crosses = events.filter((event) => event.type === "pass" && event.passType === "cross");
+    const headers = events.filter((event) => event.type === "shot" && event.shotType === "header");
+    expect(crosses.length).toBeGreaterThan(0);
+    expect(headers.length).toBeGreaterThan(0);
   });
 
   test("dead-ball restarts exclude throw-ins from the continuous match flow", () => {

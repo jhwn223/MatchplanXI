@@ -91,6 +91,7 @@ export type MatchEventType =
   | "injury";
 
 export type PassType = "cross" | "short" | "through" | "longBall" | "normal";
+export type ShotType = "foot" | "header";
 
 export interface MatchEvent {
   minute: number;
@@ -106,6 +107,7 @@ export interface MatchEvent {
   success: boolean;
   xg?: number;
   passType?: PassType;
+  shotType?: ShotType;
   x?: number;
   y?: number;
   endX?: number;

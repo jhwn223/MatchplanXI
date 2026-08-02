@@ -154,6 +154,35 @@ describe("authoritative match world", () => {
     expect(world.phaseBySide.opp).toBe("transitionDefense");
   });
 
+  test("final-third roles occupy the box, half-spaces and crossing lane", () => {
+    const input = testInput(71);
+    const tactics = { user: testTactics({ attackBias: 0.7 }), opp: testTactics() };
+    input.placed[8].tacticalRole = "winger";
+    input.placed[9].tacticalRole = "poacher";
+    input.placed[10].tacticalRole = "insideForward";
+    input.placed[5].tacticalRole = "boxToBox";
+    const world = createMatchWorld(input, 28, tactics);
+    const carrier = input.placed[8];
+    const carrierState = world.players.user.get(carrier.playerId);
+    if (!carrierState) throw new Error("wide carrier missing");
+    carrierState.x = 76;
+    carrierState.y = 14;
+    beginPossession(world, "user", carrier);
+    advanceWorld(world, input, tactics, 5);
+
+    const striker = world.players.user.get(input.placed[9].playerId);
+    const insideForward = world.players.user.get(input.placed[10].playerId);
+    const arrivingMidfielder = world.players.user.get(input.placed[5].playerId);
+    expect(carrierState.y).toBeLessThan(23);
+    expect(striker?.x).toBeGreaterThan(78);
+    expect(insideForward?.x).toBeGreaterThan(75);
+    expect(insideForward?.y).toBeGreaterThanOrEqual(58);
+    expect(insideForward?.y).toBeLessThanOrEqual(73);
+    expect(arrivingMidfielder?.x).toBeGreaterThan(68);
+    expect(arrivingMidfielder?.y).toBeGreaterThanOrEqual(27);
+    expect(arrivingMidfielder?.y).toBeLessThanOrEqual(42);
+  });
+
   test("marking assignments persist instead of changing every tick", () => {
     const input = testInput(8);
     const tactics = { user: testTactics(), opp: testTactics() };

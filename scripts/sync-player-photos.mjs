@@ -10,6 +10,7 @@ const PHOTO_DIR = path.join(ROOT, "public", "player-photos");
 const MANIFEST_PATH = path.join(ROOT, "src", "assets", "player-photos", "manifest.json");
 const REPORT_PATH = path.join(PHOTO_DIR, "sync-report.json");
 const ATTRIBUTION_PATH = path.join(PHOTO_DIR, "ATTRIBUTION.md");
+const CORRECTIONS_PATH = path.join(ROOT, "src", "data", "playerIdentityCorrections.json");
 
 const USER_AGENT = "AltitudeTactics/1.0 (https://github.com/jhwn223/altitude-tactics)";
 const ALLOWED_LICENSE = /^(CC0|Public domain|CC[- ]BY(?:[- ]SA)?(?: |$)|Creative Commons Attribution)/i;
@@ -327,11 +328,19 @@ async function main() {
   await fs.mkdir(PHOTO_DIR, { recursive: true });
   await fs.mkdir(path.dirname(MANIFEST_PATH), { recursive: true });
 
-  const [playersText, teamsText] = await Promise.all([
+  const [playersText, teamsText, correctionsText] = await Promise.all([
     fs.readFile(PLAYER_CSV, "utf8"),
     fs.readFile(TEAM_CSV, "utf8"),
+    fs.readFile(CORRECTIONS_PATH, "utf8"),
   ]);
-  const players = parseCsv(playersText);
+  const corrections = JSON.parse(correctionsText);
+  const players = parseCsv(playersText).map((player) => ({
+    ...player,
+    player_name: corrections[String(player.player_id)] ?? player.player_name,
+  }));
+  const playerNameById = new Map(
+    players.map((player) => [String(player.player_id), player.player_name])
+  );
   const teams = parseCsv(teamsText);
   const teamCodeById = new Map(teams.map((team) => [team.team_id, team.fifa_code]));
 
@@ -341,6 +350,10 @@ async function main() {
   } catch {
     existing = [];
   }
+  existing = existing.map((record) => ({
+    ...record,
+    playerName: playerNameById.get(String(record.playerId)) ?? record.playerName,
+  }));
   const existingById = new Map(existing.map((record) => [String(record.playerId), record]));
 
   const candidates = Number.isFinite(perTeam)

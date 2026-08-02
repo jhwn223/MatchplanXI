@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import fc26Ratings from "./fc26PlayerRatings.json";
+import playerIdentityCorrections from "./playerIdentityCorrections.json";
 import { POSITION_OVERRIDES, ROLE_OVERRIDES } from "./playerOverrides";
 import { displayPlayerName } from "./playerNames";
 import type {
@@ -14,6 +15,7 @@ import type {
 } from "./types";
 
 const PLAYER_ABILITIES = fc26Ratings as Record<string, PlayerAbility>;
+const PLAYER_IDENTITY_CORRECTIONS = playerIdentityCorrections as Record<string, string>;
 
 async function parseCsv<T>(path: string): Promise<T[]> {
   const res = await fetch(path);
@@ -49,7 +51,7 @@ export async function loadTournamentData(): Promise<TournamentData> {
     if (posOv) p.position = posOv;
     const roleOv = ROLE_OVERRIDES[p.player_name];
     if (roleOv) p.preferredRole = roleOv;
-    p.player_name = displayPlayerName(p.player_name);
+    p.player_name = PLAYER_IDENTITY_CORRECTIONS[String(p.player_id)] ?? displayPlayerName(p.player_name);
   }
 
   return { teams, venues, players, matches, lineups, predictionFeatures };
