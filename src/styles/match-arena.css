@@ -271,7 +271,7 @@
 /* The panel is capped so the score header and playback controls stay visible;
    each tab scrolls inside it rather than running off the bottom of the modal. */
 .match-center {
-  --arena-management-pitch-height: min(62vh, 548px, calc(72vh - 152px));
+  --arena-management-pitch-height: min(62vh, 564px, calc(72vh - 136px));
   min-height: min(540px, 72vh);
   max-height: 72vh;
   display: flex;
@@ -623,14 +623,18 @@
   border-right: 1px solid var(--border);
   background: #e8f2e5;
 }
-.match-tactics-editor__summary > div {
+/* Scoped to this class (not a bare "> div") because .prematch-mini-pitch
+   (the pitch preview below) is also a direct-child div of the summary —
+   a generic child-div selector here was bleeding this badge styling onto
+   the pitch's own player-position dots. */
+.match-tactics-editor__team {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 2px 9px;
   margin-bottom: 18px;
 }
-.match-tactics-editor__summary > div span {
+.match-tactics-editor__team span {
   grid-row: span 2;
   width: 38px;
   height: 38px;
@@ -645,16 +649,11 @@
   font-size: 10px;
   font-weight: 900;
 }
-.match-tactics-editor__summary > div span small { color: #fff; font-size: 7px; line-height: 1; }
-.match-tactics-editor__summary > div strong { font-size: 13px; }
-.match-tactics-editor__summary > div small { color: var(--text-dim); font-size: 9px; }
-.tactic-shape { width: 100%; display: block; }
-.tactic-shape rect { fill: #d8ebda; stroke: #a9c9ae; }
-.tactic-shape line,
-.tactic-shape > circle:first-of-type { fill: none; stroke: rgba(8,117,45,.25); }
-.tactic-shape circle:not(:first-of-type) { fill: var(--accent); stroke: #fff; stroke-width: 1.2; }
+.match-tactics-editor__team span small { color: #fff; font-size: 7px; line-height: 1; }
+.match-tactics-editor__team strong { font-size: 13px; }
+.match-tactics-editor__team small { color: var(--text-dim); font-size: 9px; }
 .match-tactics-editor__body { min-width: 0; padding: 0 20px 76px; }
-.match-tactics-tabs { height: 56px; display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--border); }
+.match-tactics-tabs { height: 56px; display: grid; grid-template-columns: repeat(6, 1fr); border-bottom: 1px solid var(--border); }
 .match-tactics-tabs button {
   position: relative;
   border: 0;
@@ -861,7 +860,7 @@
   width: calc(100% - 44px);
   height: var(--arena-management-pitch-height);
   max-width: 1172px;
-  margin: 8px auto 28px;
+  margin: 8px auto 12px;
   padding: 0;
   min-height: 0;
   overflow: visible;
@@ -1032,7 +1031,7 @@
   min-height: 30px;
 }
 .arena-squad-board__guide {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   padding: 13px 14px;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1085,13 +1084,12 @@
 .arena-opponent-board .opponent-report {
   display: grid;
   grid-template-columns: minmax(300px, 400px) minmax(250px, 340px) minmax(300px, 400px);
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   grid-template-areas:
     "lineup header bench"
     "lineup metrics bench"
     "lineup tactics bench"
-    "lineup scout bench"
-    "lineup evidence bench";
+    "lineup scout bench";
   align-items: start;
   justify-content: center;
   gap: 8px 16px;
@@ -1139,6 +1137,12 @@
   height: var(--arena-management-pitch-height);
   flex: 0 0 auto;
   margin: 0 auto;
+  /* The goalkeeper slot sits near the very bottom edge; its card is centred
+     on that point (translate -50%,-50%) so half of it falls past the pitch's
+     own 100% mark. The base .pitch rule clips that with overflow:hidden for
+     the rounded corners, but there's room below in this column, so let it
+     show instead of losing a sliver of the card. */
+  overflow: visible;
 }
 .arena-opponent-board .pitch--compact .pitch-slot {
   transform: translate(-50%, -50%);
@@ -1190,15 +1194,28 @@
   margin-top: 0;
   padding: 10px 12px;
 }
-.arena-opponent-board .opponent-report__scout {
+/* Scout notes and the formation evidence share this one flexible row and
+   scroll together as a unit — previously they were two separate grid rows
+   ("scout" sized minmax(0,1fr), "evidence" auto), so any opponent whose
+   header/metrics/tactics rows ran a little taller pushed evidence's fixed-
+   height row past the board's hard overflow:hidden bottom edge instead of
+   shrinking. A single scrollable group can't overflow the layout that way. */
+.arena-opponent-board .opponent-report__scout-group {
   grid-area: scout;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 6px;
+  overflow-y: auto;
+}
+.arena-opponent-board .opponent-report__scout {
+  flex: 0 0 auto;
   margin-top: 0;
   gap: 6px;
 }
 .arena-opponent-board .opponent-report__scout > div { padding: 9px 10px; }
 .arena-opponent-board .opponent-report__evidence {
-  grid-area: evidence;
-  align-self: end;
+  flex: 0 0 auto;
   margin-top: 0;
 }
 .arena-opponent-board .opponent-report__bench {
@@ -1244,10 +1261,12 @@
   .arena-opponent-board .opponent-report__metrics,
   .arena-opponent-board .opponent-report__lineup,
   .arena-opponent-board .opponent-report__shape,
-  .arena-opponent-board .opponent-report__scout,
-  .arena-opponent-board .opponent-report__evidence,
+  .arena-opponent-board .opponent-report__scout-group,
   .arena-opponent-board .opponent-report__bench {
     margin-top: 10px;
+  }
+  .arena-opponent-board .opponent-report__scout-group {
+    overflow-y: visible;
   }
   .arena-opponent-board .opponent-report__bench .opponent-lineup-list {
     grid-template-columns: 1fr;
@@ -1525,8 +1544,8 @@
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
-  .match-tactics-editor__summary > div { margin-bottom: 0; }
-  .match-tactics-editor__summary .tactic-shape { width: 96px; flex-shrink: 0; }
+  .match-tactics-editor__team { margin-bottom: 0; }
+  .match-tactics-editor__summary .prematch-mini-pitch { width: 96px; flex-shrink: 0; }
   .match-tactics-editor__body { padding: 0 12px 76px; }
   .role-board { grid-template-columns: 1fr; }
   .role-board__pitch { width: min(100%, 400px); }

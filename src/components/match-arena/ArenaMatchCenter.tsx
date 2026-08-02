@@ -5,6 +5,7 @@ import { FORMATION_KEYS, slotsOf, type FormationKey, type SlotPositions } from "
 import type { Player } from "../../data/types";
 import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
 import type { SetPieceAssignments } from "../../data/tactics";
+import type { SavedTactic } from "../../data/savedTactics";
 import { Bench } from "../Bench";
 import { Pitch } from "../Pitch";
 import { TeamFlag } from "../TeamFlag";
@@ -56,6 +57,9 @@ interface Props {
   dismissalSide?: "user" | "opp" | null;
   discipline?: Map<number, PlayerDiscipline>;
   opponentDiscipline?: Map<number, PlayerDiscipline>;
+  savedTactics?: SavedTactic[];
+  onSaveTactic?: (name: string, tactics: TeamTactics) => void;
+  onDeleteTactic?: (id: string) => void;
 }
 
 export function ArenaMatchCenter({
@@ -89,6 +93,9 @@ export function ArenaMatchCenter({
   dismissalSide,
   discipline: suppliedDiscipline,
   opponentDiscipline,
+  savedTactics,
+  onSaveTactic,
+  onDeleteTactic,
 }: Props) {
   const events = useMemo(() => sim.events ?? [], [sim.events]);
   const eventDiscipline = useMemo(() => disciplineFromEvents(events, "user"), [events]);
@@ -304,6 +311,9 @@ export function ArenaMatchCenter({
           onApply={onApplyTactics}
           setPieces={setPieces}
           onSetPieceChange={onSetPieceChange}
+          savedTactics={savedTactics}
+          onSaveTactic={onSaveTactic}
+          onDeleteTactic={onDeleteTactic}
         />
       )}
     </section>

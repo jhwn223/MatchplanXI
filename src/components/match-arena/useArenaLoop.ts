@@ -33,6 +33,7 @@ interface Options {
   completedRef: RefObject<boolean>;
   pausedRef: RefObject<boolean>;
   speedRef: RefObject<number>;
+  skipRequestedRef: RefObject<boolean>;
   pkOrderRef: RefObject<number[] | null>;
   buildState: () => ArenaState;
   userTeamName: string;
@@ -56,6 +57,7 @@ export function useArenaLoop({
   completedRef,
   pausedRef,
   speedRef,
+  skipRequestedRef,
   pkOrderRef,
   buildState,
   userTeamName,
@@ -90,6 +92,16 @@ export function useArenaLoop({
     }
     resize();
     window.addEventListener("resize", resize);
+    // A window resize is not the only thing that changes this canvas's box —
+    // the modal's entrance animation and the grid settling around the sidebar
+    // both resize it without ever firing a window resize event. When that
+    // happened, the drawing buffer stayed at its stale (usually smaller)
+    // captured size while the CSS box (width: 100%) kept tracking the real,
+    // larger layout size; the browser then stretched that undersized buffer
+    // to fill the box, so content past the stale edge was never drawn at all
+    // — the pitch's right side went missing instead of just blurring.
+    const resizeObserver = new ResizeObserver(() => resize());
+    resizeObserver.observe(canvas);
 
     let raf = 0;
     let last = performance.now();
@@ -211,6 +223,26 @@ export function useArenaLoop({
         onComplete();
         setEnded(true);
       }
+    }
+
+    // Shared by the natural period-end check and the skip-to-result button —
+    // both need the exact same penalties/finish decision once the segment's
+    // outcome is fully known.
+    function finalizeSegment(s: ArenaState) {
+      const finalSim = simRef.current;
+      s.score = [finalSim.userGoals, finalSim.oppGoals];
+      if (finalSim.penalties) {
+        if (!pkOrderRef.current) {
+          if (!pkPendingNotified) {
+            pkPendingNotified = true;
+            onPenaltiesPending();
+          }
+          return;
+        }
+        startPenalties(s);
+        return;
+      }
+      finishSegment(s);
     }
 
     // Both teams shoot at the same end during the shootout; only which side of
@@ -592,22 +624,7 @@ export function useArenaLoop({
         const actionStillVisible =
           s.scoring != null || s.ball.flightTo >= 0 || s.ball.flightTarget != null;
         if (!pendingEvents && !actionStillVisible) {
-          s.score = [finalSim.userGoals, finalSim.oppGoals];
-          if (finalSim.penalties) {
-            if (!pkOrderRef.current) {
-              // Freeze here — the taker-order screen is up. startPenalties()
-              // runs once the user confirms an order (or the app falls back
-              // to an auto order).
-              if (!pkPendingNotified) {
-                pkPendingNotified = true;
-                onPenaltiesPending();
-              }
-              return;
-            }
-            startPenalties(s);
-            return;
-          }
-          finishSegment(s);
+          finalizeSegment(s);
           return;
         }
       }
@@ -625,6 +642,25 @@ export function useArenaLoop({
 
 
     const step = (now: number) => {
+      // The caller already ran ensureSimulatedThrough(endMinute) before
+      // setting this, so simRef holds the segment's real outcome — jump
+      // straight to it via the same finalize path a natural period end uses,
+      // regardless of paused state or however much animation is left.
+      if (skipRequestedRef.current) {
+        skipRequestedRef.current = false;
+        const s = stateRef.current;
+        if (s && s.phase !== "ended" && s.phase !== "interim" && s.phase !== "penalties") {
+          s.scoring = null;
+          s.ball.flightTo = -1;
+          s.ball.flightTarget = null;
+          s.situation = null;
+          s.scriptedRun = null;
+          s.nextEvent = simRef.current.events?.length ?? s.nextEvent;
+          s.nextGoal = simRef.current.goals?.length ?? s.nextGoal;
+          s.clock = endMinute;
+          finalizeSegment(s);
+        }
+      }
       const dt = Math.min(0.045, (now - last) / 1000);
       last = now;
       const kickoffPaused = (stateRef.current?.kickoffPauseT ?? 0) > 0;
@@ -651,6 +687,19 @@ export function useArenaLoop({
         }
       } else {
         simulationAccumulator = 0;
+      }
+      // Belt and suspenders on top of the ResizeObserver above: if the
+      // buffer and the actual box have drifted apart for any reason (a
+      // layout pass the observer's callback hasn't caught up with yet,
+      // browser zoom, etc.), catch it before this frame draws instead of
+      // stretching a stale buffer and losing whatever falls past its edge.
+      const liveRect = canvas.getBoundingClientRect();
+      const liveDpr = window.devicePixelRatio || 1;
+      if (
+        Math.round(liveRect.width * liveDpr) !== canvas.width ||
+        Math.round(liveRect.height * liveDpr) !== canvas.height
+      ) {
+        resize();
       }
       drawArenaFrame(canvas, ctx, stateRef.current!, userColor);
       hudAcc += dt;
@@ -684,6 +733,7 @@ export function useArenaLoop({
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
+      resizeObserver.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endMinute, startMinute]);

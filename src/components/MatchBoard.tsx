@@ -126,6 +126,9 @@ export function MatchBoard({
   onMatchSim,
   leaderboard,
   onNextMatch,
+  savedTactics,
+  onSaveTactic,
+  onDeleteTactic,
 }: MatchBoardProps) {
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
   const [soundOn, setSoundOn] = useState(false);
@@ -597,6 +600,9 @@ export function MatchBoard({
         onTacticsChange={changePreMatchTactics}
         onRoleChange={changeSlotRole}
         onSetPieceChange={changeSetPieces}
+        savedTactics={savedTactics}
+        onSaveTactic={onSaveTactic}
+        onDeleteTactic={onDeleteTactic}
         opponent={opponent}
         opponentPlayers={liveOpponentPlayers}
         opponentBench={liveOpponentBench}
@@ -671,6 +677,9 @@ export function MatchBoard({
         }}
         onFormationChange={selectFormation}
         onSetPieceChange={changeSetPieces}
+        savedTactics={savedTactics}
+        onSaveTactic={onSaveTactic}
+        onDeleteTactic={onDeleteTactic}
         onPlayerDismissed={handlePlayerDismissed}
         onMinuteChange={(minute) => {
           liveMinuteRef.current = minute;

@@ -200,6 +200,9 @@ export function MatchArena({
   onRoleChange,
   setPieces,
   onSetPieceChange,
+  savedTactics,
+  onSaveTactic,
+  onDeleteTactic,
   onOpponentTacticChange,
   onOpponentManagementChange,
   onFormationChange,
@@ -217,6 +220,7 @@ export function MatchArena({
   const stateRef = useRef<ArenaState | null>(null);
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
+  const skipRequestedRef = useRef(false);
   const pausedBeforePanelRef = useRef(false);
   const completedRef = useRef(false);
   const pkOrderRef = useRef<number[] | null>(null);
@@ -700,6 +704,18 @@ export function MatchArena({
     });
   }
 
+  // Instantly resolves the rest of this segment instead of waiting on
+  // animated playback. finishLivePeriod() is the same call the arena loop
+  // makes on a natural period end — it both runs the remaining simulation
+  // and hands the finished half's data to the parent (via onPeriodComplete),
+  // which is what actually unlocks the next segment (e.g. second half
+  // kickoff). Skipping straight to setEnded without it left the parent
+  // thinking the half never finished.
+  function skipToResult() {
+    finishLivePeriod();
+    skipRequestedRef.current = true;
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.code !== "Space" || event.repeat) return;
@@ -937,6 +953,7 @@ export function MatchArena({
     completedRef,
     pausedRef,
     speedRef,
+    skipRequestedRef,
     pkOrderRef,
     buildState,
     userTeamName,
@@ -1148,6 +1165,9 @@ export function MatchArena({
             dismissalSide={dismissalSide}
             discipline={discipline}
             opponentDiscipline={opponentDiscipline}
+            savedTactics={savedTactics}
+            onSaveTactic={onSaveTactic}
+            onDeleteTactic={onDeleteTactic}
           />
         )}
 
@@ -1262,6 +1282,14 @@ export function MatchArena({
                 {sp}배속
               </button>
             ))}
+            <button
+              type="button"
+              className="arena-ctrl arena-ctrl--section"
+              disabled={activePanel != null || pendingPenalties}
+              onClick={skipToResult}
+            >
+              ⏭ 결과만 보기
+            </button>
             {/* One entry point: the match centre already carries tabs for
                 개요 · 평점 · 분석 · 스쿼드 · 상대 분석 alongside 전술. Once it's
                 open this same slot becomes the way back out, so there's a

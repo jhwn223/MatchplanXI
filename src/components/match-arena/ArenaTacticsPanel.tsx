@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { slotsOf, type FormationKey } from "../../data/formation";
+import { slotsOf, type FormationKey, type FormationSlot } from "../../data/formation";
 import { tacticalCoordinate } from "../Pitch";
 import { TeamFlag } from "../TeamFlag";
 import type { Player } from "../../data/types";
@@ -9,13 +9,7 @@ import {
   type SetPieceAssignments,
 } from "../../data/tactics";
 import { RoleAssignmentBoard } from "./RoleAssignmentBoard";
-import {
-  deleteSavedTactic,
-  loadSavedTactics,
-  MAX_SAVED_TACTICS,
-  saveTactic,
-  type SavedTactic,
-} from "../../data/savedTactics";
+import { MAX_SAVED_TACTICS, type SavedTactic } from "../../data/savedTactics";
 import {
   applyQuickTactic,
   QUICK_TACTICS,
@@ -39,6 +33,11 @@ interface Props {
   setPieces?: SetPieceAssignments;
   onSetPieceChange?: (assignments: SetPieceAssignments) => void;
   variant?: "match" | "prematch";
+  /** Kept for the whole run (owned by the App root), not persisted storage —
+   *  see savedTactics.ts for why. */
+  savedTactics?: SavedTactic[];
+  onSaveTactic?: (name: string, tactics: TeamTactics) => void;
+  onDeleteTactic?: (id: string) => void;
 }
 
 const OPTIONS = {
@@ -77,11 +76,13 @@ export function ArenaTacticsPanel({
   setPieces = EMPTY_SET_PIECE_ASSIGNMENTS,
   onSetPieceChange,
   variant = "match",
+  savedTactics: saved = [],
+  onSaveTactic,
+  onDeleteTactic,
 }: Props) {
   const [draft, setDraft] = useState<TeamTactics>(tactics);
   const [tab, setTab] = useState<TacticsTab>("quick");
   const [selectedQuick, setSelectedQuick] = useState<QuickTacticKey | null>(null);
-  const [saved, setSaved] = useState<SavedTactic[]>(() => loadSavedTactics());
   const [selectedSaved, setSelectedSaved] = useState<string | null>(null);
   const [saveName, setSaveName] = useState("");
 
@@ -104,7 +105,7 @@ export function ArenaTacticsPanel({
   return (
     <section className={`match-tactics-editor match-tactics-editor--${variant}`}>
       {variant === "match" && <div className="match-tactics-editor__summary">
-        <div>
+        <div className="match-tactics-editor__team">
           <span>
             <TeamFlag fifaCode={userCode} className="match-tactics-editor__flag" />
             <small>{userCode}</small>
@@ -113,7 +114,7 @@ export function ArenaTacticsPanel({
           {/* Formation lives with the lineup, on the squad tab. */}
           <small>{formationLabel ?? formation}</small>
         </div>
-        <TacticShape formation={formation} tactics={draft} />
+        <FormationMiniMap formation={slotsOf(formation)} tactics={draft} />
       </div>}
 
       <div className="match-tactics-editor__body">
@@ -173,12 +174,12 @@ export function ArenaTacticsPanel({
                           aria-label={`${entry.name} 삭제`}
                           onClick={(event) => {
                             event.stopPropagation();
-                            setSaved(deleteSavedTactic(entry.id));
+                            onDeleteTactic?.(entry.id);
                           }}
                           onKeyDown={(event) => {
                             if (event.key !== "Enter" && event.key !== " ") return;
                             event.stopPropagation();
-                            setSaved(deleteSavedTactic(entry.id));
+                            onDeleteTactic?.(entry.id);
                           }}
                         >
                           삭제
@@ -192,7 +193,7 @@ export function ArenaTacticsPanel({
                   onSubmit={(event) => {
                     event.preventDefault();
                     if (!saveName.trim()) return;
-                    setSaved(saveTactic(saveName, draft));
+                    onSaveTactic?.(saveName, draft);
                     setSaveName("");
                   }}
                 >
@@ -234,8 +235,8 @@ export function ArenaTacticsPanel({
           )}
           {tab === "attack" && (
             <div className="tactic-field-grid">
-              <TacticSelect label="기회 만들기" value={draft.chanceCreation} options={OPTIONS.chanceCreation} onChange={(value) => patch("chanceCreation", value as TeamTactics["chanceCreation"])} />
-              <TacticSelect label="패싱 스타일" value={draft.passingStyle} options={OPTIONS.passingStyle} onChange={(value) => patch("passingStyle", value as TeamTactics["passingStyle"])} />
+              <TacticSelect label="기회 만들기" value={draft.chanceCreation} options={OPTIONS.chanceCreation} extraLabels={[["directPassing", "침투 패스"]]} onChange={(value) => patch("chanceCreation", value as TeamTactics["chanceCreation"])} />
+              <TacticSelect label="패싱 스타일" value={draft.passingStyle} options={OPTIONS.passingStyle} extraLabels={[["direct", "직접 패스"]]} onChange={(value) => patch("passingStyle", value as TeamTactics["passingStyle"])} />
               <TacticSelect label="공격 방향" value={draft.attackFocus} options={OPTIONS.attackFocus} onChange={(value) => patch("attackFocus", value as TeamTactics["attackFocus"])} />
               <TacticSelect label="슈팅 지시" value={draft.shooting} options={OPTIONS.shooting} onChange={(value) => patch("shooting", value as TeamTactics["shooting"])} />
             </div>
@@ -244,7 +245,7 @@ export function ArenaTacticsPanel({
             <div className="tactic-field-grid">
               <TacticSelect label="수비 스타일" value={draft.defenseStyle} options={OPTIONS.defenseStyle} onChange={(value) => patch("defenseStyle", value as TeamTactics["defenseStyle"])} />
               <TacticSelect label="수비 라인" value={draft.defensiveLine} options={OPTIONS.defensiveLine} onChange={(value) => patch("defensiveLine", value as TeamTactics["defensiveLine"])} />
-              <TacticSelect label="압박 강도" value={draft.pressing} options={OPTIONS.pressing} onChange={(value) => patch("pressing", value as TeamTactics["pressing"])} />
+              <TacticSelect label="압박 강도" value={draft.pressing} options={OPTIONS.pressing} extraLabels={[["low", "지역 방어"]]} onChange={(value) => patch("pressing", value as TeamTactics["pressing"])} />
               <TacticSelect label="마킹 방식" value={draft.marking} options={OPTIONS.marking} onChange={(value) => patch("marking", value as TeamTactics["marking"])} />
               <TacticSelect label="태클 강도" value={draft.tackling} options={OPTIONS.tackling} onChange={(value) => patch("tackling", value as TeamTactics["tackling"])} />
               <TacticSelect label="압박 시작 위치" value={draft.lineOfEngagement} options={OPTIONS.lineOfEngagement} onChange={(value) => patch("lineOfEngagement", value as TeamTactics["lineOfEngagement"])} />
@@ -263,6 +264,36 @@ export function ArenaTacticsPanel({
 
     </section>
   );
+}
+
+/**
+ * Matches whichever stats the engine actually reads for that kick, not a
+ * generic overall rating. Corners/free kicks use eventEngine.ts's own
+ * weighting (crossing+longPassing*0.5 / freeKickAccuracy+shotPower*0.25);
+ * penalties use penalties.ts's goal-probability weighting
+ * (penalties 55% + composure 30% + finishing 15%) — composure is included
+ * here because it is a real, sizeable contributor to the actual PK result,
+ * not just decoration.
+ */
+function kickerStatLabel(
+  key: "penaltyTakerId" | "cornerTakerId" | "freeKickTakerId",
+  player: Player,
+): string {
+  const ability = player.ability;
+  if (key === "penaltyTakerId") return `PK ${ability?.penalties ?? 60}`;
+  if (key === "cornerTakerId") return `크로스 ${ability?.crossing ?? 60}`;
+  return `프리킥 ${ability?.freeKickAccuracy ?? 60}`;
+}
+
+/** Same stats as the label above, so the list is sorted by what it shows. */
+function kickerSortValue(
+  key: "penaltyTakerId" | "cornerTakerId" | "freeKickTakerId",
+  player: Player,
+): number {
+  const ability = player.ability;
+  if (key === "penaltyTakerId") return ability?.penalties ?? 60;
+  if (key === "cornerTakerId") return ability?.crossing ?? 60;
+  return ability?.freeKickAccuracy ?? 60;
 }
 
 function SetPieceBoard({
@@ -292,7 +323,7 @@ function SetPieceBoard({
       patch({ [key]: current.filter((id) => id !== playerId) });
       return;
     }
-    if (current.length < 3) patch({ [key]: [...current, playerId] });
+    patch({ [key]: [...current, playerId] });
   };
 
   return (
@@ -326,11 +357,13 @@ function SetPieceBoard({
               }}
             >
               <option value="">자동 선택</option>
-              {(key === "penaltyTakerId" ? players : outfield).map((player) => (
-                <option key={player.player_id} value={player.player_id}>
-                  {player.player_name} · OVR {player.ability?.overall ?? 65}
-                </option>
-              ))}
+              {[...(key === "penaltyTakerId" ? players : outfield)]
+                .sort((a, b) => kickerSortValue(key, b) - kickerSortValue(key, a))
+                .map((player) => (
+                  <option key={player.player_id} value={player.player_id}>
+                    {player.player_name} · {kickerStatLabel(key, player)}
+                  </option>
+                ))}
             </select>
           </label>
         ))}
@@ -340,7 +373,7 @@ function SetPieceBoard({
         ["freeKickParticipants", "프리킥 가담 선수"],
       ] as const).map(([key, label]) => (
         <section className="set-piece-board__participants" key={key}>
-          <header><h3>{label}</h3><span>{assignments[key].length}/3</span></header>
+          <header><h3>{label}</h3><span>{assignments[key].length}명 가담 중</span></header>
           <div>
             {outfield
               .filter((player) => player.player_id !== (
@@ -353,7 +386,6 @@ function SetPieceBoard({
                   type="button"
                   key={player.player_id}
                   data-active={selected || undefined}
-                  disabled={!selected && assignments[key].length >= 3}
                   onClick={() => toggleParticipant(key, player.player_id)}
                 >
                   <strong>{player.player_name}</strong>
@@ -373,15 +405,26 @@ export function TacticItemBoxSelect({
   value,
   options,
   onChange,
+  extraLabels = [],
 }: {
   label: string;
   value: string;
   options: readonly (readonly [string, string])[];
   onChange: (value: string) => void;
+  /**
+   * Korean label for values that quick-tactic presets can still set (e.g.
+   * "direct" passing) but that were deliberately dropped from the dropdown
+   * itself. Without this, the button falls back to the raw English value
+   * until the field is changed to something the list actually offers.
+   */
+  extraLabels?: readonly (readonly [string, string])[];
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const currentLabel = options.find(([optionValue]) => optionValue === value)?.[1] ?? value;
+  const currentLabel =
+    options.find(([optionValue]) => optionValue === value)?.[1]
+    ?? extraLabels.find(([optionValue]) => optionValue === value)?.[1]
+    ?? value;
 
   useEffect(() => {
     if (!open) return;
@@ -443,34 +486,43 @@ export function TacticItemBoxSelect({
 const TacticSelect = TacticItemBoxSelect;
 
 
-/**
- * Drawn from the selected formation's slots rather than a fixed set of points,
- * so switching formation mid-match actually redraws the shape. The pitch runs
- * left-to-right here while slot coordinates are top-down, hence the swap.
- */
-function TacticShape({
+// Shared with the pre-match/half-time tactics screen so the in-match tactics
+// tab shows the same board instead of the smaller, flatter SVG shape it used
+// to render on its own.
+export function FormationMiniMap({
   formation,
   tactics,
 }: {
-  formation: FormationKey;
+  formation: FormationSlot[];
   tactics: TeamTactics;
 }) {
+  const widthLabel = { narrow: "좁게", balanced: "중간", wide: "넓게" }[tactics.width];
+  const lineLabel = { low: "낮은 라인", standard: "보통 라인", high: "높은 라인" }[tactics.defensiveLine];
+  const lineBottom = 19 + (tactics.defensiveLine === "high" ? 8 : tactics.defensiveLine === "low" ? -5 : 0);
   return (
-    <svg className="tactic-shape" viewBox="0 0 100 100" role="img" aria-label="현재 전술 형태">
-      <rect x="2" y="2" width="96" height="96" rx="4" />
-      <line x1="50" y1="2" x2="50" y2="98" />
-      <circle cx="50" cy="50" r="12" />
-      {slotsOf(formation).map((slot) => {
+    <div
+      className="prematch-mini-pitch"
+      aria-label="현재 포메이션과 전술 미리보기"
+      data-pressing={tactics.pressing}
+    >
+      <div className="prematch-mini-pitch__line" />
+      <div className="prematch-mini-pitch__circle" />
+      <div className="prematch-mini-pitch__shape-line" style={{ bottom: `${lineBottom}%` }} />
+      <div className="prematch-mini-pitch__legend">
+        <span>폭 {widthLabel}</span>
+        <span>{lineLabel}</span>
+      </div>
+      {formation.map((slot) => {
         const coordinate = tacticalCoordinate(slot, slot, tactics);
         return (
-          <circle
+          <span
             key={slot.id}
-            cx={Math.max(7, Math.min(93, 100 - coordinate.y))}
-            cy={Math.max(7, Math.min(93, coordinate.x))}
-            r="3.2"
+            title={slot.label}
+            style={{ left: `${coordinate.x}%`, top: `${coordinate.y}%` }}
+            data-position={slot.position}
           />
         );
       })}
-    </svg>
+    </div>
   );
 }

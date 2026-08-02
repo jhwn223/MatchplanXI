@@ -981,12 +981,17 @@
   grid-template-columns: var(--prematch-rail) minmax(640px, 1fr) var(--prematch-rail);
 }
 
-/* The pitch preview absorbs whatever height is left over, so this rail never
-   needs a scrollbar — which also lets the formation dropdown escape the panel
-   instead of being trapped in a scroll container. */
+/* The pitch preview usually absorbs whatever height is left over, but at
+   tighter viewport heights the summary copy below it doesn't fit and was
+   getting silently clipped by this rail having no scrollbar. Scroll by
+   default; go visible only while the formation dropdown is open so it can
+   still escape the rail instead of being clipped by this same rule. */
 .board--prematch[data-workspace="tactics"] .board__sidebar {
-  overflow: visible;
   background: #edf5e9;
+}
+
+.board--prematch[data-workspace="tactics"] .board__sidebar:has(.match-tactic-field--choices[data-open]) {
+  overflow: visible;
 }
 
 .prematch-tactic-summary {
@@ -998,10 +1003,16 @@
   gap: 18px;
 }
 
+/* A fixed ratio (not flex:1 1 auto) keeps this the same size regardless of
+   how much room is left above it — halftime adds a score summary bar the
+   pre-kickoff sidebar doesn't have, which used to squash this flex-grown
+   box shorter than the pre-kickoff one showing the exact same tactics. */
 .prematch-tactic-summary > .prematch-mini-pitch {
-  flex: 1 1 auto;
-  min-height: 120px;
-  aspect-ratio: auto;
+  /* The ratio itself lives on the base .prematch-mini-pitch rule so every
+     usage (pre-match, half-time, and the in-match tactics tab) shares the
+     exact same shape — this override only needs to stop it from growing
+     to fill the sidebar's leftover flex space. */
+  flex: 0 0 auto;
 }
 
 .prematch-tactic-summary__copy {
@@ -1437,7 +1448,9 @@
 .prematch-mini-pitch {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1.12;
+  /* Kept in one place so pre-match, half-time, and the in-match tactics
+     tab (via FormationMiniMap) always render the same shape. */
+  aspect-ratio: 1 / 1.22;
   overflow: hidden;
   border: 3px solid #a8cbb0;
   border-radius: 16px;
@@ -1628,7 +1641,10 @@
 
 .board--prematch[data-workspace="tactics"] .match-tactic-itembox,
 .board--prematch[data-workspace="tactics"] .match-tactic-field {
-  min-height: 86px;
+  /* Shrunk from 86px so the 포메이션 selector doesn't crowd out the pitch
+     preview below it, which gets that height back via a taller
+     aspect-ratio (see .prematch-tactic-summary > .prematch-mini-pitch). */
+  min-height: 64px;
 }
 
 .board--prematch[data-workspace="tactics"] .match-tactic-itembox {
@@ -1974,6 +1990,13 @@
 
 .opponent-report__section {
   margin-top: 13px;
+}
+
+/* Just a scroll/grid-area grouping hook for the in-match layout
+   (match-arena.css) — invisible here so the pre-match report keeps its
+   normal top-to-bottom flow. */
+.opponent-report__scout-group {
+  display: contents;
 }
 
 .opponent-report__section > h3,

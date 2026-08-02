@@ -512,16 +512,18 @@ export function simulatePeriodWithWorld(
         ? assignments?.cornerTakerId
         : assignments?.freeKickTakerId;
     const activePlayers = activeSidePlayers(side);
+    // No random lottery here: with nobody assigned and no natural taker
+    // (requestedTaker is the keeper), the best-suited outfield player takes
+    // it, picked by the same stats the taker's quality is judged on above.
+    const setPieceWeight = (player: PlacedPlayerLite) => kind === "penaltyKick"
+      ? player.penalties
+      : kind === "corner"
+        ? player.crossing + player.longPassing * 0.5
+        : player.freeKickAccuracy + player.shotPower * 0.25;
     const taker = activePlayers.find((player) => player.playerId === assignedTakerId)
       ?? (requestedTaker.position !== "GK" ? requestedTaker : undefined)
-      ?? weightedPick(
-        outfield(activePlayers),
-        (player) => kind === "penaltyKick"
-          ? player.penalties
-          : kind === "corner"
-            ? player.crossing + player.longPassing * 0.5
-            : player.freeKickAccuracy + player.shotPower * 0.25,
-        rng,
+      ?? outfield(activePlayers).reduce((best, player) =>
+        setPieceWeight(player) > setPieceWeight(best) ? player : best
       );
     // The ball is physically placed on the corner arc or the penalty spot
     // before it is struck, so the restart event and everything that follows
@@ -553,8 +555,7 @@ export function simulatePeriodWithWorld(
     const allCandidates = outfield(activePlayers).filter((player) => player.playerId !== taker.playerId);
     const selectedParticipants = (designatedParticipants ?? [])
       .map((playerId) => allCandidates.find((player) => player.playerId === playerId))
-      .filter((player): player is PlacedPlayerLite => player != null)
-      .slice(0, 3);
+      .filter((player): player is PlacedPlayerLite => player != null);
     const candidates = selectedParticipants.length ? selectedParticipants : allCandidates;
     if (kind === "corner") running[side].corners++;
 

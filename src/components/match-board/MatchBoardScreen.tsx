@@ -11,10 +11,11 @@ import type { Player, Team } from "../../data/types";
 import type { PlayerRole } from "../../data/playerRoles";
 import { AppTopbar } from "../AppTopbar";
 import { Bench } from "../Bench";
-import { Pitch, tacticalCoordinate } from "../Pitch";
+import { Pitch } from "../Pitch";
 import { TacticsPanel } from "../TacticsPanel";
 import {
   ArenaTacticsPanel,
+  FormationMiniMap,
   TacticItemBoxSelect,
 } from "../match-arena/ArenaTacticsPanel";
 import { MatchAnalysis } from "../match-arena/ArenaMatchCenter";
@@ -29,6 +30,7 @@ import type { OpponentPlan } from "./opponentPlan";
 import type { Lineup, MatchPhase } from "./types";
 import type { PlayerDiscipline } from "../playerDiscipline";
 import type { SetPieceAssignments } from "../../data/tactics";
+import type { SavedTactic } from "../../data/savedTactics";
 
 interface Props {
   team: Team;
@@ -76,6 +78,10 @@ interface Props {
   onResetPositions: () => void;
   onPrimaryAction: () => void;
   onSelectPlayer: (player: Player) => void;
+  /** Kept for the whole run (owned by the App root), not persisted storage. */
+  savedTactics?: SavedTactic[];
+  onSaveTactic?: (name: string, tactics: TeamTactics) => void;
+  onDeleteTactic?: (id: string) => void;
 }
 
 export function MatchBoardScreen({
@@ -95,6 +101,9 @@ export function MatchBoardScreen({
   onTacticsChange,
   onRoleChange,
   onSetPieceChange,
+  savedTactics,
+  onSaveTactic,
+  onDeleteTactic,
   teamIndex,
   conditions,
   playersById,
@@ -333,6 +342,9 @@ export function MatchBoardScreen({
                 onApply={updateTactics}
                 setPieces={lineup.setPieces}
                 onSetPieceChange={onSetPieceChange}
+                savedTactics={savedTactics}
+                onSaveTactic={onSaveTactic}
+                onDeleteTactic={onDeleteTactic}
               />
             </section>
           )}
@@ -520,44 +532,6 @@ function HalftimeReviewOverlay({
           />
         )}
       </section>
-    </div>
-  );
-}
-
-function FormationMiniMap({
-  formation,
-  tactics,
-}: {
-  formation: FormationSlot[];
-  tactics: TeamTactics;
-}) {
-  const widthLabel = { narrow: "좁게", balanced: "중간", wide: "넓게" }[tactics.width];
-  const lineLabel = { low: "낮은 라인", standard: "보통 라인", high: "높은 라인" }[tactics.defensiveLine];
-  const lineBottom = 19 + (tactics.defensiveLine === "high" ? 8 : tactics.defensiveLine === "low" ? -5 : 0);
-  return (
-    <div
-      className="prematch-mini-pitch"
-      aria-label="현재 포메이션과 전술 미리보기"
-      data-pressing={tactics.pressing}
-    >
-      <div className="prematch-mini-pitch__line" />
-      <div className="prematch-mini-pitch__circle" />
-      <div className="prematch-mini-pitch__shape-line" style={{ bottom: `${lineBottom}%` }} />
-      <div className="prematch-mini-pitch__legend">
-        <span>폭 {widthLabel}</span>
-        <span>{lineLabel}</span>
-      </div>
-      {formation.map((slot) => {
-        const coordinate = tacticalCoordinate(slot, slot, tactics);
-        return (
-          <span
-            key={slot.id}
-            title={slot.label}
-            style={{ left: `${coordinate.x}%`, top: `${coordinate.y}%` }}
-            data-position={slot.position}
-          />
-        );
-      })}
     </div>
   );
 }

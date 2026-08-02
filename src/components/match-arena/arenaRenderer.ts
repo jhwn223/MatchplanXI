@@ -24,7 +24,10 @@ export function drawArenaFrame(
   }
   context.strokeStyle = "rgba(255,255,255,0.25)";
   context.lineWidth = 1.5;
-  context.strokeRect(x(2), y(4), x(96) - x(2), y(96) - y(4));
+  // The right edge must land at x(98) to match the penalty/six-yard boxes'
+  // goal-line edge below — it was x(96), 2 units short of them, so the box
+  // lines poked out past the boundary and read as a stray extra line.
+  context.strokeRect(x(2), y(4), x(98) - x(2), y(96) - y(4));
   context.beginPath();
   context.moveTo(x(50), y(4));
   context.lineTo(x(50), y(96));
@@ -144,11 +147,18 @@ export function drawArenaFrame(
           : Math.max(10, Math.min(12, width * 0.012));
       const labelY = clamp(py - radius - 9, labelFont + 3, height - 6);
       context.font = `800 ${labelFont}px ${KOREAN_CANVAS_FONT}`;
+      // textAlign is "center", so the label spans px ± halfWidth. Players
+      // near the touchline (e.g. a keeper on a goal kick) put that outside
+      // the canvas with no horizontal clamp, clipping half the name — only
+      // labelY was ever kept on-canvas. Nudge px inward by the same amount
+      // so the whole label stays visible instead of just centering blindly.
+      const halfLabelWidth = context.measureText(label).width / 2 + 3;
+      const labelX = clamp(px, halfLabelWidth, width - halfLabelWidth);
       context.lineWidth = 4;
       context.strokeStyle = "rgba(0, 0, 0, 0.85)";
-      context.strokeText(label, px, labelY);
+      context.strokeText(label, labelX, labelY);
       context.fillStyle = "#fff";
-      context.fillText(label, px, labelY);
+      context.fillText(label, labelX, labelY);
     }
   });
 
