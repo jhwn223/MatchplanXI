@@ -271,7 +271,7 @@
 /* The panel is capped so the score header and playback controls stay visible;
    each tab scrolls inside it rather than running off the bottom of the modal. */
 .match-center {
-  --arena-management-pitch-height: min(62vh, 564px, calc(72vh - 136px));
+  --arena-management-pitch-height: min(56vh, 500px, calc(72vh - 170px));
   min-height: min(540px, 72vh);
   max-height: 72vh;
   display: flex;
@@ -853,7 +853,7 @@
 .arena-ctrl--section { font-size: 11px; }
 .arena-squad-board {
   display: grid;
-  grid-template-columns: minmax(300px, 400px) minmax(250px, 340px) minmax(300px, 400px);
+  grid-template-columns: minmax(250px, 340px) minmax(300px, 400px) minmax(300px, 400px);
   align-items: start;
   justify-content: center;
   gap: 16px;
@@ -863,9 +863,12 @@
   margin: 8px auto 12px;
   padding: 0;
   min-height: 0;
-  overflow: visible;
+  /* visible let the pitch bleed past match-center's height cap and paint
+     over the playback timeline below it instead of being clipped there —
+     same failure mode as the opponent board, which already uses hidden. */
+  overflow: hidden;
 }
-.match-center > .arena-squad-board { overflow: visible; }
+.match-center > .arena-squad-board { overflow: hidden; }
 .arena-squad-board__pitch {
   min-width: 0;
   height: var(--arena-management-pitch-height);
@@ -1083,13 +1086,13 @@
    report keeps its own vertical layout because every override is arena-scoped. */
 .arena-opponent-board .opponent-report {
   display: grid;
-  grid-template-columns: minmax(300px, 400px) minmax(250px, 340px) minmax(300px, 400px);
+  grid-template-columns: minmax(250px, 340px) minmax(300px, 400px) minmax(300px, 400px);
   grid-template-rows: auto auto auto minmax(0, 1fr);
   grid-template-areas:
-    "lineup header bench"
-    "lineup metrics bench"
-    "lineup tactics bench"
-    "lineup scout bench";
+    "header lineup bench"
+    "metrics lineup bench"
+    "tactics lineup bench"
+    "scout lineup bench";
   align-items: start;
   justify-content: center;
   gap: 8px 16px;
@@ -1137,12 +1140,12 @@
   height: var(--arena-management-pitch-height);
   flex: 0 0 auto;
   margin: 0 auto;
-  /* The goalkeeper slot sits near the very bottom edge; its card is centred
-     on that point (translate -50%,-50%) so half of it falls past the pitch's
-     own 100% mark. The base .pitch rule clips that with overflow:hidden for
-     the rounded corners, but there's room below in this column, so let it
-     show instead of losing a sliver of the card. */
-  overflow: visible;
+  /* Letting the goalkeeper card overflow visibly (rather than clipping the
+     sliver the base .pitch rule cuts off at the rounded corners) assumed
+     there was spare room below this column — in the live match arena there
+     isn't, so the card bled down over the playback timeline. Clipping that
+     sliver reads better than covering unrelated controls. */
+  overflow: hidden;
 }
 .arena-opponent-board .pitch--compact .pitch-slot {
   transform: translate(-50%, -50%);
@@ -1220,7 +1223,7 @@
 @media (max-width: 1180px) {
   .arena-squad-board,
   .arena-opponent-board .opponent-report {
-    grid-template-columns: minmax(280px, 1fr) minmax(230px, 340px) minmax(280px, 1fr);
+    grid-template-columns: minmax(230px, 340px) minmax(280px, 1fr) minmax(280px, 1fr);
     gap: 8px 12px;
   }
 }
