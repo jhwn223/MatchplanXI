@@ -64,17 +64,6 @@ export function TacticsPanel({
 
       <div className="tactics-panel__section">
         <span className="tactics-panel__label">{selectedFormation} 장단점</span>
-        {/* The counts the simulation itself reads. Showing them makes it plain
-            that the notes below are measured from the shape, not written by
-            hand about it. */}
-        <div className="formation-commitment" aria-label="지역별 배치 인원">
-          {([["수비", 0], ["중원", 1], ["공격", 2]] as const).map(([label, index]) => (
-            <span key={label}>
-              {label}
-              <strong>{traits.commitment[index]}</strong>
-            </span>
-          ))}
-        </div>
         <div className="formation-summary">
           <div className="formation-summary__col formation-summary__col--pros">
             <strong>👍 장점</strong>
