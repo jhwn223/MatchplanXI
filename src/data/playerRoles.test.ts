@@ -17,13 +17,14 @@ describe("formation slot roles", () => {
 
     expect(roleGroupForSlot(striker)).toBe("ST");
     expect(rolesForSlot(striker).map((role) => role.key)).toContain("falseNine");
+    expect(rolesForSlot(striker).map((role) => role.key)).not.toContain("pressingForward");
     expect(roleGroupForSlot(leftBack)).toBe("FB");
     expect(rolesForSlot(leftBack).map((role) => role.key)).toContain("invertedFullback");
   });
 
   test("keeps assignments on slots and rejects an incompatible stale role", () => {
     const striker = formation.find((slot) => slot.label === "ST")!;
-    expect(resolvedRoleForSlot({ [striker.id]: "pressingForward" }, striker)).toBe("pressingForward");
+    expect(resolvedRoleForSlot({ [striker.id]: "pressingForward" }, striker)).toBe(defaultRoleForSlot(striker));
     expect(resolvedRoleForSlot({ [striker.id]: "lineKeeper" }, striker)).toBe(defaultRoleForSlot(striker));
   });
 

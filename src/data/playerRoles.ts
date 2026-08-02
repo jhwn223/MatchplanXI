@@ -75,6 +75,7 @@ export const PLAYER_ROLES: PlayerRoleDefinition[] = [
 ];
 
 const ROLE_MAP = new Map(PLAYER_ROLES.map((definition) => [definition.key, definition]));
+const HIDDEN_ROLE_KEYS = new Set<PlayerRole>(["pressingForward"]);
 
 export function roleDefinition(roleKey?: PlayerRole): PlayerRoleDefinition {
   return ROLE_MAP.get(roleKey ?? "centralSupport") ?? ROLE_MAP.get("centralSupport")!;
@@ -94,7 +95,9 @@ export function roleGroupForSlot(slot: Pick<FormationSlot, "id" | "label" | "pos
 
 export function rolesForSlot(slot: Pick<FormationSlot, "id" | "label" | "position">) {
   const group = roleGroupForSlot(slot);
-  return PLAYER_ROLES.filter((definition) => definition.group === group);
+  return PLAYER_ROLES.filter(
+    (definition) => definition.group === group && !HIDDEN_ROLE_KEYS.has(definition.key),
+  );
 }
 
 const DEFAULT_BY_GROUP: Record<SlotRoleGroup, PlayerRole> = {
