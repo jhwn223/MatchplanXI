@@ -10,6 +10,7 @@ import type { ArenaSquadControls } from "../match-arena/types";
 import type { TeamTactics } from "../match-arena/tactics";
 import type { Lineup, MatchPhase } from "./types";
 import type { SetPieceAssignments } from "../../data/tactics";
+import type { SavedTactic } from "../../data/savedTactics";
 
 interface Props {
   phase: MatchPhase;
@@ -35,6 +36,9 @@ interface Props {
   onOpponentManagementChange: (players: Player[], bench: Player[], formation: FormationKey) => void;
   onFormationChange: (formation: FormationKey) => void;
   onSetPieceChange: (assignments: SetPieceAssignments) => void;
+  savedTactics?: SavedTactic[];
+  onSaveTactic?: (name: string, tactics: TeamTactics) => void;
+  onDeleteTactic?: (id: string) => void;
   onPlayerDismissed: (side: MatchSide, playerId: number) => void;
   onMinuteChange: (minute: number) => void;
   onFirstHalfComplete: (period: HalfResult) => ArenaSim;
@@ -76,6 +80,9 @@ export function MatchArenaOverlays({
   onOpponentManagementChange,
   onFormationChange,
   onSetPieceChange,
+  savedTactics,
+  onSaveTactic,
+  onDeleteTactic,
   onPlayerDismissed,
   onMinuteChange,
   onFirstHalfComplete,
@@ -113,6 +120,9 @@ export function MatchArenaOverlays({
     onOpponentManagementChange,
     onFormationChange,
     onSetPieceChange,
+    savedTactics,
+    onSaveTactic,
+    onDeleteTactic,
     onPlayerDismissed,
     onMinuteChange,
     onCommitSubstitutions,

@@ -534,8 +534,7 @@ export function simulatePeriodWithWorld(
     const allCandidates = outfield(activePlayers).filter((player) => player.playerId !== taker.playerId);
     const selectedParticipants = (designatedParticipants ?? [])
       .map((playerId) => allCandidates.find((player) => player.playerId === playerId))
-      .filter((player): player is PlacedPlayerLite => player != null)
-      .slice(0, 3);
+      .filter((player): player is PlacedPlayerLite => player != null);
     const candidates = selectedParticipants.length ? selectedParticipants : allCandidates;
     if (kind === "corner") running[side].corners++;
     addEvent(side, kind, taker, keeperPlayer, true);

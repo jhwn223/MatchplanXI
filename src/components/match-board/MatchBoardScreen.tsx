@@ -30,6 +30,7 @@ import type { OpponentPlan } from "./opponentPlan";
 import type { Lineup, MatchPhase } from "./types";
 import type { PlayerDiscipline } from "../playerDiscipline";
 import type { SetPieceAssignments } from "../../data/tactics";
+import type { SavedTactic } from "../../data/savedTactics";
 
 interface Props {
   team: Team;
@@ -77,6 +78,10 @@ interface Props {
   onResetPositions: () => void;
   onPrimaryAction: () => void;
   onSelectPlayer: (player: Player) => void;
+  /** Kept for the whole run (owned by the App root), not persisted storage. */
+  savedTactics?: SavedTactic[];
+  onSaveTactic?: (name: string, tactics: TeamTactics) => void;
+  onDeleteTactic?: (id: string) => void;
 }
 
 export function MatchBoardScreen({
@@ -96,6 +101,9 @@ export function MatchBoardScreen({
   onTacticsChange,
   onRoleChange,
   onSetPieceChange,
+  savedTactics,
+  onSaveTactic,
+  onDeleteTactic,
   teamIndex,
   conditions,
   playersById,
@@ -334,6 +342,9 @@ export function MatchBoardScreen({
                 onApply={updateTactics}
                 setPieces={lineup.setPieces}
                 onSetPieceChange={onSetPieceChange}
+                savedTactics={savedTactics}
+                onSaveTactic={onSaveTactic}
+                onDeleteTactic={onDeleteTactic}
               />
             </section>
           )}

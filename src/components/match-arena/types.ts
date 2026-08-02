@@ -19,6 +19,7 @@ import type {
 } from "../../data/matchSim";
 import type { TacticStyleKey } from "../../data/tactics";
 import type { SetPieceAssignments } from "../../data/tactics";
+import type { SavedTactic } from "../../data/savedTactics";
 import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
 import type { Player } from "../../data/types";
 import type { TeamTactics } from "./tactics";
@@ -101,6 +102,10 @@ export interface MatchArenaProps {
   onRoleChange?: (slotId: string, role: PlayerRole) => void;
   setPieces?: SetPieceAssignments;
   onSetPieceChange?: (assignments: SetPieceAssignments) => void;
+  /** Kept for the whole run (owned by the App root), not persisted storage. */
+  savedTactics?: SavedTactic[];
+  onSaveTactic?: (name: string, tactics: TeamTactics) => void;
+  onDeleteTactic?: (id: string) => void;
   onOpponentTacticChange?: (tactics: TeamTactics) => void;
   onOpponentManagementChange?: (players: Player[], bench: Player[], formation: FormationKey) => void;
   onFormationChange?: (formation: FormationKey) => void;
