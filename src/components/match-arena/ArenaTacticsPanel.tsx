@@ -38,6 +38,13 @@ interface Props {
   savedTactics?: SavedTactic[];
   onSaveTactic?: (name: string, tactics: TeamTactics) => void;
   onDeleteTactic?: (id: string) => void;
+  /** Set-piece takers/participants are picked from the placed lineup, so the
+   *  board has nothing to offer until the starting XI is filled in. Shown as
+   *  a dimming overlay on the setPieces tab instead of leaving the panels
+   *  looking active but empty. */
+  lineupIncomplete?: boolean;
+  placedCount?: number;
+  requiredPlayers?: number;
 }
 
 const OPTIONS = {
@@ -79,6 +86,9 @@ export function ArenaTacticsPanel({
   savedTactics: saved = [],
   onSaveTactic,
   onDeleteTactic,
+  lineupIncomplete = false,
+  placedCount,
+  requiredPlayers,
 }: Props) {
   const [draft, setDraft] = useState<TeamTactics>(tactics);
   const [tab, setTab] = useState<TacticsTab>("quick");
@@ -252,12 +262,22 @@ export function ArenaTacticsPanel({
             </div>
           )}
           {tab === "setPieces" && (
-            <SetPieceBoard
-              slots={slots}
-              playersById={playersById}
-              assignments={setPieces}
-              onChange={onSetPieceChange ?? (() => {})}
-            />
+            <div className="set-piece-board-wrap" data-disabled={lineupIncomplete || undefined}>
+              <SetPieceBoard
+                slots={slots}
+                playersById={playersById}
+                assignments={setPieces}
+                onChange={onSetPieceChange ?? (() => {})}
+              />
+              {lineupIncomplete && (
+                <div className="set-piece-board-lock">
+                  <span>
+                    ⚠ 선수를 배치하지 않았습니다 · 선수를 먼저 배치해주세요
+                    {placedCount != null && requiredPlayers != null && ` (${placedCount}/${requiredPlayers})`}
+                  </span>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

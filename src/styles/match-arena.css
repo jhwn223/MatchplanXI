@@ -445,6 +445,31 @@
   background: #e4f5e6;
   color: var(--accent);
 }
+.set-piece-board-wrap { position: relative; }
+.set-piece-board-wrap[data-disabled] .set-piece-board {
+  filter: grayscale(0.6);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.set-piece-board-lock {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+.set-piece-board-lock span {
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: #ffe1e5;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  color: #9a2434;
+  font-size: 13px;
+  font-weight: 800;
+}
 .set-piece-board {
   display: grid;
   grid-template-columns: minmax(220px, .8fr) repeat(2, minmax(240px, 1fr));
