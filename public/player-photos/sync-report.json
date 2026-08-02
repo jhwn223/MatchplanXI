@@ -1,17 +1,22 @@
 {
-  "generatedAt": "2026-08-02T18:02:43.054Z",
-  "matched": 924,
-  "unmatched": 324,
-  "runFailureCount": 1,
+  "generatedAt": "2026-08-02T18:48:26.656Z",
+  "matched": 979,
+  "unmatched": 269,
+  "runFailureCount": 2,
   "rosterPlayers": 1248,
-  "selectedPlayers": 1,
-  "completedPlayers": 1,
+  "selectedPlayers": 2,
+  "completedPlayers": 2,
   "addedThisRun": 0,
   "failures": [
     {
-      "playerId": 234,
-      "playerName": "Rayan",
-      "reason": "TypeError: fetch failed"
+      "playerId": 57,
+      "playerName": "Taehyeon Kim",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 75,
+      "playerName": "Jens Castrop",
+      "reason": "wikidata-match-not-found"
     }
   ]
 }
