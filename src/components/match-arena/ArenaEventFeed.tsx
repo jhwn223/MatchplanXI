@@ -1,6 +1,7 @@
 import type { MatchEvent } from "../../data/matchSim";
 import type { OpponentTacticChange } from "../match-board/opponentPlan";
 import { describeTeamTactics, type TeamTactics } from "./tactics";
+import { OpponentTacticNotice } from "./OpponentTacticNotice";
 
 const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = {
   pass: { icon: "↗", label: "패스" },
@@ -49,10 +50,6 @@ export function ArenaEventFeed({
         event.type !== "throwIn",
     )
     .reverse();
-  const latestOpponentChange = opponentTacticChanges
-    .filter((change) => change.minute <= minute)
-    .at(-1);
-
   return (
     <aside className="arena-events">
       {opponentTactics && (
@@ -61,13 +58,7 @@ export function ArenaEventFeed({
           <strong>{describeTeamTactics(opponentTactics)}</strong>
         </div>
       )}
-      {latestOpponentChange && (
-        <div className="arena-opponent-change">
-          <span>{latestOpponentChange.minute}' 상대 전술 변화</span>
-          <strong>{latestOpponentChange.title}</strong>
-          <p>{latestOpponentChange.detail}</p>
-        </div>
-      )}
+      <OpponentTacticNotice changes={opponentTacticChanges} minute={minute} />
       <h3>최근 경기 정보</h3>
       <div className="arena-events__list">
         {visible.length === 0 ? <p className="arena-events__empty">경기 흐름을 분석하고 있습니다.</p> : visible.map((event, index) => (

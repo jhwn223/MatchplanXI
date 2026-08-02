@@ -17,6 +17,7 @@ import { buildTeamAbilityProfile } from "../data/playerAbility";
 import { TeamFlag } from "./TeamFlag";
 import { disciplineFromEvents } from "./playerDiscipline";
 import { ArenaEventFeed } from "./match-arena/ArenaEventFeed";
+import { OpponentTacticNotice } from "./match-arena/OpponentTacticNotice";
 import { ArenaLiveStats } from "./match-arena/ArenaLiveStats";
 import { ArenaMatchCenter, type MatchCenterTab } from "./match-arena/ArenaMatchCenter";
 import { ArenaResultPanel } from "./match-arena/ArenaResultPanel";
@@ -1232,12 +1233,10 @@ export function MatchArena({
             </div>
             {sidebarTab === "stats" ? (
               <div className="arena-live-stats">
-                {opponentTacticChanges.at(-1) && (
-                  <div className="opponent-response-notice" role="status">
-                    <strong>{opponentTacticChanges.at(-1)!.title}</strong>
-                    <span>{opponentTacticChanges.at(-1)!.minute}' · {opponentTacticChanges.at(-1)!.detail}</span>
-                  </div>
-                )}
+                <OpponentTacticNotice
+                  changes={opponentTacticChanges}
+                  minute={hud.minute}
+                />
                 <ArenaLiveStats
                   live={liveSnapshot}
                   userXg={observedUserXg}

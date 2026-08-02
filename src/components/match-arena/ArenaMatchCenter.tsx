@@ -187,6 +187,16 @@ export function ArenaMatchCenter({
                   <strong>{formation}</strong>
                 )}
               </label>
+              {/* Dragging a player changes the shape without changing the
+                  chosen formation, and the pre-match board already says so.
+                  Without it, moving a midfielder up front here still read
+                  4-3-3. */}
+              {formationLabel && formationLabel !== formation && (
+                <div className="arena-squad-board__detected" aria-live="polite">
+                  <span>현재 형태</span>
+                  <strong>{formationLabel}</strong>
+                </div>
+              )}
               <div>
                 <span>교체 사용</span>
                 <strong>{squadControls.subsUsed}/{squadControls.maxSubs}</strong>
