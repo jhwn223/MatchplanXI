@@ -1199,8 +1199,9 @@
   gap: 4px 8px;
 }
 .arena-opponent-board .opponent-tactic-facts dl > div {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px;
+  grid-template-columns: max-content max-content;
+  justify-content: start;
+  gap: 10px;
   min-height: 28px;
   padding: 3px 2px;
 }
@@ -1209,6 +1210,7 @@
 }
 .arena-opponent-board .opponent-tactic-facts dd {
   font-size: 11px;
+  text-align: left;
 }
 /* Scout notes and the formation evidence share this one flexible row and
    scroll together as a unit — previously they were two separate grid rows
@@ -1246,18 +1248,33 @@
 }
 .arena-opponent-board .opponent-report__bench {
   grid-area: bench;
-  align-self: start;
+  align-self: stretch;
   min-height: 0;
   width: 100%;
   height: 100%;
-  max-height: none;
+  max-height: 100%;
   box-sizing: border-box;
   margin-top: 0;
   padding: 14px 12px;
-  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--panel);
+}
+.arena-opponent-board .opponent-report__bench::-webkit-scrollbar {
+  width: 8px;
+}
+.arena-opponent-board .opponent-report__bench::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #a8b7a5;
+  background-clip: padding-box;
+}
+.arena-opponent-board .opponent-report__bench::-webkit-scrollbar-track {
+  background: transparent;
 }
 .arena-opponent-board .opponent-report__bench .opponent-lineup-list {
   grid-template-columns: 1fr;
@@ -1300,6 +1317,12 @@
   }
   .arena-opponent-board .opponent-report__lineup .pitch.pitch--compact {
     height: min(62vh, 548px);
+  }
+  .arena-opponent-board .opponent-report__bench {
+    height: auto;
+    max-height: 520px;
+    overflow-y: auto;
+    scrollbar-gutter: auto;
   }
   .arena-opponent-board .opponent-report__bench .opponent-lineup-list {
     grid-template-columns: 1fr;
