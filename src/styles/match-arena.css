@@ -484,17 +484,14 @@
   background: #fff;
 }
 .set-piece-board h3 { margin: 0 0 12px; font-size: 14px; }
-.set-piece-board__takers label { display: grid; gap: 5px; margin-top: 12px; }
-.set-piece-board__takers label span { color: var(--text-dim); font-size: 9px; font-weight: 800; }
-.set-piece-board select {
-  width: 100%;
-  padding: 9px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #f9fbf7;
-  font: inherit;
-  font-size: 11px;
-}
+/* Same TacticItemBoxSelect used by every other tactics tab, instead of a
+   plain native <select> — a native dropdown's own popup renders in the
+   browser/OS's UI font regardless of the page's font-family, which is what
+   made this one panel read as a different typeface from the rest. */
+.set-piece-board__taker-fields { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+/* A player name + stat ("손흥민 · PK 75") reads larger than every other
+   box's short value at the shared size, so this one is scaled down alone. */
+.set-piece-board__taker-fields .match-tactic-itembox > strong { font-size: 11px; }
 .set-piece-board__participants header { display: flex; justify-content: space-between; align-items: center; }
 .set-piece-board__participants header span { color: var(--accent); font-size: 10px; font-weight: 900; }
 .set-piece-board__participants > div { display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
@@ -720,7 +717,7 @@
   border-radius: 50%;
   background: #0b5627;
   box-shadow: 0 2px 5px rgba(0,0,0,.22);
-  font-size: 12px;
+  font-size: 11px;
 }
 .role-board__slot > span {
   display: block;
@@ -730,15 +727,15 @@
   white-space: nowrap;
   text-shadow: 0 1px 2px rgba(0,0,0,.7);
 }
-.role-board__slot > span { font-size: 12px; font-weight: 850; }
+.role-board__slot > span { font-size: 10px; font-weight: 800; }
 .role-board__slot > small {
   width: 100px;
   display: block;
   margin-top: 2px;
   overflow: hidden;
   color: #d7f6dc;
-  font-size: 11px;
-  font-weight: 850;
+  font-size: 9px;
+  font-weight: 800;
   line-height: 1.15;
   text-wrap: balance;
   text-shadow: 0 1px 2px rgba(0,0,0,.7);
@@ -754,16 +751,16 @@
   padding: 2px 4px 14px;
   border-bottom: 1px solid var(--border);
 }
-.role-board__editor > header small { color: var(--accent); font-size: 11px; font-weight: 900; }
-.role-board__editor > header h3 { margin: 4px 0 0; color: var(--text); font-size: 20px; }
+.role-board__editor > header small { color: var(--accent); font-size: 9px; font-weight: 800; }
+.role-board__editor > header h3 { margin: 4px 0 0; color: var(--text); font-size: 15px; }
 .role-board__options { display: grid; }
 .role-board__options > button {
-  min-height: 118px;
+  min-height: 100px;
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
-  gap: 14px;
-  padding: 17px 12px;
+  gap: 12px;
+  padding: 14px 12px;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
@@ -774,16 +771,16 @@
 }
 .role-board__options > button:hover { background: #f1f7ee; }
 .role-board__options > button[data-active] { background: #e7f4e5; }
-.role-board__check { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid #9eb39f; border-radius: 50%; color: #fff; font-size: 12px; }
+.role-board__check { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid #9eb39f; border-radius: 50%; color: #fff; font-size: 10px; }
 .role-board__options > button[data-active] .role-board__check { border-color: var(--accent); background: var(--accent); }
 .role-board__option-copy { min-width: 0; }
-.role-board__option-copy > strong { display: block; font-size: 16px; }
-.role-board__option-copy > small { display: grid; gap: 8px; margin-top: 10px; font-size: 12px; line-height: 1.5; }
+.role-board__option-copy > strong { display: block; font-size: 13px; }
+.role-board__option-copy > small { display: grid; gap: 6px; margin-top: 8px; font-size: 11px; line-height: 1.5; }
 .role-board__option-copy > small b,
-.role-board__option-copy > small i { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 9px; font-weight: 650; font-style: normal; }
+.role-board__option-copy > small i { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 8px; font-weight: 650; font-style: normal; }
 .role-board__option-copy > small b { color: #256b3d; }
 .role-board__option-copy > small i { color: #9a4c44; }
-.role-board__option-copy > small span { font-size: 10px; font-weight: 900; }
+.role-board__option-copy > small span { font-size: 9px; font-weight: 900; }
 .quick-tactics__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .quick-tactics__grid button {
   min-height: 92px;
