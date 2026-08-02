@@ -265,6 +265,36 @@ export function ArenaTacticsPanel({
   );
 }
 
+/**
+ * Matches whichever stats the engine actually reads for that kick, not a
+ * generic overall rating. Corners/free kicks use eventEngine.ts's own
+ * weighting (crossing+longPassing*0.5 / freeKickAccuracy+shotPower*0.25);
+ * penalties use penalties.ts's goal-probability weighting
+ * (penalties 55% + composure 30% + finishing 15%) — composure is included
+ * here because it is a real, sizeable contributor to the actual PK result,
+ * not just decoration.
+ */
+function kickerStatLabel(
+  key: "penaltyTakerId" | "cornerTakerId" | "freeKickTakerId",
+  player: Player,
+): string {
+  const ability = player.ability;
+  if (key === "penaltyTakerId") return `PK ${ability?.penalties ?? 60}`;
+  if (key === "cornerTakerId") return `크로스 ${ability?.crossing ?? 60}`;
+  return `프리킥 ${ability?.freeKickAccuracy ?? 60}`;
+}
+
+/** Same stats as the label above, so the list is sorted by what it shows. */
+function kickerSortValue(
+  key: "penaltyTakerId" | "cornerTakerId" | "freeKickTakerId",
+  player: Player,
+): number {
+  const ability = player.ability;
+  if (key === "penaltyTakerId") return ability?.penalties ?? 60;
+  if (key === "cornerTakerId") return ability?.crossing ?? 60;
+  return ability?.freeKickAccuracy ?? 60;
+}
+
 function SetPieceBoard({
   slots,
   playersById,
@@ -326,11 +356,13 @@ function SetPieceBoard({
               }}
             >
               <option value="">자동 선택</option>
-              {(key === "penaltyTakerId" ? players : outfield).map((player) => (
-                <option key={player.player_id} value={player.player_id}>
-                  {player.player_name} · OVR {player.ability?.overall ?? 65}
-                </option>
-              ))}
+              {[...(key === "penaltyTakerId" ? players : outfield)]
+                .sort((a, b) => kickerSortValue(key, b) - kickerSortValue(key, a))
+                .map((player) => (
+                  <option key={player.player_id} value={player.player_id}>
+                    {player.player_name} · {kickerStatLabel(key, player)}
+                  </option>
+                ))}
             </select>
           </label>
         ))}

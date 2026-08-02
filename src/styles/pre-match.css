@@ -998,10 +998,13 @@
   gap: 18px;
 }
 
+/* A fixed ratio (not flex:1 1 auto) keeps this the same size regardless of
+   how much room is left above it — halftime adds a score summary bar the
+   pre-kickoff sidebar doesn't have, which used to squash this flex-grown
+   box shorter than the pre-kickoff one showing the exact same tactics. */
 .prematch-tactic-summary > .prematch-mini-pitch {
-  flex: 1 1 auto;
-  min-height: 120px;
-  aspect-ratio: auto;
+  flex: 0 0 auto;
+  width: 100%;
 }
 
 .prematch-tactic-summary__copy {
