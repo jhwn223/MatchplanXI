@@ -1142,7 +1142,6 @@ export function MatchArena({
             minute={hud.minute}
             userTeamName={userTeamName}
             userCode={userCode}
-            oppTeamName={oppTeamName}
             formation={formation}
             formationLabel={formationLabel}
             tactics={teamTactics}
