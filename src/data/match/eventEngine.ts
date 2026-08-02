@@ -43,6 +43,7 @@ import type {
   SimTacticProfile,
 } from "./types";
 import type { MatchWorld } from "./world/types";
+import { createTrackRecorder, finishTrack } from "./world/worldTrack";
 import { roleDefinition } from "../playerRoles";
 
 export interface PeriodSimulation {
@@ -70,7 +71,11 @@ function eloPerformanceEdge(userElo: number, oppElo: number) {
 
 function eloQualityMultiplier(edge: number, side: MatchSide) {
   const sideEdge = side === "user" ? edge : -edge;
-  return clamp(1 + sideEdge * 0.15, 0.86, 1.15);
+  // A clear team-strength advantage has to be felt over dozens of repeated
+  // decisions, without deciding any single action. The previous 15% slope was
+  // weak enough that a 250-point edge could still lose a majority of neutral
+  // matches after the build-up model became more realistic.
+  return clamp(1 + sideEdge * 0.17, 0.84, 1.17);
 }
 
 /**
@@ -215,7 +220,7 @@ export function simulatePeriodWithWorld(
     (userTactics.pressBias - oppTactics.pressBias) * 0.012;
   const userPossessionChance = clamp(
     0.5 +
-      eloEdge * 0.075 +
+      eloEdge * 0.085 +
       creativityEdge * 0.08 -
       (input.attackBias - (input.oppAttackBias ?? 0)) * 0.025 +
       tacticalPossessionEdge +
@@ -237,9 +242,16 @@ export function simulatePeriodWithWorld(
   if (world.elapsedSeconds < periodStartMinute * 60) {
     world.elapsedSeconds = periodStartMinute * 60;
   }
+  // Position sampling for the analysis screens. Sized for the period plus the
+  // stoppage time a last action can run into.
+  world.track = createTrackRecorder(
+    world,
+    world.elapsedSeconds,
+    (hi - periodStartMinute) * 60 + 120,
+  );
   const currentMinute = () => clamp(Math.floor(world.elapsedSeconds / 60) + 1, lo, hi);
   const currentTimestamp = () => clamp(world.elapsedSeconds / 60, lo - 1, hi - 0.001);
-  const advanceClock = (seconds: number) => {
+  const advanceClock = (seconds: number, inPlay = true) => {
     // Time passing between two recorded events repositions players, not the
     // ball: the event log has to stay one continuous ball path so the replay
     // never has to teleport it. A carry that really does move the ball is
@@ -250,14 +262,18 @@ export function simulatePeriodWithWorld(
     // stepped coarsely instead of at in-play resolution.
     const tickLength = seconds > 6 ? 2 : 0.5;
     let remaining = Math.max(0, seconds);
+    world.ballInPlay = inPlay;
     while (remaining > 0.001) {
       const slice = Math.min(12, remaining);
       advanceWorld(world, runtimeInput, tacticsBySide, slice, tickLength);
       remaining -= slice;
     }
+    world.ballInPlay = true;
     world.ball.x = ballX;
     world.ball.y = ballY;
   };
+  /** Time the clock runs while the ball is out of play. */
+  const advanceStoppage = (seconds: number) => advanceClock(seconds, false);
   /**
    * How much harder a pass is because of its length and because of who is
    * standing where it lands.
@@ -480,7 +496,7 @@ export function simulatePeriodWithWorld(
     const receiverStats = playerStat(playerStats, side, receiver);
     if (receiverStats) receiverStats.offsides++;
     addEvent(side, "offside", receiver, passer, false);
-    advanceClock(DEAD_BALL_SECONDS.offside);
+    advanceStoppage(DEAD_BALL_SECONDS.offside);
   };
 
   const resolveSetPiece = (
@@ -509,10 +525,6 @@ export function simulatePeriodWithWorld(
       ?? outfield(activePlayers).reduce((best, player) =>
         setPieceWeight(player) > setPieceWeight(best) ? player : best
       );
-    // Walking to the ball, forming a wall and waiting for the referee is a
-    // real part of the ninety minutes, so a restart costs the clock.
-    advanceClock(DEAD_BALL_SECONDS[kind]);
-    activePossessionId = `${currentMinute()}:restart:${events.length}`;
     // The ball is physically placed on the corner arc or the penalty spot
     // before it is struck, so the restart event and everything that follows
     // read from there.
@@ -524,6 +536,15 @@ export function simulatePeriodWithWorld(
       world.ball.x = attackingRight ? 89 : 11;
       world.ball.y = 50;
     }
+    // Walking to the ball, forming a wall and waiting for the referee is a
+    // real part of the ninety minutes, so a restart costs the clock — and it is
+    // the time the twenty-two players spend arranging themselves for it, which
+    // is why the ball is placed first and the shape declared before the clock
+    // runs rather than after.
+    world.restart = { side, kind, takerId: taker.playerId };
+    advanceStoppage(DEAD_BALL_SECONDS[kind]);
+    world.restart = undefined;
+    activePossessionId = `${currentMinute()}:restart:${events.length}`;
     const sideTactics = side === "user" ? userTactics : oppTactics;
     const defendingSide = otherSide(side);
     const designatedParticipants = kind === "corner"
@@ -537,7 +558,6 @@ export function simulatePeriodWithWorld(
       .filter((player): player is PlacedPlayerLite => player != null);
     const candidates = selectedParticipants.length ? selectedParticipants : allCandidates;
     if (kind === "corner") running[side].corners++;
-    addEvent(side, kind, taker, keeperPlayer, true);
 
     const deliveryChance = kind === "penaltyKick"
       ? 1
@@ -548,23 +568,42 @@ export function simulatePeriodWithWorld(
           0.08,
           0.3,
         );
-    if (rng() >= deliveryChance || !candidates.length) return;
-
+    const delivered = rng() < deliveryChance && candidates.length > 0;
     // A goalkeeper can end up carrying the ball out of defence, and a foul on
     // him was handing him the resulting spot kick to take himself.
     const outfieldTaker =
-      taker.position === "GK"
+      delivered && taker.position === "GK"
         ? weightedPick(candidates, (player) => 0.5 + player.penalties / 100, rng)
         : taker;
-    const shooter = kind === "penaltyKick"
-      ? outfieldTaker
-      : weightedPick(
-          candidates,
-          (player) =>
-            (player.position === "FWD" ? 2.8 : player.position === "DEF" ? 1.5 : 1.1) *
-            (0.35 + (player.positioning + player.strength + player.finishing + player.headingAccuracy) / 400),
-          rng,
-        );
+    const shooter = !delivered
+      ? undefined
+      : kind === "penaltyKick"
+        ? outfieldTaker
+        : weightedPick(
+            candidates,
+            (player) =>
+              (player.position === "FWD" ? 2.8 : player.position === "DEF" ? 1.5 : 1.1) *
+              (0.35 + (player.positioning + player.strength + player.finishing + player.headingAccuracy) / 400),
+            rng,
+          );
+    // A corner or a wide free kick is a delivery: the recorded event runs from
+    // the spot to whoever meets it, so the ball path stays continuous into the
+    // header that follows. A penalty is struck from the spot itself.
+    addEvent(
+      side,
+      kind,
+      taker,
+      kind === "penaltyKick" ? keeperPlayer : shooter ?? keeperPlayer,
+      true,
+    );
+    if (!shooter) {
+      // The delivery is headed clear. Both sides have every outfield player in
+      // one penalty area at this moment, and it takes them real seconds to get
+      // out of it — resuming instantly handed whoever won the ball an empty
+      // pitch and made scoring bursts far more likely than they should be.
+      advanceClock(5);
+      return;
+    }
     const shotXg = kind === "penaltyKick"
       ? 0.76
       : clamp(
@@ -616,7 +655,7 @@ export function simulatePeriodWithWorld(
         true,
         shotXg,
       );
-      advanceClock(DEAD_BALL_SECONDS.goal);
+      advanceStoppage(DEAD_BALL_SECONDS.goal);
       return;
     }
     if (rng() < 0.45) {
@@ -626,10 +665,10 @@ export function simulatePeriodWithWorld(
       const keeperStats = playerStat(playerStats, defendingSide, keeperPlayer);
       if (keeperStats) keeperStats.saves++;
       addEvent(defendingSide, "save", keeperPlayer, shooter, true, shotXg);
-      advanceClock(DEAD_BALL_SECONDS.save);
+      advanceStoppage(DEAD_BALL_SECONDS.save);
     } else {
       addEvent(side, "miss", shooter, undefined, false, shotXg);
-      advanceClock(DEAD_BALL_SECONDS.goalKick);
+      advanceStoppage(DEAD_BALL_SECONDS.goalKick);
     }
   };
 
@@ -660,7 +699,7 @@ export function simulatePeriodWithWorld(
       const userShare = clamp(
         0.5 +
           (userBodies - oppBodies) * 0.09 +
-          eloEdge * 0.1 +
+          eloEdge * 0.11 +
           creativityEdge * 0.05 +
           (previous === "user" ? -0.16 : 0.16),
         0.12,
@@ -1385,7 +1424,7 @@ export function simulatePeriodWithWorld(
         // A stronger side tends to turn the same territory into a slightly
         // cleaner look. This remains much smaller than a favourable tactical
         // matchup, so the manager can still reverse the expected result.
-        sideStrengthEdge * 0.016 +
+        sideStrengthEdge * 0.019 +
         // An unguarded box is a chance; a crowded one is a blocked effort.
         openness * 0.04 +
         // A defence that has not reset yet is the whole value of a counter.
@@ -1460,7 +1499,7 @@ export function simulatePeriodWithWorld(
           assist,
         });
         addEvent(side, "goal", carrier, assist ? lastPasser : undefined, true, shotXg);
-        advanceClock(DEAD_BALL_SECONDS.goal);
+        advanceStoppage(DEAD_BALL_SECONDS.goal);
         break;
       }
 
@@ -1496,7 +1535,7 @@ export function simulatePeriodWithWorld(
         if (rng() < 0.18) {
           resolveSetPiece(side, "corner", lastPasser ?? carrier, keeperPlayer);
         } else {
-          advanceClock(DEAD_BALL_SECONDS.goalKick);
+          advanceStoppage(DEAD_BALL_SECONDS.goalKick);
         }
         break;
       }
@@ -1510,7 +1549,7 @@ export function simulatePeriodWithWorld(
       if (rng() < 0.42) {
         resolveSetPiece(side, "corner", lastPasser ?? carrier, keeperPlayer);
       } else {
-        advanceClock(DEAD_BALL_SECONDS.save);
+        advanceStoppage(DEAD_BALL_SECONDS.save);
       }
       break;
     }
@@ -1542,6 +1581,7 @@ export function simulatePeriodWithWorld(
       goals,
       events,
       positionSamples,
+      track: world.track ? finishTrack(world.track) : undefined,
       userGoals: goals.filter((goal) => goal.side === "user").length,
       oppGoals: goals.filter((goal) => goal.side === "opp").length,
       userXg: running.user.xg,

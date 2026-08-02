@@ -527,7 +527,7 @@ function HalftimeReviewOverlay({
           <MatchAnalysis
             events={result.events}
             players={result.playerStats}
-            positionSamples={result.positionSamples}
+            track={result.track}
             minute={45}
           />
         )}

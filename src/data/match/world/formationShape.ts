@@ -82,12 +82,17 @@ export function formationAnchor({
 }: FormationAnchorInput): WorldPoint {
   const canonicalBallX = direction === 1 ? ball.x : 100 - ball.x;
   const shiftGain =
-    phase === "buildUp" ? 0.3 :
-      phase === "transitionAttack" ? 0.46 :
-        phase === "transitionDefense" ? 0.38 :
-          phase === "finalThird" ? 0.42 :
-            hasBall ? 0.4 : 0.34;
-  const blockShift = clamp((canonicalBallX - 50) * shiftGain, -13, 13);
+    phase === "buildUp" ? 0.36 :
+      phase === "transitionAttack" ? 0.54 :
+        phase === "transitionDefense" ? 0.46 :
+          phase === "finalThird" ? 0.5 :
+            hasBall ? 0.48 : 0.42;
+  // How far the whole block travels between its deepest and its highest
+  // position. At +-13 it moved 26 units end to end where a real side covers
+  // 35-40 m of a 105 m pitch, and the clamp was binding for most of any spell
+  // in the final third — which is why every player's longitudinal spread came
+  // out at about half of a real one and the three lines never overlapped.
+  const blockShift = clamp((canonicalBallX - 50) * shiftGain, -18, 18);
   const overlap = profile.overlapBias ?? 0;
   const directness = profile.directnessBias ?? 0;
   const tempo = profile.tempoBias ?? 0;
@@ -182,7 +187,10 @@ export function formationAnchor({
     0.42,
     1.45,
   );
-  const ballShift = hasBall ? 0.14 : 0.2;
+  // The block slides across to the ball's side of the pitch. A real side shifts
+  // 10-15 m of its 68 m width; at 0.2 it managed barely half that, so nobody
+  // ever left his lane and every heat map came out as a column.
+  const ballShift = hasBall ? 0.22 : 0.32;
   // Attacking down one side has to be legible on a heat map, so the shift is
   // real and the players who actually move over — the front and middle lines —
   // shift furthest. A little of it survives out of possession as well.

@@ -49,6 +49,7 @@ export const PlayerCardVisual = forwardRef<HTMLDivElement, Props>(
         {...(attributes as object)}
         style={style}
         className={`player-card player-card--${variant}`}
+        data-discipline={discipline}
         data-dragging={state !== "idle" || undefined}
         data-ineligible={ineligible || undefined}
         onClick={(event) => {

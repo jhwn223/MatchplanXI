@@ -12,6 +12,8 @@ interface Props {
   players: Player[];
   /** Everyone in the opposition squad who is not in that XI. */
   bench: Player[];
+  /** Sent-off players stay out of the XI but leave a labelled red-card marker. */
+  dismissedPlayers?: Player[];
   conditions: Map<number, ConditionBreakdown>;
   plan: OpponentPlan;
   currentFormation?: FormationKey;
@@ -31,6 +33,7 @@ export function OpponentAnalysisPanel({
   opponent,
   players,
   bench,
+  dismissedPlayers = [],
   conditions,
   plan,
   currentFormation = plan.formation,
@@ -81,6 +84,7 @@ export function OpponentAnalysisPanel({
           conditions={conditions}
           onSelectPlayer={onSelectPlayer}
           discipline={discipline}
+          dismissedPlayers={dismissedPlayers}
         />
       </section>
 
@@ -195,12 +199,14 @@ function OpponentLineupPitch({
   conditions,
   onSelectPlayer,
   discipline,
+  dismissedPlayers,
 }: {
   formation: FormationKey;
   players: Player[];
   conditions: Map<number, ConditionBreakdown>;
   onSelectPlayer?: (player: Player) => void;
   discipline?: Map<number, PlayerDiscipline>;
+  dismissedPlayers?: Player[];
 }) {
   const slots = slotsOf(formation);
   const available = new Set(players);
@@ -218,6 +224,17 @@ function OpponentLineupPitch({
     assigned.set(slot.id, player);
     available.delete(player);
   }
+  const dismissedAvailable = new Set(dismissedPlayers ?? []);
+  const dismissedBySlot = new Map<string, Player>();
+  for (const slot of slots.filter((entry) => !assigned.has(entry.id))) {
+    const candidates = [...dismissedAvailable];
+    const player = candidates.find((candidate) => candidate.position === slot.position)
+      ?? candidates.find((candidate) => slot.position !== "GK" && candidate.position !== "GK")
+      ?? candidates[0];
+    if (!player) continue;
+    dismissedBySlot.set(slot.id, player);
+    dismissedAvailable.delete(player);
+  }
   return (
     <div className="pitch pitch--compact" aria-label={`상대 예상 선발 ${formation}`}>
       <div className="pitch__markings">
@@ -228,6 +245,7 @@ function OpponentLineupPitch({
       </div>
       {slots.map((slot) => {
         const player = assigned.get(slot.id);
+        const dismissedPlayer = dismissedBySlot.get(slot.id);
         return (
           <div
             key={slot.id}
@@ -243,6 +261,16 @@ function OpponentLineupPitch({
                 onSelect={onSelectPlayer}
                 discipline={discipline?.get(player.player_id)}
               />
+            ) : dismissedPlayer ? (
+              <div className="opponent-lineup-dismissed" aria-label={`${dismissedPlayer.player_name} 퇴장`}>
+                <PlayerCardVisual
+                  player={dismissedPlayer}
+                  condition={conditions.get(dismissedPlayer.player_id)}
+                  variant="slot"
+                  discipline="red"
+                />
+                <span>퇴장</span>
+              </div>
             ) : (
               <div className="pitch-slot__placeholder">{slot.label}</div>
             )}

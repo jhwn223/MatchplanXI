@@ -1,4 +1,7 @@
-import type { MatchEvent, MatchSide, PassType, PositionSample } from "../../data/matchSim";
+import { useMemo } from "react";
+import type { MatchEvent, MatchSide, PassType, WorldTrack } from "../../data/matchSim";
+import { ballDwell, playerDwell } from "../../data/matchSim";
+import { buildHeatCells, heatColor } from "./heatMap";
 import { ALL_PASS_TYPES, PASS_TYPE_META } from "./passMap";
 
 export type EventMapMode = "positions" | "ball" | "shots" | "passes" | "turnovers" | "recoveries";
@@ -10,35 +13,12 @@ interface Props {
   /** Earliest minute to include; lets a tactical change be seen on its own. */
   since?: number;
   player?: string;
+  /** The same player as `player`, for the position track, which stores ids. */
+  playerId?: number;
   passTypes?: PassType[];
-  positionSamples?: PositionSample[];
+  /** Clock-sampled positions; both heat maps are drawn from it. */
+  track?: WorldTrack;
   side?: MatchSide;
-}
-
-interface HeatPoint {
-  x: number;
-  y: number;
-  intensity: number;
-}
-
-function buildHeatPoints(samples: Array<{ x: number; y: number }>): HeatPoint[] {
-  const cells = new Map<string, { x: number; y: number; count: number }>();
-  for (const sample of samples.slice(-2_500)) {
-    const x = sample.x;
-    const y = (sample.y / 100) * 62 + 1;
-    const key = `${Math.round(x / 4)}:${Math.round(y / 4)}`;
-    const cell = cells.get(key) ?? { x: 0, y: 0, count: 0 };
-    cell.x += x;
-    cell.y += y;
-    cell.count++;
-    cells.set(key, cell);
-  }
-  const maxCount = Math.max(1, ...Array.from(cells.values(), (cell) => cell.count));
-  return Array.from(cells.values(), (cell) => ({
-    x: cell.x / cell.count,
-    y: cell.y / cell.count,
-    intensity: Math.sqrt(cell.count / maxCount),
-  }));
 }
 
 export function ArenaEventMap({
@@ -47,8 +27,9 @@ export function ArenaEventMap({
   mode,
   since = 0,
   player,
+  playerId,
   passTypes = ALL_PASS_TYPES,
-  positionSamples = [],
+  track,
   side = "user",
 }: Props) {
   const eventSide = mode === "turnovers" ? (side === "user" ? "opp" : "user") : side;
@@ -66,28 +47,28 @@ export function ArenaEventMap({
     }
     return true;
   });
-  const heatSamples = positionSamples
-    .filter((sample) => sample.minute <= minute && sample.minute >= since && sample.side === side)
-    .filter((sample) => !player || sample.playerName === player);
-  const ballSamples = elapsed.flatMap((event) => {
-    const points: Array<{ x: number; y: number }> = [];
-    if (event.x != null && event.y != null) points.push({ x: event.x, y: event.y });
-    if (event.endX != null && event.endY != null) points.push({ x: event.endX, y: event.endY });
-    return points;
-  });
-  const heatPoints = mode === "positions"
-    ? buildHeatPoints(heatSamples)
-    : mode === "ball"
-      ? buildHeatPoints(ballSamples)
-      : [];
   const isHeatMap = mode === "positions" || mode === "ball";
+  const heatCells = useMemo(() => {
+    if (!track || !isHeatMap) return [];
+    const window = { fromMinute: since, toMinute: minute };
+    return buildHeatCells(
+      mode === "positions"
+        ? playerDwell(track, { ...window, side, playerId, includeKeeper: true, inPlayOnly: true })
+        : ballDwell(track, { ...window, side, playerId }),
+      {
+        preserveRoutes: mode === "ball" || (mode === "positions" && playerId != null),
+        normalizeGroups: mode === "positions" && playerId == null,
+      },
+    );
+  }, [track, isHeatMap, mode, side, playerId, since, minute]);
 
   return (
     <div className={`arena-event-map-frame arena-event-map-frame--${mode}`}>
     <svg className="arena-event-map" viewBox="0 0 100 64" role="img" aria-label="경기 이벤트 위치 지도">
       <defs>
+        {/* The grid is already smoothed; this only softens the cell edges. */}
         <filter id="heat-blur" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="1.8" />
+          <feGaussianBlur stdDeviation="1.1" />
         </filter>
         <clipPath id="pitch-clip"><rect x="1" y="1" width="98" height="62" rx="2" /></clipPath>
       </defs>
@@ -104,26 +85,23 @@ export function ArenaEventMap({
           data-alt={index % 2 || undefined}
         />
       ))}
-      {(isHeatMap ? heatPoints.length === 0 : visible.length === 0) && (
+      {(isHeatMap ? heatCells.length === 0 : visible.length === 0) && (
         <text x="50" y="34" textAnchor="middle">아직 기록이 없습니다</text>
       )}
       {isHeatMap && (
         <g className="arena-event-map__heat" filter="url(#heat-blur)" clipPath="url(#pitch-clip)">
-          {heatPoints.map((point, index) => {
-            const radius = 7 + point.intensity * 6;
-            return (
-              <g key={index}>
-                <circle cx={point.x} cy={point.y} r={radius} fill="#52d327" opacity={0.34 + point.intensity * 0.2} />
-                <circle cx={point.x} cy={point.y} r={radius * 0.72} fill="#ffe600" opacity={0.28 + point.intensity * 0.3} />
-                {point.intensity >= 0.34 && (
-                  <circle cx={point.x} cy={point.y} r={radius * 0.46} fill="#ff8118" opacity={0.3 + point.intensity * 0.36} />
-                )}
-                {point.intensity >= 0.62 && (
-                  <circle cx={point.x} cy={point.y} r={radius * 0.25} fill="#f2381b" opacity={0.4 + point.intensity * 0.4} />
-                )}
-              </g>
-            );
-          })}
+          {heatCells.map((cell, index) => (
+            <rect
+              key={index}
+              // Overlapped by a hair so the blur has no seams to reveal.
+              x={cell.x - 0.05}
+              y={cell.y - 0.05}
+              width={cell.width + 0.1}
+              height={cell.height + 0.1}
+              fill={heatColor(cell.intensity)}
+              opacity={0.18 + cell.intensity * 0.62}
+            />
+          ))}
         </g>
       )}
       {!isHeatMap && visible.slice(-300).map((event, index) => {

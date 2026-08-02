@@ -1,5 +1,6 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import type { LiveMatchSnapshot, MatchEvent, PassType, PlayerMatchStats } from "../../data/matchSim";
+import { ballDwell, playerDwell } from "../../data/matchSim";
 import { FORMATION_KEYS, slotsOf, type FormationKey, type SlotPositions } from "../../data/formation";
 import type { Player } from "../../data/types";
 import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
@@ -43,6 +44,7 @@ interface Props {
   playersById: Map<number, Player>;
   opponentPlayers: Player[];
   opponentBench: Player[];
+  dismissedOpponentPlayers?: Player[];
   opponentFormation?: FormationKey;
   opponentTactics?: TeamTactics;
   squadControls?: ArenaSquadControls;
@@ -52,6 +54,7 @@ interface Props {
   setPieces?: SetPieceAssignments;
   onSetPieceChange?: (assignments: SetPieceAssignments) => void;
   dismissalNotice?: string | null;
+  dismissalSide?: "user" | "opp" | null;
   discipline?: Map<number, PlayerDiscipline>;
   opponentDiscipline?: Map<number, PlayerDiscipline>;
   savedTactics?: SavedTactic[];
@@ -77,6 +80,7 @@ export function ArenaMatchCenter({
   playersById,
   opponentPlayers,
   opponentBench,
+  dismissedOpponentPlayers = [],
   opponentFormation,
   opponentTactics,
   squadControls,
@@ -86,6 +90,7 @@ export function ArenaMatchCenter({
   setPieces,
   onSetPieceChange,
   dismissalNotice,
+  dismissalSide,
   discipline: suppliedDiscipline,
   opponentDiscipline,
   savedTactics,
@@ -149,7 +154,7 @@ export function ArenaMatchCenter({
               <div><h3>선수 포지셔닝</h3><span>{minute}분까지</span></div>
               <ArenaEventMap
                 events={events}
-                positionSamples={sim.positionSamples}
+                track={sim.track}
                 minute={minute}
                 mode="positions"
               />
@@ -174,7 +179,7 @@ export function ArenaMatchCenter({
         <MatchAnalysis
           events={events}
           players={live?.players ?? []}
-          positionSamples={sim.positionSamples}
+          track={sim.track}
           minute={minute}
         />
       )}
@@ -206,7 +211,14 @@ export function ArenaMatchCenter({
               </div>
             </header>
             {dismissalNotice && (
-              <div className="arena-dismissal-notice" role="alert">{dismissalNotice}</div>
+              <div
+                className="arena-dismissal-notice"
+                data-side={dismissalSide ?? "user"}
+                role="alert"
+              >
+                <span aria-hidden="true">{dismissalSide === "opp" ? "↗" : "!"}</span>
+                {dismissalNotice}
+              </div>
             )}
             <div className="arena-squad-board__status">
               <label>
@@ -269,6 +281,7 @@ export function ArenaMatchCenter({
               opponent={squadControls.opponent}
               players={opponentPlayers}
               bench={opponentBench}
+              dismissedPlayers={dismissedOpponentPlayers}
               onSelectPlayer={squadControls.onSelectPlayer}
               conditions={squadControls.opponentConditions}
               plan={squadControls.opponentPlan}
@@ -335,12 +348,12 @@ function isBallWon(type: MatchEvent["type"]) {
 export function MatchAnalysis({
   events,
   players,
-  positionSamples = [],
+  track,
   minute,
 }: {
   events: NonNullable<ArenaSim["events"]>;
   players: PlayerMatchStats[];
-  positionSamples?: NonNullable<ArenaSim["positionSamples"]>;
+  track?: ArenaSim["track"];
   minute: number;
 }) {
   const [mode, setMode] = useState<EventMapMode>("positions");
@@ -353,6 +366,8 @@ export function MatchAnalysis({
   const since = windowMinutes > 0 ? Math.max(0, minute - windowMinutes) : 0;
   const [passTypes, setPassTypes] = useState<PassType[]>(ALL_PASS_TYPES);
   const sidePlayers = useMemo(() => players.filter((entry) => entry.side === side), [players, side]);
+  // The position track is keyed by player id; the filter is chosen by name.
+  const playerId = sidePlayers.find((entry) => entry.name === player)?.playerId;
   const elapsed = events.filter((event) => event.minute <= minute && event.minute >= since);
   const visibleSidePasses = elapsed.filter((event) =>
     event.side === side
@@ -364,15 +379,18 @@ export function MatchAnalysis({
       visibleSidePasses.filter((event) => (event.passType ?? "normal") === type).length,
     ]),
   ) as Record<PassType, number>;
+  const window = { fromMinute: since, toMinute: minute };
   const counts: Record<EventMapMode, number> = {
-    positions: positionSamples.filter(
-      (sample) =>
-        sample.minute <= minute &&
-        sample.minute >= since &&
-        sample.side === side &&
-        (!player || sample.playerName === player),
-    ).length,
-    ball: elapsed.filter((event) => event.side === side && event.x != null && event.y != null).length,
+    positions: track
+      ? playerDwell(track, { ...window, side, playerId, includeKeeper: true, inPlayOnly: true }).length
+      : 0,
+    // Seconds the side actually had the ball, which is what the map now draws.
+    ball: track
+      ? Math.round(
+          ballDwell(track, { ...window, side, playerId })
+            .reduce((total, point) => total + point.seconds, 0),
+        )
+      : 0,
     shots: elapsed.filter((event) => event.side === side && event.type === "shot").length,
     passes: elapsed.filter((event) => event.side === side && event.type === "pass").length,
     turnovers: elapsed.filter((event) => event.side !== side && isBallWon(event.type)).length,
@@ -447,11 +465,12 @@ export function MatchAnalysis({
         )}
         <ArenaEventMap
           events={events}
-          positionSamples={positionSamples}
+          track={track}
           since={since}
           minute={minute}
           mode={mode}
           player={player || undefined}
+          playerId={playerId}
           passTypes={passTypes}
           side={side}
         />

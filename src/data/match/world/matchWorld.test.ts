@@ -80,6 +80,32 @@ describe("authoritative match world", () => {
     expect(centralScore).toBeGreaterThan(centralPlanWideScore * 2);
   });
 
+  test("balanced build-up prefers a midfield bridge over skipping a third", () => {
+    const input = testInput(52);
+    const world = createMatchWorld(input, 8, { user: testTactics(), opp: testTactics() });
+    const passer = input.placed[2];
+    const midfielder = input.placed[6];
+    const forward = input.placed[9];
+    const passerState = world.players.user.get(passer.playerId);
+    const midfieldState = world.players.user.get(midfielder.playerId);
+    const forwardState = world.players.user.get(forward.playerId);
+    if (!passerState || !midfieldState || !forwardState) throw new Error("build-up states missing");
+    passerState.x = 27;
+    passerState.y = 50;
+    midfieldState.x = 50;
+    midfieldState.y = 50;
+    forwardState.x = 76;
+    forwardState.y = 50;
+    for (const defender of world.players.opp.values()) {
+      defender.x = 92;
+      defender.y = 12;
+    }
+
+    const midfieldScore = passOptionScore(world, "user", passer, midfielder, 0);
+    const skippedThirdScore = passOptionScore(world, "user", passer, forward, 0);
+    expect(midfieldScore).toBeGreaterThan(skippedThirdScore * 3);
+  });
+
   test("distance is calculated from current state rather than formation homes", () => {
     const input = testInput(6);
     const tactics = { user: testTactics(), opp: testTactics() };

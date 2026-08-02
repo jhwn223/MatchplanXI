@@ -16,6 +16,7 @@ import type {
   SimComparison,
   SimInput,
   TeamStats,
+  WorldTrack,
 } from "../../data/matchSim";
 import type { TacticStyleKey } from "../../data/tactics";
 import type { SetPieceAssignments } from "../../data/tactics";
@@ -49,6 +50,8 @@ export interface ArenaSim {
   goals: GoalEvent[];
   events?: MatchEvent[];
   positionSamples?: PositionSample[];
+  /** Clock-sampled ball and player positions behind the heat maps. */
+  track?: WorldTrack;
   userGoals: number;
   oppGoals: number;
   userXg?: number;

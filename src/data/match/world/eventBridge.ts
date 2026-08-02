@@ -12,6 +12,7 @@ import type {
   MatchWorldSnapshot,
   TacticsBySide,
 } from "./types";
+import { noteBallFlight } from "./worldTrack";
 
 export interface WorldEventCoordinate {
   x: number;
@@ -61,11 +62,12 @@ export function coordinateFromWorld(
       x: side === "user" ? 99 : 1,
       y: clamp(50 + (actor.finishing - 70) * 0.04, 42, 58),
     };
+  } else if ((type === "corner" || type === "freeKick") && targetState) {
+    // The delivery, from the spot the ball was placed on to whoever meets it.
+    end = { x: targetState.x, y: targetState.y };
   }
-  // A restart (corner, free kick, penalty) records the spot the ball is
-  // placed on, which the caller has already moved it to. The delivery itself
-  // is the shot or pass event that follows, so start and end coincide here
-  // and the recorded ball path stays continuous.
+  // A penalty is struck from the spot itself, which the caller has already
+  // moved the ball to, so start and end coincide there.
 
   const coordinate = {
     x: clamp(start.x, 1, 99),
@@ -75,6 +77,9 @@ export function coordinateFromWorld(
   };
 
   if (type === "pass") {
+    // Recorded before the ball changes hands, so the analysis track can draw
+    // the route instead of the two ends of it.
+    noteBallFlight(world, coordinate.x, coordinate.y, coordinate.endX, coordinate.endY);
     if (success) {
       moveBallOwner(world, side, target);
     } else {
@@ -95,6 +100,9 @@ export function coordinateFromWorld(
     world.ball.x = coordinate.endX;
     world.ball.y = coordinate.endY;
     moveBallOwner(world, side, undefined);
+  } else if ((type === "corner" || type === "freeKick") && target) {
+    noteBallFlight(world, coordinate.x, coordinate.y, coordinate.endX, coordinate.endY);
+    moveBallOwner(world, side, target);
   }
 
   return coordinate;

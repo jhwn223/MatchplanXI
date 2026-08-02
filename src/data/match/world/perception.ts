@@ -292,6 +292,8 @@ export function passOptionScore(
   if (!start || !end) return 0.01;
   const direction = side === "user" ? 1 : -1;
   const forwardDistance = (end.x - start.x) * direction;
+  const canonicalStart = side === "user" ? start.x : 100 - start.x;
+  const canonicalEnd = side === "user" ? end.x : 100 - end.x;
   const distance = pointDistance(end.x, end.y, start.x, start.y);
   const idealDistance = directness > 0.35 ? 30 : directness < -0.35 ? 14 : 21;
   const distanceFit = 1 / (1 + Math.abs(distance - idealDistance) / 13);
@@ -308,6 +310,22 @@ export function passOptionScore(
     receiver.position === "GK" ? 0.14 :
       receiver.position === "MID" ? 2.2 :
         receiver.position === "DEF" ? 1.2 : 2.1;
+  // In a balanced or short-passing build-up, jumping directly from the first
+  // third to the final third should be an exception rather than the default.
+  // Midfielders become the natural bridge; direct plans and transitions still
+  // retain the long option through `directness` and the normal forward score.
+  let progressionFit = 1;
+  if (directness < 0.45 && canonicalStart < 42) {
+    if (canonicalEnd > 68) progressionFit *= 0.24 + Math.max(0, directness + 0.35) * 0.35;
+    if (receiver.position === "MID" && canonicalEnd >= canonicalStart - 6 && canonicalEnd < 70) {
+      progressionFit *= 1.45;
+    }
+    if ((passer.position === "GK" || passer.position === "DEF") && receiver.position === "FWD" && forwardDistance > 30) {
+      progressionFit *= 0.5;
+    }
+  } else if (directness < 0.45 && canonicalStart < 68 && receiver.position === "MID") {
+    progressionFit *= 1.14;
+  }
   const intelligence =
     0.5 + (receiver.positioning + receiver.reactions + receiver.ballControl) / 270;
   const focusFit = attackFocusLaneWeight(
@@ -316,6 +334,6 @@ export function passOptionScore(
     direction,
     centralFocusBias,
   );
-  return Math.max(0.01, roleWeight * intelligence * distanceFit * space * forwardFit * focusFit);
+  return Math.max(0.01, roleWeight * intelligence * distanceFit * space * forwardFit * focusFit * progressionFit);
 }
 
