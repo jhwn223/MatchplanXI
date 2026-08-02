@@ -409,25 +409,37 @@
 .match-analysis-board {
   display: grid;
   grid-template-columns: 210px 1fr;
-  gap: 14px;
-  padding: 20px 22px 24px;
+  gap: 12px;
+  padding: 14px 18px 18px;
 }
 .match-analysis-board--with-flow {
   grid-template-columns: 210px 1fr 210px;
 }
 .match-analysis-board > aside,
 .match-analysis-board > section {
+  min-height: 0;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #fff;
 }
 .match-analysis-board > aside,
-.match-analysis-board__stats { padding: 15px; }
+.match-analysis-board__stats { padding: 12px; }
+.match-analysis-board > aside {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 6px;
+}
+.match-analysis-board > aside > h3,
+.match-analysis-board > aside > .analysis-side-switch {
+  grid-column: 1 / -1;
+}
 .analysis-side-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 5px;
-  margin: 12px 0 4px;
+  margin: 2px 0 4px;
 }
 .analysis-side-switch button {
   padding: 8px 6px;
@@ -512,7 +524,7 @@
 .set-piece-board__participants button strong { font-size: 10px; }
 .set-piece-board__participants button span { color: var(--text-dim); font-size: 8px; }
 .match-analysis-board h3 { margin: 0; font-size: 14px; }
-.match-analysis-board aside label { display: flex; flex-direction: column; gap: 5px; margin: 14px 0; }
+.match-analysis-board aside label { display: flex; min-width: 0; flex-direction: column; gap: 3px; margin: 0 0 2px; }
 .match-analysis-board aside label span { color: var(--text-dim); font-size: 9px; }
 .match-analysis-board select {
   min-height: 36px;
@@ -526,9 +538,9 @@
 }
 .match-analysis-board aside > button {
   width: 100%;
-  min-height: 39px;
-  margin-top: 6px;
-  padding: 0 10px;
+  min-height: 34px;
+  margin-top: 0;
+  padding: 0 8px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--panel-2);
@@ -543,9 +555,30 @@
 .match-analysis-board aside > button strong { color: var(--accent); font-size: 10px; }
 .match-analysis-board aside > button[data-active] { border-color: var(--accent); background: #e8f6e8; color: var(--accent); }
 .match-analysis-board > section { padding: 15px 18px; }
+.match-analysis-board > section:not(.match-analysis-board__stats) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.match-analysis-board__stats {
+  display: flex;
+  flex-direction: column;
+}
+.match-analysis-board__stats .match-stat-rows {
+  display: grid;
+  flex: 1;
+  margin-top: 6px;
+}
+.match-analysis-board__stats .match-stat-rows > div {
+  min-height: 0;
+}
 .match-analysis-board > section header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .match-analysis-board > section header span { color: var(--text-dim); font-size: 9px; }
-.match-analysis-board > section .arena-event-map { max-height: 390px; }
+.match-analysis-board > section .arena-event-map {
+  min-height: 0;
+  max-height: 100%;
+  flex: 1;
+}
 .pass-map-legend {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1037,7 +1070,7 @@
 }
 .arena-opponent-board {
   min-height: 0;
-  padding: 8px 22px 28px;
+  padding: 8px 22px 18px;
   overflow: hidden;
 }
 .match-center > .arena-opponent-board { overflow: hidden; }
@@ -1056,7 +1089,7 @@
   align-items: start;
   justify-content: center;
   gap: 8px 16px;
-  height: var(--arena-management-pitch-height);
+  height: 100%;
   max-width: 1172px;
   margin: 0 auto;
   padding: 0;
@@ -1155,7 +1188,27 @@
 .arena-opponent-board .opponent-report__shape {
   grid-area: tactics;
   margin-top: 0;
-  padding: 10px 12px;
+  padding: 8px 10px;
+}
+.arena-opponent-board .opponent-tactic-facts h3 {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.arena-opponent-board .opponent-tactic-facts dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+}
+.arena-opponent-board .opponent-tactic-facts dl > div {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 2px;
+}
+.arena-opponent-board .opponent-tactic-facts dt {
+  font-size: 9px;
+}
+.arena-opponent-board .opponent-tactic-facts dd {
+  font-size: 11px;
 }
 /* Scout notes and the formation evidence share this one flexible row and
    scroll together as a unit — previously they were two separate grid rows
@@ -1168,18 +1221,28 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  gap: 6px;
-  overflow-y: auto;
+  gap: 5px;
+  overflow: hidden;
 }
 .arena-opponent-board .opponent-report__scout {
   flex: 0 0 auto;
   margin-top: 0;
-  gap: 6px;
+  gap: 5px;
 }
-.arena-opponent-board .opponent-report__scout > div { padding: 9px 10px; }
+.arena-opponent-board .opponent-report__scout-basis { font-size: 9px; }
+.arena-opponent-board .opponent-report__scout > div { padding: 7px 8px; }
+.arena-opponent-board .opponent-report__scout h3 {
+  margin-bottom: 4px;
+  font-size: 10px;
+}
+.arena-opponent-board .opponent-report__scout ul {
+  font-size: 10px;
+  line-height: 1.4;
+}
 .arena-opponent-board .opponent-report__evidence {
   flex: 0 0 auto;
   margin-top: 0;
+  padding: 6px 8px;
 }
 .arena-opponent-board .opponent-report__bench {
   grid-area: bench;
@@ -1220,6 +1283,7 @@
   .arena-squad-board .bench { height: auto; max-height: 520px; margin-top: 10px; }
   .arena-opponent-board .opponent-report {
     display: block;
+    height: auto;
   }
   .arena-opponent-board .opponent-report__metrics,
   .arena-opponent-board .opponent-report__lineup,
@@ -1230,6 +1294,12 @@
   }
   .arena-opponent-board .opponent-report__scout-group {
     overflow-y: visible;
+  }
+  .arena-opponent-board .opponent-report__lineup {
+    height: auto;
+  }
+  .arena-opponent-board .opponent-report__lineup .pitch.pitch--compact {
+    height: min(62vh, 548px);
   }
   .arena-opponent-board .opponent-report__bench .opponent-lineup-list {
     grid-template-columns: 1fr;
@@ -1497,6 +1567,7 @@
   .match-overview__content { grid-template-columns: 1fr; }
   .match-stat-card { grid-row: auto; }
   .player-ratings-board { grid-template-columns: 1fr; }
+  .match-center > .match-analysis-board { overflow-y: auto; }
   .match-analysis-board { grid-template-columns: 1fr; }
   .match-tactics-editor { grid-template-columns: 1fr; }
   .match-tactics-editor__summary {
