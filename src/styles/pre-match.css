@@ -209,8 +209,8 @@
 
 .board--prematch[data-workspace="lineup"] .formation-summary__col {
   min-height: 0;
-  padding: 13px 14px 14px;
-  gap: 7px;
+  padding: 10px 12px 11px;
+  gap: 5px;
   border-color: #d6e0d3;
   border-radius: 13px;
   background: #f1f5ee;
@@ -218,16 +218,16 @@
 
 .board--prematch[data-workspace="lineup"] .formation-summary__col strong {
   color: #253329;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.4;
 }
 
 .board--prematch[data-workspace="lineup"] .formation-summary__col ul {
   padding-left: 18px;
   color: #687467;
-  font-size: 13px;
-  line-height: 1.65;
-  gap: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+  gap: 3px;
 }
 
 .board--prematch[data-workspace="lineup"] .formation-summary__col li {
