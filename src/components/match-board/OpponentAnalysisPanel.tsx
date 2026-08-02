@@ -96,15 +96,37 @@ export function OpponentAnalysisPanel({
           </dl>
         </div>
       </section>
-      {plan.formationEvidence && (
-        <div className="opponent-report__evidence">
-          <span>근거</span>
-          <p>{plan.formationEvidence.matchId} · {plan.formationEvidence.match}</p>
-          <a href={plan.formationEvidence.sourceUrl} target="_blank" rel="noreferrer">
-            {plan.formationEvidence.sourceName} 보기 ↗
-          </a>
-        </div>
-      )}
+
+      {/* Scout notes and the formation evidence live in one scrollable group
+       *  (see .opponent-report__scout-group in match-arena.css) so that if
+       *  the two together don't fit the in-match column's fixed height, the
+       *  group scrolls instead of the evidence line silently clipping past
+       *  the board's bottom edge. */}
+      <div className="opponent-report__scout-group">
+        <section className="opponent-report__section opponent-report__scout">
+          <small className="opponent-report__scout-basis">
+            48개국 선수단 분포와 팀 내 상대 순위를 함께 반영
+          </small>
+          <div>
+            <h3>강점</h3>
+            <ul>{plan.strengths.map((item) => <li key={item}>{item}</li>)}</ul>
+          </div>
+          <div>
+            <h3>약점</h3>
+            <ul>{plan.weaknesses.map((item) => <li key={item}>{item}</li>)}</ul>
+          </div>
+        </section>
+
+        {plan.formationEvidence && (
+          <div className="opponent-report__evidence">
+            <span>근거</span>
+            <p>{plan.formationEvidence.matchId} · {plan.formationEvidence.match}</p>
+            <a href={plan.formationEvidence.sourceUrl} target="_blank" rel="noreferrer">
+              {plan.formationEvidence.sourceName} 보기 ↗
+            </a>
+          </div>
+        )}
+      </div>
 
       <section className="opponent-report__section opponent-report__bench">
         <h3>상대 교체 명단 <b>{bench.length}명</b></h3>
@@ -135,20 +157,6 @@ export function OpponentAnalysisPanel({
             );
           })
         )}
-      </section>
-
-      <section className="opponent-report__section opponent-report__scout">
-        <small className="opponent-report__scout-basis">
-          48개국 선수단 분포와 팀 내 상대 순위를 함께 반영
-        </small>
-        <div>
-          <h3>강점</h3>
-          <ul>{plan.strengths.map((item) => <li key={item}>{item}</li>)}</ul>
-        </div>
-        <div>
-          <h3>약점</h3>
-          <ul>{plan.weaknesses.map((item) => <li key={item}>{item}</li>)}</ul>
-        </div>
       </section>
 
     </div>

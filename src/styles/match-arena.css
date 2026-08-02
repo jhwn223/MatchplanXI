@@ -1084,13 +1084,12 @@
 .arena-opponent-board .opponent-report {
   display: grid;
   grid-template-columns: minmax(300px, 400px) minmax(250px, 340px) minmax(300px, 400px);
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   grid-template-areas:
     "lineup header bench"
     "lineup metrics bench"
     "lineup tactics bench"
-    "lineup scout bench"
-    "lineup evidence bench";
+    "lineup scout bench";
   align-items: start;
   justify-content: center;
   gap: 8px 16px;
@@ -1138,6 +1137,12 @@
   height: var(--arena-management-pitch-height);
   flex: 0 0 auto;
   margin: 0 auto;
+  /* The goalkeeper slot sits near the very bottom edge; its card is centred
+     on that point (translate -50%,-50%) so half of it falls past the pitch's
+     own 100% mark. The base .pitch rule clips that with overflow:hidden for
+     the rounded corners, but there's room below in this column, so let it
+     show instead of losing a sliver of the card. */
+  overflow: visible;
 }
 .arena-opponent-board .pitch--compact .pitch-slot {
   transform: translate(-50%, -50%);
@@ -1169,21 +1174,28 @@
   margin-top: 0;
   padding: 10px 12px;
 }
-.arena-opponent-board .opponent-report__scout {
+/* Scout notes and the formation evidence share this one flexible row and
+   scroll together as a unit — previously they were two separate grid rows
+   ("scout" sized minmax(0,1fr), "evidence" auto), so any opponent whose
+   header/metrics/tactics rows ran a little taller pushed evidence's fixed-
+   height row past the board's hard overflow:hidden bottom edge instead of
+   shrinking. A single scrollable group can't overflow the layout that way. */
+.arena-opponent-board .opponent-report__scout-group {
   grid-area: scout;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
-  margin-top: 0;
   gap: 6px;
   overflow-y: auto;
 }
-.arena-opponent-board .opponent-report__scout > div {
-  min-height: 0;
-  overflow-y: auto;
+.arena-opponent-board .opponent-report__scout {
+  flex: 0 0 auto;
+  margin-top: 0;
+  gap: 6px;
 }
 .arena-opponent-board .opponent-report__scout > div { padding: 9px 10px; }
 .arena-opponent-board .opponent-report__evidence {
-  grid-area: evidence;
-  align-self: end;
+  flex: 0 0 auto;
   margin-top: 0;
 }
 .arena-opponent-board .opponent-report__bench {
@@ -1229,10 +1241,12 @@
   .arena-opponent-board .opponent-report__metrics,
   .arena-opponent-board .opponent-report__lineup,
   .arena-opponent-board .opponent-report__shape,
-  .arena-opponent-board .opponent-report__scout,
-  .arena-opponent-board .opponent-report__evidence,
+  .arena-opponent-board .opponent-report__scout-group,
   .arena-opponent-board .opponent-report__bench {
     margin-top: 10px;
+  }
+  .arena-opponent-board .opponent-report__scout-group {
+    overflow-y: visible;
   }
   .arena-opponent-board .opponent-report__bench .opponent-lineup-list {
     grid-template-columns: 1fr;
