@@ -1003,10 +1003,11 @@
    pre-kickoff sidebar doesn't have, which used to squash this flex-grown
    box shorter than the pre-kickoff one showing the exact same tactics. */
 .prematch-tactic-summary > .prematch-mini-pitch {
-  /* Taller than the base 1/1.12 to use the room freed by shrinking the
-     포메이션 itembox below (.match-tactic-itembox min-height). */
+  /* The ratio itself lives on the base .prematch-mini-pitch rule so every
+     usage (pre-match, half-time, and the in-match tactics tab) shares the
+     exact same shape — this override only needs to stop it from growing
+     to fill the sidebar's leftover flex space. */
   flex: 0 0 auto;
-  aspect-ratio: 1 / 1.22;
 }
 
 .prematch-tactic-summary__copy {
@@ -1442,7 +1443,9 @@
 .prematch-mini-pitch {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1.12;
+  /* Kept in one place so pre-match, half-time, and the in-match tactics
+     tab (via FormationMiniMap) always render the same shape. */
+  aspect-ratio: 1 / 1.22;
   overflow: hidden;
   border: 3px solid #a8cbb0;
   border-radius: 16px;
