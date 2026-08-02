@@ -1896,7 +1896,7 @@
 .opponent-tactic-facts h3 {
   margin: 1px 0 7px;
   color: #29442e;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .opponent-tactic-facts dl {
@@ -1913,7 +1913,7 @@
   gap: 5px;
   padding-bottom: 4px;
   border-bottom: 1px solid #edf0ea;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .opponent-tactic-facts dt {
@@ -1936,7 +1936,7 @@
   border: 1px solid #dbe6d8;
   border-radius: 10px;
   background: #f8fbf6;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .opponent-report__evidence span {
@@ -1984,7 +1984,7 @@
 .opponent-report__scout h3 {
   margin: 0 0 8px;
   color: #29442e;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: .04em;
 }
@@ -2010,7 +2010,7 @@
   gap: 5px;
   margin: 0 0 5px;
   color: #4a5a4d;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 900;
   letter-spacing: .04em;
 }
@@ -2021,14 +2021,14 @@
   border-radius: 999px;
   background: #e2eddf;
   color: #35603f;
-  font-size: 8px;
+  font-size: 10px;
   text-align: center;
 }
 
 .opponent-bench-empty {
   margin: 0;
   color: #7a8578;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .opponent-report__scout {
@@ -2040,7 +2040,7 @@
 .opponent-report__scout-basis {
   grid-column: 1 / -1;
   color: #738071;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .opponent-report__scout > div {
@@ -2057,7 +2057,7 @@
   margin: 0;
   padding-left: 14px;
   color: #4f5d4e;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.55;
 }
 
