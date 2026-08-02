@@ -1165,6 +1165,26 @@
   width: 40px;
   height: 4px;
 }
+.arena-opponent-board .opponent-lineup-dismissed {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  opacity: .48;
+  filter: grayscale(.65);
+  pointer-events: none;
+}
+.arena-opponent-board .opponent-lineup-dismissed > span {
+  position: absolute;
+  top: 29px;
+  z-index: 9;
+  padding: 1px 5px;
+  color: #fff;
+  background: #b91c1c;
+  border-radius: 999px;
+  font-size: 7px;
+  font-weight: 900;
+  line-height: 1.4;
+}
 .arena-opponent-board .opponent-report__shape {
   grid-area: tactics;
   margin-top: 0;
@@ -1742,6 +1762,9 @@
   padding: 10px 18px;
 }
 .arena-dismissal-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   margin: 0 0 12px;
   padding: 10px 14px;
   border: 1px solid #ef9a9a;
@@ -1752,6 +1775,25 @@
   font-size: 14px;
   font-weight: 800;
 }
+.arena-dismissal-notice > span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+}
+.arena-dismissal-notice[data-side="opp"] {
+  border-color: #8dc9a0;
+  border-left-color: #087a35;
+  background: #edf8ef;
+  color: #075d2b;
+}
+.arena-dismissal-notice[data-side="opp"] > span { background: #087a35; }
 .arena-halftime-transition {
   display: grid;
   place-content: center;

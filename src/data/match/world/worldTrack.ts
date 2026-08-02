@@ -300,6 +300,14 @@ export interface TrackPoint {
   y: number;
   /** Match seconds this point stands for, so a map can weigh dwell time. */
   seconds: number;
+  /** Player id when several individual position clouds are composed. */
+  groupId?: number;
+  /**
+   * True when this sample does not continue the previous visible sequence.
+   * Side/player filters can hide several intervening frames; heat-map route
+   * interpolation must not draw a fictitious pass across that gap.
+   */
+  segmentStart?: boolean;
 }
 
 interface TrackWindow {
@@ -319,6 +327,7 @@ export function ballDwell(
   const { side, playerId, fromMinute = 0, toMinute = Infinity } = options;
   const wanted = side === "user" ? BALL_USER : side === "opp" ? BALL_OPP : null;
   const points: TrackPoint[] = [];
+  let previousAcceptedFrame = -2;
   for (let frame = 0; frame < track.ballFrames; frame++) {
     const owner = track.ballOwner[frame];
     if (owner === BALL_DEAD) continue;
@@ -330,7 +339,9 @@ export function ballDwell(
       x: track.ball[frame * 2],
       y: track.ball[frame * 2 + 1],
       seconds: track.ballInterval,
+      segmentStart: frame !== previousAcceptedFrame + 1,
     });
+    previousAcceptedFrame = frame;
   }
   return points;
 }
@@ -338,10 +349,9 @@ export function ballDwell(
 /**
  * Player positions, one point per player per recorded frame.
  *
- * A whole-team map leaves the keeper out by default. He is a ninth of the
- * samples packed into a fortieth of the pitch, so including him makes his six
- * yard box the hottest place on any team's heat map and flattens everything
- * the outfield players did.
+ * Each point keeps its player id so a whole-team map can normalize the eleven
+ * individual position clouds before composing them. This allows the keeper to
+ * remain visible without making his small area flatten every outfield zone.
  */
 export function playerDwell(
   track: WorldTrack,
@@ -349,9 +359,17 @@ export function playerDwell(
     side?: MatchSide;
     playerId?: number;
     includeKeeper?: boolean;
+    inPlayOnly?: boolean;
   } = {},
 ): TrackPoint[] {
-  const { side, playerId, includeKeeper = playerId != null, fromMinute = 0, toMinute = Infinity } = options;
+  const {
+    side,
+    playerId,
+    includeKeeper = playerId != null,
+    inPlayOnly = false,
+    fromMinute = 0,
+    toMinute = Infinity,
+  } = options;
   const count = track.players.length;
   const wanted: number[] = [];
   for (let index = 0; index < count; index++) {
@@ -362,17 +380,28 @@ export function playerDwell(
     wanted.push(index);
   }
   const points: TrackPoint[] = [];
+  let previousAcceptedFrame = -2;
   for (let frame = 0; frame < track.playerFrames; frame++) {
     const minute = minuteOf(track.startSecond + frame * track.playerInterval);
     if (minute < fromMinute || minute > toMinute) continue;
+    if (inPlayOnly) {
+      const ballFrame = Math.min(
+        track.ballFrames - 1,
+        Math.floor((frame * track.playerInterval) / track.ballInterval),
+      );
+      if (ballFrame < 0 || track.ballOwner[ballFrame] === BALL_DEAD) continue;
+    }
     for (const index of wanted) {
       const offset = (frame * count + index) * 2;
       points.push({
         x: track.positions[offset],
         y: track.positions[offset + 1],
         seconds: track.playerInterval,
+        groupId: track.players[index].playerId,
+        segmentStart: frame !== previousAcceptedFrame + 1,
       });
     }
+    previousAcceptedFrame = frame;
   }
   return points;
 }

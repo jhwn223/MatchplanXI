@@ -16,7 +16,10 @@ describe("heat map scale", () => {
     // scaling against the single busiest cell used to produce.
     for (const cells of [
       buildHeatCells(ballDwell(track, { side: "user" })),
-      buildHeatCells(playerDwell(track, { side: "user" })),
+      buildHeatCells(
+        playerDwell(track, { side: "user", includeKeeper: true, inPlayOnly: true }),
+        { normalizeGroups: true },
+      ),
     ]) {
       expect(cells.length).toBeGreaterThan(100);
       expect(Math.max(...cells.map((cell) => cell.intensity))).toBe(1);
@@ -38,6 +41,40 @@ describe("heat map scale", () => {
 
   it("stays empty with nothing recorded", () => {
     expect(buildHeatCells([])).toEqual([]);
+  });
+
+  it("keeps a continuous ball route visible between possession hubs", () => {
+    const route = buildHeatCells([
+      { x: 20, y: 50, seconds: 2, segmentStart: true },
+      { x: 40, y: 50, seconds: 0.5 },
+      { x: 60, y: 50, seconds: 0.5 },
+      { x: 80, y: 50, seconds: 2 },
+    ], { preserveRoutes: true });
+    expect(route.some((cell) => cell.x > 47 && cell.x < 53 && cell.y > 27 && cell.y < 37)).toBe(true);
+  });
+
+  it("keeps a goalkeeper zone without letting it flatten every outfield role", () => {
+    const points = playerDwell(track, { side: "user", includeKeeper: true, inPlayOnly: true });
+    const cells = buildHeatCells(points, { normalizeGroups: true });
+    const ownBox = cells.filter((cell) => cell.x < 16);
+    const outfield = cells.filter((cell) => cell.x >= 16);
+    expect(ownBox.length).toBeGreaterThan(0);
+    expect(outfield.length).toBeGreaterThan(ownBox.length);
+    expect(Math.max(...outfield.map((cell) => cell.intensity))).toBeGreaterThan(0.75);
+  });
+
+  it("keeps continuous player movement visible between low-frequency stops", () => {
+    const cells = buildHeatCells([
+      { x: 15, y: 50, seconds: 1, groupId: 9, segmentStart: true },
+      { x: 30, y: 50, seconds: 1, groupId: 9 },
+      { x: 45, y: 50, seconds: 1, groupId: 9 },
+      { x: 60, y: 50, seconds: 1, groupId: 9 },
+      { x: 75, y: 50, seconds: 1, groupId: 9 },
+    ], { normalizeGroups: true });
+    const centerRoute = cells.filter(
+      (cell) => cell.x >= 30 && cell.x <= 70 && cell.y >= 27 && cell.y <= 37,
+    );
+    expect(centerRoute.length).toBeGreaterThan(10);
   });
 
   it("runs cool to hot", () => {

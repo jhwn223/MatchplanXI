@@ -53,8 +53,12 @@ export function ArenaEventMap({
     const window = { fromMinute: since, toMinute: minute };
     return buildHeatCells(
       mode === "positions"
-        ? playerDwell(track, { ...window, side, playerId })
+        ? playerDwell(track, { ...window, side, playerId, includeKeeper: true, inPlayOnly: true })
         : ballDwell(track, { ...window, side, playerId }),
+      {
+        preserveRoutes: mode === "ball" || (mode === "positions" && playerId != null),
+        normalizeGroups: mode === "positions" && playerId == null,
+      },
     );
   }, [track, isHeatMap, mode, side, playerId, since, minute]);
 

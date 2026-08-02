@@ -43,6 +43,7 @@ interface Props {
   playersById: Map<number, Player>;
   opponentPlayers: Player[];
   opponentBench: Player[];
+  dismissedOpponentPlayers?: Player[];
   opponentFormation?: FormationKey;
   opponentTactics?: TeamTactics;
   squadControls?: ArenaSquadControls;
@@ -52,6 +53,7 @@ interface Props {
   setPieces?: SetPieceAssignments;
   onSetPieceChange?: (assignments: SetPieceAssignments) => void;
   dismissalNotice?: string | null;
+  dismissalSide?: "user" | "opp" | null;
   discipline?: Map<number, PlayerDiscipline>;
   opponentDiscipline?: Map<number, PlayerDiscipline>;
 }
@@ -74,6 +76,7 @@ export function ArenaMatchCenter({
   playersById,
   opponentPlayers,
   opponentBench,
+  dismissedOpponentPlayers = [],
   opponentFormation,
   opponentTactics,
   squadControls,
@@ -83,6 +86,7 @@ export function ArenaMatchCenter({
   setPieces,
   onSetPieceChange,
   dismissalNotice,
+  dismissalSide,
   discipline: suppliedDiscipline,
   opponentDiscipline,
 }: Props) {
@@ -200,7 +204,14 @@ export function ArenaMatchCenter({
               </div>
             </header>
             {dismissalNotice && (
-              <div className="arena-dismissal-notice" role="alert">{dismissalNotice}</div>
+              <div
+                className="arena-dismissal-notice"
+                data-side={dismissalSide ?? "user"}
+                role="alert"
+              >
+                <span aria-hidden="true">{dismissalSide === "opp" ? "↗" : "!"}</span>
+                {dismissalNotice}
+              </div>
             )}
             <div className="arena-squad-board__status">
               <label>
@@ -263,6 +274,7 @@ export function ArenaMatchCenter({
               opponent={squadControls.opponent}
               players={opponentPlayers}
               bench={opponentBench}
+              dismissedPlayers={dismissedOpponentPlayers}
               onSelectPlayer={squadControls.onSelectPlayer}
               conditions={squadControls.opponentConditions}
               plan={squadControls.opponentPlan}
@@ -359,7 +371,9 @@ export function MatchAnalysis({
   ) as Record<PassType, number>;
   const window = { fromMinute: since, toMinute: minute };
   const counts: Record<EventMapMode, number> = {
-    positions: track ? playerDwell(track, { ...window, side, playerId }).length : 0,
+    positions: track
+      ? playerDwell(track, { ...window, side, playerId, includeKeeper: true, inPlayOnly: true }).length
+      : 0,
     // Seconds the side actually had the ball, which is what the map now draws.
     ball: track
       ? Math.round(

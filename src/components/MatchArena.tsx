@@ -224,6 +224,11 @@ export function MatchArena({
   const opponentTacticsRef = useRef<TeamTactics>(initialOpponentTactics);
   const opponentPlayersRef = useRef(opponentPlayers);
   const opponentBenchRef = useRef(opponentBench);
+  // Keep a roster history so a dismissed opponent can still be identified in
+  // the analysis view after being correctly removed from the active XI.
+  const knownOpponentPlayersRef = useRef(
+    new Map([...opponentPlayers, ...opponentBench].map((player) => [player.player_id, player])),
+  );
   const opponentFormationRef = useRef<FormationKey>(opponentFormation);
   const opponentReviewMinutesRef = useRef(
     opponentMinuteSchedule(simInput.seed, [23, 36, 51, 64, 76, 84, 106], 17),
@@ -274,6 +279,7 @@ export function MatchArena({
   const [sim, setSim] = useState<ArenaSim>(simRef.current);
   const [opponentTacticChanges, setOpponentTacticChanges] = useState<OpponentTacticChange[]>([]);
   const [dismissalNotice, setDismissalNotice] = useState<string | null>(null);
+  const [dismissalSide, setDismissalSide] = useState<MatchSide | null>(null);
 
   useEffect(() => {
     simInputRef.current = simInput;
@@ -283,6 +289,9 @@ export function MatchArena({
     opponentPlayersRef.current = opponentPlayers;
     opponentBenchRef.current = opponentBench;
     opponentFormationRef.current = opponentFormation;
+    for (const player of [...opponentPlayers, ...opponentBench]) {
+      knownOpponentPlayersRef.current.set(player.player_id, player);
+    }
   }, [opponentBench, opponentFormation, opponentPlayers]);
 
   function assignOpponentPlayers(players: Player[], nextFormation: FormationKey, minute: number) {
@@ -1004,6 +1013,9 @@ export function MatchArena({
   const timeline = [...(priorEvents ?? []), ...playedEvents];
   const discipline = disciplineFromEvents(timeline, "user");
   const opponentDiscipline = disciplineFromEvents(timeline, "opp");
+  const dismissedOpponentPlayers = [...knownOpponentPlayersRef.current.values()].filter(
+    (player) => opponentDiscipline.get(player.player_id) === "red",
+  );
   useEffect(() => {
     for (const event of playedEvents) {
       if (event.type !== "redCard") continue;
@@ -1014,10 +1026,15 @@ export function MatchArena({
         removePlayerFromArena(stateRef.current, event.side, event.actorId);
       }
       onPlayerDismissed?.(event.side, event.actorId);
+      setDismissalSide(event.side);
       setDismissalNotice(
-        `${event.actor} 퇴장 · ${event.side === "user" ? "10명으로 포메이션을 재정비하세요." : "상대가 10명이 되었습니다. 전술을 재정비하세요."}`,
+        event.side === "user"
+          ? `우리 팀 퇴장 · ${event.actor} — 10명으로 재정비해야 합니다.`
+          : `상대 팀 퇴장 · ${event.actor} — 수적 우세를 활용하도록 스쿼드와 전술을 조정하세요.`,
       );
-      openMatchCenter(event.side === "opp" && squadControls ? "opponent" : "squad");
+      // A dismissal always changes the playable shape. Open the one place the
+      // user can react to it, regardless of which side lost the player.
+      openMatchCenter("squad");
     }
     // Event count is the authoritative playback cursor. Other callback/state
     // identities must not make an already handled card fire twice.
@@ -1118,6 +1135,7 @@ export function MatchArena({
             playersById={playersById}
             opponentPlayers={opponentPlayersRef.current}
             opponentBench={opponentBenchRef.current}
+            dismissedOpponentPlayers={dismissedOpponentPlayers}
             opponentFormation={opponentFormationRef.current}
             opponentTactics={opponentTactics}
             squadControls={squadControls}
@@ -1127,6 +1145,7 @@ export function MatchArena({
                 setPieces={setPieces}
                 onSetPieceChange={onSetPieceChange}
             dismissalNotice={dismissalNotice}
+            dismissalSide={dismissalSide}
             discipline={discipline}
             opponentDiscipline={opponentDiscipline}
           />

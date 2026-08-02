@@ -71,7 +71,11 @@ function eloPerformanceEdge(userElo: number, oppElo: number) {
 
 function eloQualityMultiplier(edge: number, side: MatchSide) {
   const sideEdge = side === "user" ? edge : -edge;
-  return clamp(1 + sideEdge * 0.15, 0.86, 1.15);
+  // A clear team-strength advantage has to be felt over dozens of repeated
+  // decisions, without deciding any single action. The previous 15% slope was
+  // weak enough that a 250-point edge could still lose a majority of neutral
+  // matches after the build-up model became more realistic.
+  return clamp(1 + sideEdge * 0.17, 0.84, 1.17);
 }
 
 /**
@@ -216,7 +220,7 @@ export function simulatePeriodWithWorld(
     (userTactics.pressBias - oppTactics.pressBias) * 0.012;
   const userPossessionChance = clamp(
     0.5 +
-      eloEdge * 0.075 +
+      eloEdge * 0.085 +
       creativityEdge * 0.08 -
       (input.attackBias - (input.oppAttackBias ?? 0)) * 0.025 +
       tacticalPossessionEdge +
@@ -694,7 +698,7 @@ export function simulatePeriodWithWorld(
       const userShare = clamp(
         0.5 +
           (userBodies - oppBodies) * 0.09 +
-          eloEdge * 0.1 +
+          eloEdge * 0.11 +
           creativityEdge * 0.05 +
           (previous === "user" ? -0.16 : 0.16),
         0.12,
@@ -1419,7 +1423,7 @@ export function simulatePeriodWithWorld(
         // A stronger side tends to turn the same territory into a slightly
         // cleaner look. This remains much smaller than a favourable tactical
         // matchup, so the manager can still reverse the expected result.
-        sideStrengthEdge * 0.016 +
+        sideStrengthEdge * 0.019 +
         // An unguarded box is a chance; a crowded one is a blocked effort.
         openness * 0.04 +
         // A defence that has not reset yet is the whole value of a counter.
