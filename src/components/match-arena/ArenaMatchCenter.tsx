@@ -185,19 +185,6 @@ export function ArenaMatchCenter({
       )}
       {activeTab === "squad" && squadControls && (
         <div className="arena-squad-board">
-          <section className="arena-squad-board__pitch">
-            <Pitch
-              formation={slotsOf(formation)}
-              slots={slots}
-              playersById={playersById}
-              conditions={liveConditions ?? squadControls.conditions}
-              onSelectPlayer={squadControls.onSelectPlayer}
-              positions={positions}
-              positionMode
-              pitchRef={squadControls.pitchRef}
-              discipline={discipline}
-            />
-          </section>
           <aside className="arena-squad-board__controls">
             <header className="arena-squad-board__team">
               <span>
@@ -264,6 +251,19 @@ export function ArenaMatchCenter({
               ⚡ 현재 선수 자동 배치
             </button>
           </aside>
+          <section className="arena-squad-board__pitch">
+            <Pitch
+              formation={slotsOf(formation)}
+              slots={slots}
+              playersById={playersById}
+              conditions={liveConditions ?? squadControls.conditions}
+              onSelectPlayer={squadControls.onSelectPlayer}
+              positions={positions}
+              positionMode
+              pitchRef={squadControls.pitchRef}
+              discipline={discipline}
+            />
+          </section>
           <Bench
             benchPlayers={squadControls.benchPlayers}
             conditions={liveConditions ?? squadControls.conditions}
