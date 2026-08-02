@@ -235,8 +235,8 @@ export function ArenaTacticsPanel({
           )}
           {tab === "attack" && (
             <div className="tactic-field-grid">
-              <TacticSelect label="기회 만들기" value={draft.chanceCreation} options={OPTIONS.chanceCreation} onChange={(value) => patch("chanceCreation", value as TeamTactics["chanceCreation"])} />
-              <TacticSelect label="패싱 스타일" value={draft.passingStyle} options={OPTIONS.passingStyle} onChange={(value) => patch("passingStyle", value as TeamTactics["passingStyle"])} />
+              <TacticSelect label="기회 만들기" value={draft.chanceCreation} options={OPTIONS.chanceCreation} extraLabels={[["directPassing", "침투 패스"]]} onChange={(value) => patch("chanceCreation", value as TeamTactics["chanceCreation"])} />
+              <TacticSelect label="패싱 스타일" value={draft.passingStyle} options={OPTIONS.passingStyle} extraLabels={[["direct", "직접 패스"]]} onChange={(value) => patch("passingStyle", value as TeamTactics["passingStyle"])} />
               <TacticSelect label="공격 방향" value={draft.attackFocus} options={OPTIONS.attackFocus} onChange={(value) => patch("attackFocus", value as TeamTactics["attackFocus"])} />
               <TacticSelect label="슈팅 지시" value={draft.shooting} options={OPTIONS.shooting} onChange={(value) => patch("shooting", value as TeamTactics["shooting"])} />
             </div>
@@ -245,7 +245,7 @@ export function ArenaTacticsPanel({
             <div className="tactic-field-grid">
               <TacticSelect label="수비 스타일" value={draft.defenseStyle} options={OPTIONS.defenseStyle} onChange={(value) => patch("defenseStyle", value as TeamTactics["defenseStyle"])} />
               <TacticSelect label="수비 라인" value={draft.defensiveLine} options={OPTIONS.defensiveLine} onChange={(value) => patch("defensiveLine", value as TeamTactics["defensiveLine"])} />
-              <TacticSelect label="압박 강도" value={draft.pressing} options={OPTIONS.pressing} onChange={(value) => patch("pressing", value as TeamTactics["pressing"])} />
+              <TacticSelect label="압박 강도" value={draft.pressing} options={OPTIONS.pressing} extraLabels={[["low", "지역 방어"]]} onChange={(value) => patch("pressing", value as TeamTactics["pressing"])} />
               <TacticSelect label="마킹 방식" value={draft.marking} options={OPTIONS.marking} onChange={(value) => patch("marking", value as TeamTactics["marking"])} />
               <TacticSelect label="태클 강도" value={draft.tackling} options={OPTIONS.tackling} onChange={(value) => patch("tackling", value as TeamTactics["tackling"])} />
               <TacticSelect label="압박 시작 위치" value={draft.lineOfEngagement} options={OPTIONS.lineOfEngagement} onChange={(value) => patch("lineOfEngagement", value as TeamTactics["lineOfEngagement"])} />
@@ -405,15 +405,26 @@ export function TacticItemBoxSelect({
   value,
   options,
   onChange,
+  extraLabels = [],
 }: {
   label: string;
   value: string;
   options: readonly (readonly [string, string])[];
   onChange: (value: string) => void;
+  /**
+   * Korean label for values that quick-tactic presets can still set (e.g.
+   * "direct" passing) but that were deliberately dropped from the dropdown
+   * itself. Without this, the button falls back to the raw English value
+   * until the field is changed to something the list actually offers.
+   */
+  extraLabels?: readonly (readonly [string, string])[];
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const currentLabel = options.find(([optionValue]) => optionValue === value)?.[1] ?? value;
+  const currentLabel =
+    options.find(([optionValue]) => optionValue === value)?.[1]
+    ?? extraLabels.find(([optionValue]) => optionValue === value)?.[1]
+    ?? value;
 
   useEffect(() => {
     if (!open) return;

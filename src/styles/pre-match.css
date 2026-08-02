@@ -981,12 +981,17 @@
   grid-template-columns: var(--prematch-rail) minmax(640px, 1fr) var(--prematch-rail);
 }
 
-/* The pitch preview absorbs whatever height is left over, so this rail never
-   needs a scrollbar — which also lets the formation dropdown escape the panel
-   instead of being trapped in a scroll container. */
+/* The pitch preview usually absorbs whatever height is left over, but at
+   tighter viewport heights the summary copy below it doesn't fit and was
+   getting silently clipped by this rail having no scrollbar. Scroll by
+   default; go visible only while the formation dropdown is open so it can
+   still escape the rail instead of being clipped by this same rule. */
 .board--prematch[data-workspace="tactics"] .board__sidebar {
-  overflow: visible;
   background: #edf5e9;
+}
+
+.board--prematch[data-workspace="tactics"] .board__sidebar:has(.match-tactic-field--choices[data-open]) {
+  overflow: visible;
 }
 
 .prematch-tactic-summary {

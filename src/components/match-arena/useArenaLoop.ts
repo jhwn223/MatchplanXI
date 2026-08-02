@@ -33,6 +33,7 @@ interface Options {
   completedRef: RefObject<boolean>;
   pausedRef: RefObject<boolean>;
   speedRef: RefObject<number>;
+  skipRequestedRef: RefObject<boolean>;
   pkOrderRef: RefObject<number[] | null>;
   buildState: () => ArenaState;
   userTeamName: string;
@@ -56,6 +57,7 @@ export function useArenaLoop({
   completedRef,
   pausedRef,
   speedRef,
+  skipRequestedRef,
   pkOrderRef,
   buildState,
   userTeamName,
@@ -221,6 +223,26 @@ export function useArenaLoop({
         onComplete();
         setEnded(true);
       }
+    }
+
+    // Shared by the natural period-end check and the skip-to-result button —
+    // both need the exact same penalties/finish decision once the segment's
+    // outcome is fully known.
+    function finalizeSegment(s: ArenaState) {
+      const finalSim = simRef.current;
+      s.score = [finalSim.userGoals, finalSim.oppGoals];
+      if (finalSim.penalties) {
+        if (!pkOrderRef.current) {
+          if (!pkPendingNotified) {
+            pkPendingNotified = true;
+            onPenaltiesPending();
+          }
+          return;
+        }
+        startPenalties(s);
+        return;
+      }
+      finishSegment(s);
     }
 
     // Both teams shoot at the same end during the shootout; only which side of
@@ -602,22 +624,7 @@ export function useArenaLoop({
         const actionStillVisible =
           s.scoring != null || s.ball.flightTo >= 0 || s.ball.flightTarget != null;
         if (!pendingEvents && !actionStillVisible) {
-          s.score = [finalSim.userGoals, finalSim.oppGoals];
-          if (finalSim.penalties) {
-            if (!pkOrderRef.current) {
-              // Freeze here — the taker-order screen is up. startPenalties()
-              // runs once the user confirms an order (or the app falls back
-              // to an auto order).
-              if (!pkPendingNotified) {
-                pkPendingNotified = true;
-                onPenaltiesPending();
-              }
-              return;
-            }
-            startPenalties(s);
-            return;
-          }
-          finishSegment(s);
+          finalizeSegment(s);
           return;
         }
       }
@@ -635,6 +642,25 @@ export function useArenaLoop({
 
 
     const step = (now: number) => {
+      // The caller already ran ensureSimulatedThrough(endMinute) before
+      // setting this, so simRef holds the segment's real outcome — jump
+      // straight to it via the same finalize path a natural period end uses,
+      // regardless of paused state or however much animation is left.
+      if (skipRequestedRef.current) {
+        skipRequestedRef.current = false;
+        const s = stateRef.current;
+        if (s && s.phase !== "ended" && s.phase !== "interim" && s.phase !== "penalties") {
+          s.scoring = null;
+          s.ball.flightTo = -1;
+          s.ball.flightTarget = null;
+          s.situation = null;
+          s.scriptedRun = null;
+          s.nextEvent = simRef.current.events?.length ?? s.nextEvent;
+          s.nextGoal = simRef.current.goals?.length ?? s.nextGoal;
+          s.clock = endMinute;
+          finalizeSegment(s);
+        }
+      }
       const dt = Math.min(0.045, (now - last) / 1000);
       last = now;
       const kickoffPaused = (stateRef.current?.kickoffPauseT ?? 0) > 0;
