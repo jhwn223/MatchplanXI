@@ -121,11 +121,11 @@ export function ArenaTacticsPanel({
         <nav className="match-tactics-tabs" aria-label="전술 설정 분류">
           {([
             ["quick", "빠른 지시"],
+            ["roles", "역할"],
             ["general", "일반"],
             ["attack", "공격"],
             ["defense", "수비"],
             ["setPieces", "세트피스"],
-            ["roles", "역할"],
           ] as const).map(([key, label]) => (
             <button key={key} type="button" data-active={tab === key || undefined} onClick={() => setTab(key)}>
               {label}
