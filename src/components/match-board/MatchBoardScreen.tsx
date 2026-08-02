@@ -1,7 +1,6 @@
 import { useState, type RefObject } from "react";
 import type { ConditionBreakdown } from "../../data/conditionEngine";
 import {
-  FORMATION_KEYS,
   type FormationKey,
   type FormationSlot,
 } from "../../data/formation";
@@ -16,7 +15,6 @@ import { TacticsPanel } from "../TacticsPanel";
 import {
   ArenaTacticsPanel,
   FormationMiniMap,
-  TacticItemBoxSelect,
 } from "../match-arena/ArenaTacticsPanel";
 import { MatchAnalysis } from "../match-arena/ArenaMatchCenter";
 import { ArenaLiveStats } from "../match-arena/ArenaLiveStats";
@@ -251,12 +249,12 @@ export function MatchBoardScreen({
             />
           ) : (
             <div className="prematch-tactic-summary">
-              <TacticItemBoxSelect
-                label="포메이션"
-                value={lineup.formation}
-                options={FORMATION_KEYS.map((key) => [key, key] as const)}
-                onChange={(value) => onSelectFormation(value as FormationKey)}
-              />
+              {/* Formation is chosen on the 선수·포메이션 tab; here it's just a
+                  read-only reminder of what's currently set. */}
+              <div className="prematch-formation-readout">
+                <span>현재 포메이션</span>
+                <strong>{lineup.formation}</strong>
+              </div>
               <FormationMiniMap formation={formation} tactics={teamTactics} />
               <div className="prematch-tactic-summary__copy">
                 <span>현재 전술</span>
