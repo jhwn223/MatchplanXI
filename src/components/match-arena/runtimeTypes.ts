@@ -1,4 +1,5 @@
 import type { Position } from "../../data/types";
+import type { PlayerRole } from "../../data/playerRoles";
 import type { FormationShapeProfile } from "../../data/match/world/formationShape";
 
 export interface ArenaDot {
@@ -14,6 +15,8 @@ export interface ArenaDot {
   num: number;
   name: string;
   role: Position;
+  /** The assigned player role, so the replay moves him the way it says he plays. */
+  tacticalRole?: PlayerRole;
   react: number;
   pace: number;
   passing: number;
@@ -128,6 +131,12 @@ export interface ArenaState {
     phaseByTeam: [ArenaMatchPhase, ArenaMatchPhase];
   };
   shapeProfiles?: [FormationShapeProfile, FormationShapeProfile];
+  /**
+   * Player ids the manager sent up for each restart. Without them the replay
+   * pushed the whole side into the box for every corner, so the choice of who
+   * goes up had no visible effect.
+   */
+  setPieceParticipants?: { corner: number[]; freeKick: number[] };
 }
 
 export interface PenaltyKick {

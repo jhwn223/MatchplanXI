@@ -42,23 +42,33 @@ export function drawArenaFrame(
   context.fillStyle = "rgba(255,255,255,0.45)";
   context.fill();
 
-  // Position-derived defensive lines make tactical height and compactness
-  // readable without drawing arbitrary overlays unrelated to the players.
+  // Show the central defensive block, not a full-height tactical ruler. Wide
+  // full-backs often step out, so using every defender's mean made the old
+  // line jump around and appear detached from the actual back line.
   ([0, 1] as const).forEach((team) => {
     const defenders = state.dots.filter(
       (dot) => dot.team === team && dot.role === "DEF",
     );
     if (!defenders.length) return;
-    const lineX =
-      defenders.reduce((sum, dot) => sum + dot.x, 0) / defenders.length;
+    const centralCount = defenders.length >= 5 ? 3 : defenders.length >= 3 ? 2 : defenders.length;
+    const centralDefenders = [...defenders]
+      .sort((a, b) => Math.abs(a.y - 50) - Math.abs(b.y - 50))
+      .slice(0, centralCount);
+    const sortedX = centralDefenders.map((dot) => dot.x).sort((a, b) => a - b);
+    const middle = Math.floor(sortedX.length / 2);
+    const lineX = sortedX.length % 2
+      ? sortedX[middle]
+      : (sortedX[middle - 1] + sortedX[middle]) / 2;
+    const minY = clamp(Math.min(...defenders.map((dot) => dot.y)) - 7, 12, 88);
+    const maxY = clamp(Math.max(...defenders.map((dot) => dot.y)) + 7, 12, 88);
     context.save();
-    context.setLineDash([5, 7]);
+    context.setLineDash([4, 6]);
     context.strokeStyle =
       team === 0 ? "rgba(110,231,183,0.24)" : "rgba(248,113,113,0.2)";
     context.lineWidth = 1;
     context.beginPath();
-    context.moveTo(x(lineX), y(8));
-    context.lineTo(x(lineX), y(92));
+    context.moveTo(x(lineX), y(minY));
+    context.lineTo(x(lineX), y(maxY));
     context.stroke();
     context.restore();
   });

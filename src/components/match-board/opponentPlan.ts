@@ -365,6 +365,8 @@ interface OpponentDecisionOptions {
   current: TeamTactics;
   userTactics: TeamTactics;
   live: LiveMatchSnapshot | null;
+  /** Match-specific review points. Omit to keep the legacy ten-minute cadence. */
+  reviewMinutes?: readonly number[];
 }
 
 export function decideOpponentTacticChange({
@@ -374,8 +376,12 @@ export function decideOpponentTacticChange({
   current,
   userTactics,
   live,
+  reviewMinutes,
 }: OpponentDecisionOptions): OpponentTacticChange | null {
-  if (minute < 20 || minute % 10 !== 0) return null;
+  const reviewDue = reviewMinutes
+    ? reviewMinutes.includes(minute)
+    : minute % 10 === 0;
+  if (minute < 18 || !reviewDue) return null;
 
   const deficit = userGoals - oppGoals;
   const mustChaseEarly =
@@ -406,7 +412,7 @@ export function decideOpponentTacticChange({
       tactics: applyQuickTactic(current, "protectLead"),
     };
   }
-  if (minute === 50 && userGoals === oppGoals) {
+  if (minute >= 46 && minute <= 58 && userGoals === oppGoals) {
     const opponentNeedsMoreThreat =
       (live?.teamStats.opp.shots ?? 0) <= (live?.teamStats.user.shots ?? 0) ||
       (live?.oppXg ?? 0) <= (live?.userXg ?? 0);

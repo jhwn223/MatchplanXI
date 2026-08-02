@@ -3,6 +3,7 @@ import type { LiveMatchSnapshot, MatchEvent, PassType, PlayerMatchStats } from "
 import { FORMATION_KEYS, slotsOf, type FormationKey, type SlotPositions } from "../../data/formation";
 import type { Player } from "../../data/types";
 import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
+import type { SetPieceAssignments } from "../../data/tactics";
 import { Bench } from "../Bench";
 import { Pitch } from "../Pitch";
 import { TeamFlag } from "../TeamFlag";
@@ -41,12 +42,17 @@ interface Props {
   playersById: Map<number, Player>;
   opponentPlayers: Player[];
   opponentBench: Player[];
+  opponentFormation?: FormationKey;
+  opponentTactics?: TeamTactics;
   squadControls?: ArenaSquadControls;
   onApplyTactics: (tactics: TeamTactics) => void;
   onRoleChange?: (slotId: string, role: PlayerRole) => void;
   onFormationChange?: (formation: FormationKey) => void;
+  setPieces?: SetPieceAssignments;
+  onSetPieceChange?: (assignments: SetPieceAssignments) => void;
   dismissalNotice?: string | null;
   discipline?: Map<number, PlayerDiscipline>;
+  opponentDiscipline?: Map<number, PlayerDiscipline>;
 }
 
 export function ArenaMatchCenter({
@@ -67,12 +73,17 @@ export function ArenaMatchCenter({
   playersById,
   opponentPlayers,
   opponentBench,
+  opponentFormation,
+  opponentTactics,
   squadControls,
   onApplyTactics,
   onRoleChange,
   onFormationChange,
+  setPieces,
+  onSetPieceChange,
   dismissalNotice,
   discipline: suppliedDiscipline,
+  opponentDiscipline,
 }: Props) {
   const events = useMemo(() => sim.events ?? [], [sim.events]);
   const eventDiscipline = useMemo(() => disciplineFromEvents(events, "user"), [events]);
@@ -226,6 +237,13 @@ export function ArenaMatchCenter({
             >
               ↺ 기본 위치로 되돌리기
             </button>
+            <button
+              type="button"
+              className="arena-squad-board__reset arena-squad-board__autofill"
+              onClick={squadControls.onAutoFill}
+            >
+              ⚡ 현재 선수 자동 배치
+            </button>
           </aside>
           <Bench
             benchPlayers={squadControls.benchPlayers}
@@ -247,6 +265,9 @@ export function ArenaMatchCenter({
               onSelectPlayer={squadControls.onSelectPlayer}
               conditions={squadControls.opponentConditions}
               plan={squadControls.opponentPlan}
+              currentFormation={opponentFormation}
+              currentTactics={opponentTactics}
+              discipline={opponentDiscipline}
             />
           </div>
         ) : (
@@ -268,6 +289,8 @@ export function ArenaMatchCenter({
           slotRoles={slotRoles}
           onRoleChange={onRoleChange}
           onApply={onApplyTactics}
+          setPieces={setPieces}
+          onSetPieceChange={onSetPieceChange}
         />
       )}
     </section>
@@ -311,45 +334,70 @@ export function MatchAnalysis({
   minute: number;
 }) {
   const [mode, setMode] = useState<EventMapMode>("positions");
+  const [side, setSide] = useState<"user" | "opp">("user");
   const [player, setPlayer] = useState("");
+  // A cumulative map cannot show a change made mid-match: everything before it
+  // swamps the handful of minutes played since. Narrowing the window is what
+  // makes a tactical switch visible on the pitch.
+  const [windowMinutes, setWindowMinutes] = useState(0);
+  const since = windowMinutes > 0 ? Math.max(0, minute - windowMinutes) : 0;
   const [passTypes, setPassTypes] = useState<PassType[]>(ALL_PASS_TYPES);
-  const userPlayers = useMemo(() => players.filter((entry) => entry.side === "user"), [players]);
-  const elapsed = events.filter((event) => event.minute <= minute);
-  const visibleUserPasses = elapsed.filter((event) =>
-    event.side === "user"
+  const sidePlayers = useMemo(() => players.filter((entry) => entry.side === side), [players, side]);
+  const elapsed = events.filter((event) => event.minute <= minute && event.minute >= since);
+  const visibleSidePasses = elapsed.filter((event) =>
+    event.side === side
     && event.type === "pass"
     && (!player || event.actor === player));
   const passTypeCounts = Object.fromEntries(
     ALL_PASS_TYPES.map((type) => [
       type,
-      visibleUserPasses.filter((event) => (event.passType ?? "normal") === type).length,
+      visibleSidePasses.filter((event) => (event.passType ?? "normal") === type).length,
     ]),
   ) as Record<PassType, number>;
   const counts: Record<EventMapMode, number> = {
     positions: positionSamples.filter(
       (sample) =>
         sample.minute <= minute &&
-        sample.side === "user" &&
+        sample.minute >= since &&
+        sample.side === side &&
         (!player || sample.playerName === player),
     ).length,
-    shots: elapsed.filter((event) => event.side === "user" && event.type === "shot").length,
-    passes: elapsed.filter((event) => event.side === "user" && event.type === "pass").length,
-    turnovers: elapsed.filter((event) => event.side === "opp" && isBallWon(event.type)).length,
-    recoveries: elapsed.filter((event) => event.side === "user" && isBallWon(event.type)).length,
+    ball: elapsed.filter((event) => event.side === side && event.x != null && event.y != null).length,
+    shots: elapsed.filter((event) => event.side === side && event.type === "shot").length,
+    passes: elapsed.filter((event) => event.side === side && event.type === "pass").length,
+    turnovers: elapsed.filter((event) => event.side !== side && isBallWon(event.type)).length,
+    recoveries: elapsed.filter((event) => event.side === side && isBallWon(event.type)).length,
   };
   return (
     <div className="match-analysis-board">
       <aside>
         <h3>분석 필터</h3>
+        <div className="analysis-side-switch" role="group" aria-label="분석 팀 선택">
+          <button type="button" data-active={side === "user" || undefined} onClick={() => { setSide("user"); setPlayer(""); }}>우리 팀</button>
+          <button type="button" data-active={side === "opp" || undefined} onClick={() => { setSide("opp"); setPlayer(""); }}>상대 팀</button>
+        </div>
+        <label>
+          <span>구간</span>
+          <select
+            value={windowMinutes}
+            onChange={(event) => setWindowMinutes(Number(event.target.value))}
+          >
+            <option value={0}>경기 전체</option>
+            <option value={5}>최근 5분</option>
+            <option value={10}>최근 10분</option>
+            <option value={15}>최근 15분</option>
+          </select>
+        </label>
         <label>
           <span>선수</span>
           <select value={player} onChange={(event) => setPlayer(event.target.value)}>
             <option value="">전체 선수</option>
-            {userPlayers.map((entry) => <option key={entry.name} value={entry.name}>{entry.name}</option>)}
+            {sidePlayers.map((entry) => <option key={entry.name} value={entry.name}>{entry.name}</option>)}
           </select>
         </label>
         {([
           ["positions", "포지셔닝 히트맵"],
+          ["ball", "볼 히트맵"],
           ["shots", "슈팅 맵"],
           ["passes", "패스 맵"],
           ["turnovers", "뺏긴 위치"],
@@ -361,7 +409,7 @@ export function MatchAnalysis({
         ))}
       </aside>
       <section>
-        <header><h3>{mode === "positions" ? "선수 포지셔닝 히트맵" : mode === "shots" ? "슈팅 위치와 방향" : mode === "passes" ? "패스 진행 방향" : mode === "recoveries" ? "공을 빼앗은 위치" : "공을 빼앗긴 위치"}</h3><span>{minute}분까지 실시간 데이터</span></header>
+        <header><h3>{mode === "positions" ? "선수 포지셔닝 히트맵" : mode === "ball" ? "볼 히트맵" : mode === "shots" ? "슈팅 위치와 방향" : mode === "passes" ? "패스 진행 방향" : mode === "recoveries" ? "공을 빼앗은 위치" : "공을 빼앗긴 위치"}</h3><span>{side === "user" ? "우리 팀" : "상대 팀"} · {windowMinutes > 0 ? `${since}~${minute}분` : `${minute}분까지`}</span></header>
         {mode === "passes" && (
           <div className="pass-map-legend" aria-label="패스 유형 필터">
             {ALL_PASS_TYPES.map((type) => {
@@ -390,10 +438,12 @@ export function MatchAnalysis({
         <ArenaEventMap
           events={events}
           positionSamples={positionSamples}
+          since={since}
           minute={minute}
           mode={mode}
           player={player || undefined}
           passTypes={passTypes}
+          side={side}
         />
       </section>
     </div>

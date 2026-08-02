@@ -28,6 +28,7 @@ import { OpponentAnalysisPanel } from "./OpponentAnalysisPanel";
 import type { OpponentPlan } from "./opponentPlan";
 import type { Lineup, MatchPhase } from "./types";
 import type { PlayerDiscipline } from "../playerDiscipline";
+import type { SetPieceAssignments } from "../../data/tactics";
 
 interface Props {
   team: Team;
@@ -45,6 +46,7 @@ interface Props {
   teamTactics: TeamTactics;
   onTacticsChange: (tactics: TeamTactics) => void;
   onRoleChange: (slotId: string, role: PlayerRole) => void;
+  onSetPieceChange: (assignments: SetPieceAssignments) => void;
   teamIndex: number | null;
   conditions: Map<number, ConditionBreakdown>;
   playersById: Map<number, Player>;
@@ -92,6 +94,7 @@ export function MatchBoardScreen({
   teamTactics,
   onTacticsChange,
   onRoleChange,
+  onSetPieceChange,
   teamIndex,
   conditions,
   playersById,
@@ -328,6 +331,8 @@ export function MatchBoardScreen({
                 slotRoles={lineup.slotRoles}
                 onRoleChange={onRoleChange}
                 onApply={updateTactics}
+                setPieces={lineup.setPieces}
+                onSetPieceChange={onSetPieceChange}
               />
             </section>
           )}

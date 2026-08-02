@@ -3,6 +3,7 @@ import { slotsOf, type FormationKey } from "../../data/formation";
 import type { Player, Team } from "../../data/types";
 import { PlayerCardVisual } from "../PlayerCardVisual";
 import { TeamFlag } from "../TeamFlag";
+import type { PlayerDiscipline } from "../playerDiscipline";
 import type { OpponentPlan } from "./opponentPlan";
 
 interface Props {
@@ -13,7 +14,10 @@ interface Props {
   bench: Player[];
   conditions: Map<number, ConditionBreakdown>;
   plan: OpponentPlan;
+  currentFormation?: FormationKey;
+  currentTactics?: OpponentPlan["tactics"];
   onSelectPlayer?: (player: Player) => void;
+  discipline?: Map<number, PlayerDiscipline>;
 }
 
 const BENCH_GROUPS = [
@@ -29,7 +33,10 @@ export function OpponentAnalysisPanel({
   bench,
   conditions,
   plan,
+  currentFormation = plan.formation,
+  currentTactics = plan.tactics,
   onSelectPlayer,
+  discipline,
 }: Props) {
   const averageCondition = players.length
     ? Math.round(
@@ -49,7 +56,7 @@ export function OpponentAnalysisPanel({
           <small>OPPOSITION REPORT</small>
           <h2>{opponent.team_name}</h2>
           <p>
-            {plan.formation} · {plan.identity}
+            {currentFormation} · {plan.identity}
             {plan.formationSource === "observed" && <b>실제 경기 데이터</b>}
           </p>
         </div>
@@ -58,7 +65,7 @@ export function OpponentAnalysisPanel({
       <div className="opponent-report__metrics">
         <div>
           <span>{plan.formationSource === "observed" ? "관찰 포메이션" : "추정 포메이션"}</span>
-          <strong>{plan.formation}</strong>
+          <strong>{currentFormation}</strong>
         </div>
         <div><span>선발 평균 컨디션</span><strong>{averageCondition}</strong></div>
         <div>
@@ -69,10 +76,11 @@ export function OpponentAnalysisPanel({
 
       <section className="opponent-report__section opponent-report__lineup">
         <OpponentLineupPitch
-          formation={plan.formation}
+          formation={currentFormation}
           players={players}
           conditions={conditions}
           onSelectPlayer={onSelectPlayer}
+          discipline={discipline}
         />
       </section>
 
@@ -80,11 +88,11 @@ export function OpponentAnalysisPanel({
         <div className="opponent-tactic-facts">
           <h3>예상 상대 전술</h3>
           <dl>
-            <div><dt>성향</dt><dd>{tacticLabel("mentality", plan.tactics.mentality)}</dd></div>
-            <div><dt>압박</dt><dd>{tacticLabel("pressing", plan.tactics.pressing)}</dd></div>
-            <div><dt>수비 라인</dt><dd>{tacticLabel("line", plan.tactics.defensiveLine)}</dd></div>
-            <div><dt>팀 폭</dt><dd>{tacticLabel("width", plan.tactics.width)}</dd></div>
-            <div><dt>템포</dt><dd>{tacticLabel("tempo", plan.tactics.tempo)}</dd></div>
+            <div><dt>성향</dt><dd>{tacticLabel("mentality", currentTactics.mentality)}</dd></div>
+            <div><dt>압박</dt><dd>{tacticLabel("pressing", currentTactics.pressing)}</dd></div>
+            <div><dt>수비 라인</dt><dd>{tacticLabel("line", currentTactics.defensiveLine)}</dd></div>
+            <div><dt>팀 폭</dt><dd>{tacticLabel("width", currentTactics.width)}</dd></div>
+            <div><dt>템포</dt><dd>{tacticLabel("tempo", currentTactics.tempo)}</dd></div>
           </dl>
         </div>
       </section>
@@ -119,6 +127,7 @@ export function OpponentAnalysisPanel({
                       condition={conditions.get(player.player_id)}
                       variant="bench"
                       onSelect={onSelectPlayer}
+                      discipline={discipline?.get(player.player_id)}
                     />
                   ))}
                 </div>
@@ -177,12 +186,30 @@ function OpponentLineupPitch({
   players,
   conditions,
   onSelectPlayer,
+  discipline,
 }: {
   formation: FormationKey;
   players: Player[];
   conditions: Map<number, ConditionBreakdown>;
   onSelectPlayer?: (player: Player) => void;
+  discipline?: Map<number, PlayerDiscipline>;
 }) {
+  const slots = slotsOf(formation);
+  const available = new Set(players);
+  const assigned = new Map<string, Player>();
+  for (const slot of slots) {
+    const candidates = [...available];
+    const player = candidates
+      .filter((candidate) => candidate.position === slot.position)
+      .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0]
+      ?? candidates
+        .filter((candidate) => slot.position !== "GK" && candidate.position !== "GK")
+        .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0]
+      ?? candidates[0];
+    if (!player) continue;
+    assigned.set(slot.id, player);
+    available.delete(player);
+  }
   return (
     <div className="pitch pitch--compact" aria-label={`상대 예상 선발 ${formation}`}>
       <div className="pitch__markings">
@@ -191,8 +218,8 @@ function OpponentLineupPitch({
         <div className="pitch__box pitch__box--top" />
         <div className="pitch__box pitch__box--bottom" />
       </div>
-      {slotsOf(formation).map((slot, index) => {
-        const player = players[index];
+      {slots.map((slot) => {
+        const player = assigned.get(slot.id);
         return (
           <div
             key={slot.id}
@@ -206,6 +233,7 @@ function OpponentLineupPitch({
                 condition={conditions.get(player.player_id)}
                 variant="slot"
                 onSelect={onSelectPlayer}
+                discipline={discipline?.get(player.player_id)}
               />
             ) : (
               <div className="pitch-slot__placeholder">{slot.label}</div>

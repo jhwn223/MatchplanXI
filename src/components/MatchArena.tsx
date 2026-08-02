@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { slotsOf } from "../data/formation";
+import { FORMATIONS, slotsOf, type FormationKey, type FormationSlot } from "../data/formation";
 import {
   combinePeriods,
   simulatePeriodWithWorld,
@@ -13,6 +13,7 @@ import {
   type PlacedPlayerLite,
 } from "../data/matchSim";
 import type { Player, Position } from "../data/types";
+import { buildTeamAbilityProfile } from "../data/playerAbility";
 import { TeamFlag } from "./TeamFlag";
 import { disciplineFromEvents } from "./playerDiscipline";
 import { ArenaEventFeed } from "./match-arena/ArenaEventFeed";
@@ -21,6 +22,7 @@ import { ArenaMatchCenter, type MatchCenterTab } from "./match-arena/ArenaMatchC
 import { ArenaResultPanel } from "./match-arena/ArenaResultPanel";
 import { PenaltyTakerSelect, type PenaltyTakerCandidate } from "./match-arena/PenaltyTakerSelect";
 import {
+  applyQuickTactic,
   DEFAULT_TEAM_TACTICS,
   describeTeamTactics,
   simProfileFromTeamTactics,
@@ -31,13 +33,10 @@ import type { ArenaDot as Dot, ArenaState } from "./match-arena/runtimeTypes";
 import type { ArenaSim, MatchArenaProps } from "./match-arena/types";
 import { useArenaLoop } from "./match-arena/useArenaLoop";
 import {
-  TacticImpactPanel,
-  type TacticImpactSegment,
-} from "./match-arena/TacticImpactPanel";
-import {
   decideOpponentTacticChange,
   type OpponentTacticChange,
 } from "./match-board/opponentPlan";
+import { toSimPlayer } from "./match-board/simInput";
 
 export type { ArenaSim } from "./match-arena/types";
 
@@ -48,6 +47,17 @@ function inheritedYellowCards(events: MatchEvent[] | undefined) {
     cards[event.side][event.actorId] = (cards[event.side][event.actorId] ?? 0) + 1;
   }
   return cards;
+}
+
+/** Deterministic per match, but deliberately avoids the artificial :00/:05 cadence. */
+function opponentMinuteSchedule(seed: number, bases: readonly number[], salt: number) {
+  const scheduled = bases.map((base, index) => {
+    const hash = Math.abs(Math.imul(seed + salt + index * 7919, 1103515245));
+    let minute = base + (hash % 7) - 3;
+    if (minute % 5 === 0) minute += hash % 2 === 0 ? 1 : -1;
+    return Math.max(18, Math.min(116, minute));
+  });
+  return [...new Set(scheduled)].sort((a, b) => a - b);
 }
 
 function ScorerList({
@@ -188,7 +198,10 @@ export function MatchArena({
   opponentFormation = "4-3-3",
   onTacticChange,
   onRoleChange,
+  setPieces,
+  onSetPieceChange,
   onOpponentTacticChange,
+  onOpponentManagementChange,
   onFormationChange,
   onPlayerDismissed,
   onMinuteChange,
@@ -209,6 +222,17 @@ export function MatchArena({
   const pkOrderRef = useRef<number[] | null>(null);
   const tacticsRef = useRef<TeamTactics>(initialTactics);
   const opponentTacticsRef = useRef<TeamTactics>(initialOpponentTactics);
+  const opponentPlayersRef = useRef(opponentPlayers);
+  const opponentBenchRef = useRef(opponentBench);
+  const opponentFormationRef = useRef<FormationKey>(opponentFormation);
+  const opponentReviewMinutesRef = useRef(
+    opponentMinuteSchedule(simInput.seed, [23, 36, 51, 64, 76, 84, 106], 17),
+  );
+  const opponentManagementMinutesRef = useRef(
+    opponentMinuteSchedule(simInput.seed, [56, 67, 78, 107], 53),
+  );
+  const handledOpponentManagementRef = useRef(new Set<number>());
+  const handledOpponentDismissalManagementRef = useRef(new Set<string>());
   const periodRef = useRef<HalfResult | null>(null);
   const matchWorldRef = useRef<MatchWorld | null>(null);
   const simulatedThroughRef = useRef(startMinute);
@@ -248,17 +272,6 @@ export function MatchArena({
   const [ended, setEnded] = useState(false);
   const [pendingPenalties, setPendingPenalties] = useState(false);
   const [sim, setSim] = useState<ArenaSim>(simRef.current);
-  const [simulatedThrough, setSimulatedThrough] = useState(startMinute);
-  const [impactBaseline, setImpactBaseline] = useState<LiveMatchSnapshot | null>(null);
-  const [tacticChangedAt, setTacticChangedAt] = useState(startMinute);
-  const [hasTacticChange, setHasTacticChange] = useState(false);
-  const [tacticSegments, setTacticSegments] = useState<TacticImpactSegment[]>([
-    {
-      from: startMinute,
-      tactics: initialTactics,
-      baseline: null,
-    },
-  ]);
   const [opponentTacticChanges, setOpponentTacticChanges] = useState<OpponentTacticChange[]>([]);
   const [dismissalNotice, setDismissalNotice] = useState<string | null>(null);
 
@@ -266,26 +279,253 @@ export function MatchArena({
     simInputRef.current = simInput;
   }, [simInput]);
 
-  function updateTeamTactics(next: TeamTactics) {
-    const currentLive = snapshotAtMinute(simRef.current.liveSnapshots ?? [], hud.minute);
-    setTacticSegments((current) => {
-      const closed = current.map((segment, index) =>
-        index === current.length - 1
-          ? { ...segment, to: hud.minute, end: currentLive }
-          : segment,
-      );
-      return [
-        ...closed,
-        {
-          from: hud.minute,
-          tactics: next,
-          baseline: currentLive,
-        },
-      ];
+  useEffect(() => {
+    opponentPlayersRef.current = opponentPlayers;
+    opponentBenchRef.current = opponentBench;
+    opponentFormationRef.current = opponentFormation;
+  }, [opponentBench, opponentFormation, opponentPlayers]);
+
+  function assignOpponentPlayers(players: Player[], nextFormation: FormationKey, minute: number) {
+    const available = new Set(players);
+    const previous = new Map(simInputRef.current.oppPlaced.map((player) => [player.playerId, player]));
+    return slotsOf(nextFormation).flatMap((slot) => {
+      const candidates = [...available];
+      const player = candidates
+        .filter((candidate) => candidate.position === slot.position)
+        .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0]
+        ?? candidates
+          .filter((candidate) => slot.position !== "GK" && candidate.position !== "GK")
+          .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0]
+        ?? candidates.sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0];
+      if (!player) return [];
+      available.delete(player);
+      const old = previous.get(player.player_id);
+      return [toSimPlayer(
+        player,
+        slot,
+        old?.condition ?? 100,
+        old?.enteredAtMinute ?? minute,
+      )];
     });
-    setImpactBaseline(currentLive);
-    setTacticChangedAt(hud.minute);
-    setHasTacticChange(true);
+  }
+
+  function applyOpponentFormationToState(s: ArenaState, placed: PlacedPlayerLite[], snapToShape: boolean) {
+    const oldDots = [...s.dots];
+    const current = oldDots.filter((dot) => dot.team === 1);
+    const unused = new Set(current);
+    const nextDots: Dot[] = [];
+    placed.forEach((simPlayer, index) => {
+      const slot = slotsOf(opponentFormationRef.current).find((entry) => entry.id === simPlayer.slotId)
+        ?? ({ x: simPlayer.baseY, y: 100 - simPlayer.baseX, position: simPlayer.position } as FormationSlot);
+      const h = homeFor(slot.x, slot.y, 1);
+      const player = opponentPlayersRef.current.find((entry) => entry.player_id === simPlayer.playerId);
+      let dot = current.find((candidate) => candidate.playerId === simPlayer.playerId && unused.has(candidate));
+      if (!dot) dot = [...unused][0];
+      if (!dot) {
+        dot = {
+          playerId: simPlayer.playerId, x: h.x, y: h.y, vx: 0, vy: 0, facing: Math.PI,
+          hx: h.x, hy: h.y, team: 1, num: (simPlayer.playerId % 30) + 1,
+          name: simPlayer.name, role: simPlayer.position, tacticalRole: simPlayer.tacticalRole,
+          ...ratingsFor(player, simPlayer), nz: 1, ph: (index * 1.73) % 6.28,
+          action: "idle", actionT: 0,
+        };
+      }
+      unused.delete(dot);
+      dot.playerId = simPlayer.playerId;
+      dot.name = simPlayer.name;
+      dot.role = simPlayer.position;
+      dot.hx = h.x;
+      dot.hy = h.y;
+      Object.assign(dot, ratingsFor(player, simPlayer));
+      if (snapToShape) {
+        dot.x = h.x;
+        dot.y = h.y;
+        dot.vx = 0;
+        dot.vy = 0;
+      }
+      nextDots.push(dot);
+    });
+    replaceDotsAndRemapIndexes(s, oldDots, [
+      ...oldDots.filter((dot) => dot.team === 0),
+      ...nextDots,
+    ]);
+  }
+
+  function manageOpponentAtMinute(
+    minute: number,
+    live: LiveMatchSnapshot | null,
+    userGoals: number,
+    oppGoals: number,
+  ) {
+    if (!opponentManagementMinutesRef.current.includes(minute) || handledOpponentManagementRef.current.has(minute)) return;
+    handledOpponentManagementRef.current.add(minute);
+    const scoreDifference = oppGoals - userGoals;
+    const previousFormation = opponentFormationRef.current;
+    const nextFormation: FormationKey = scoreDifference <= -2
+      ? "3-4-3"
+      : scoreDifference < 0
+        ? "4-3-3"
+        : scoreDifference > 0 && minute >= 70
+          ? "5-4-1"
+          : previousFormation;
+    let active = [...opponentPlayersRef.current];
+    let bench = [...opponentBenchRef.current];
+    const stats = new Map(
+      (live?.players ?? []).filter((stat) => stat.side === "opp").map((stat) => [stat.playerId, stat]),
+    );
+    const previouslyDismissed = new Set(
+      (priorEvents ?? [])
+        .filter((event) => event.side === "opp" && event.type === "redCard")
+        .map((event) => event.actorId),
+    );
+    const candidate = active
+      .filter((player) => player.position !== "GK" && !previouslyDismissed.has(player.player_id) && !(stats.get(player.player_id)?.redCards))
+      .sort((a, b) => {
+        const aStat = stats.get(a.player_id);
+        const bStat = stats.get(b.player_id);
+        const fatigueA = aStat?.condition ?? 100;
+        const fatigueB = bStat?.condition ?? 100;
+        const inheritedA = (priorEvents ?? []).filter((event) => event.side === "opp" && event.actorId === a.player_id && event.type === "yellowCard").length;
+        const inheritedB = (priorEvents ?? []).filter((event) => event.side === "opp" && event.actorId === b.player_id && event.type === "yellowCard").length;
+        const riskA = ((aStat?.yellowCards ?? 0) + inheritedA) * 18 + (100 - fatigueA) + Math.max(0, 6.2 - (aStat?.rating ?? 6)) * 8;
+        const riskB = ((bStat?.yellowCards ?? 0) + inheritedB) * 18 + (100 - fatigueB) + Math.max(0, 6.2 - (bStat?.rating ?? 6)) * 8;
+        return riskB - riskA;
+      })[0];
+    const candidateStat = candidate ? stats.get(candidate.player_id) : null;
+    const candidateInheritedYellows = candidate
+      ? (priorEvents ?? []).filter((event) => event.side === "opp" && event.actorId === candidate.player_id && event.type === "yellowCard").length
+      : 0;
+    const shouldSubstitute = candidate && bench.length > 0 && (
+      (candidateStat?.condition ?? 100) < (minute >= 75 ? 82 : minute >= 65 ? 76 : 70)
+      || (candidateStat?.yellowCards ?? 0) + candidateInheritedYellows > 0
+      || scoreDifference !== 0
+    );
+    let substitutionText = "";
+    if (shouldSubstitute && candidate) {
+      const wanted = scoreDifference < 0
+        ? ["FWD", "MID"]
+        : scoreDifference > 0
+          ? ["DEF", "MID"]
+          : [candidate.position];
+      const incoming = [...bench]
+        .sort((a, b) => {
+          const fitA = wanted.includes(a.position) ? 20 : a.position === candidate.position ? 10 : 0;
+          const fitB = wanted.includes(b.position) ? 20 : b.position === candidate.position ? 10 : 0;
+          return fitB + (b.ability?.overall ?? 0) - fitA - (a.ability?.overall ?? 0);
+        })[0];
+      if (incoming) {
+        active = active.map((player) => player.player_id === candidate.player_id ? incoming : player);
+        bench = bench.filter((player) => player.player_id !== incoming.player_id);
+        substitutionText = `${candidate.player_name} 대신 ${incoming.player_name} 투입`;
+      }
+    }
+    if (!substitutionText && nextFormation === previousFormation) return;
+    opponentPlayersRef.current = active;
+    opponentBenchRef.current = bench;
+    opponentFormationRef.current = nextFormation;
+    const placed = assignOpponentPlayers(active, nextFormation, minute);
+    simInputRef.current = {
+      ...simInputRef.current,
+      oppPlaced: placed,
+      oppAbility: buildTeamAbilityProfile(active),
+      oppAttackBias: FORMATIONS[nextFormation].attackBias,
+    };
+    if (stateRef.current) applyOpponentFormationToState(stateRef.current, placed, false);
+    onOpponentManagementChange?.(active, bench, nextFormation);
+    const formationText = nextFormation !== previousFormation ? `포메이션 ${nextFormation} 전환` : "";
+    const detail = [substitutionText, formationText].filter(Boolean).join(" · ");
+    setOpponentTacticChanges((current) => [...current, {
+      minute,
+      title: "상대 감독이 선수 구성을 조정",
+      detail,
+      tactics: opponentTacticsRef.current,
+    }]);
+  }
+
+  function reactToOpponentDismissal(
+    event: MatchEvent,
+    userGoals: number,
+    oppGoals: number,
+  ) {
+    if (event.side !== "opp" || event.type !== "redCard") return;
+    const key = `${event.actorId}:${event.minute}`;
+    if (handledOpponentDismissalManagementRef.current.has(key)) return;
+    handledOpponentDismissalManagementRef.current.add(key);
+
+    const dismissedPlayer = opponentPlayersRef.current.find(
+      (player) => player.player_id === event.actorId,
+    );
+    let active = opponentPlayersRef.current.filter(
+      (player) => player.player_id !== event.actorId,
+    );
+    if (active.length === opponentPlayersRef.current.length) return;
+    let bench = [...opponentBenchRef.current];
+    let emergencyKeeperText = "";
+    if (dismissedPlayer?.position === "GK") {
+      const replacementKeeper = bench
+        .filter((player) => player.position === "GK")
+        .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0];
+      const sacrificedOutfielder = [...active]
+        .filter((player) => player.position !== "GK")
+        .sort((a, b) => {
+          const priorityA = a.position === "FWD" ? 0 : a.position === "MID" ? 1 : 2;
+          const priorityB = b.position === "FWD" ? 0 : b.position === "MID" ? 1 : 2;
+          return priorityA - priorityB || (a.ability?.overall ?? 0) - (b.ability?.overall ?? 0);
+        })[0];
+      if (replacementKeeper && sacrificedOutfielder) {
+        active = active
+          .filter((player) => player.player_id !== sacrificedOutfielder.player_id)
+          .concat(replacementKeeper);
+        bench = bench.filter((player) => player.player_id !== replacementKeeper.player_id);
+        emergencyKeeperText = `${sacrificedOutfielder.player_name}을 빼고 ${replacementKeeper.player_name} 골키퍼를 투입했습니다. `;
+      }
+    }
+
+    const isTrailing = oppGoals < userGoals;
+    // With ten players these nominal shapes resolve to 4-3-2 or 4-4-1 because
+    // assignOpponentPlayers leaves the final attacking slot vacant.
+    const nextFormation: FormationKey = isTrailing ? "4-3-3" : "4-4-2";
+    const nextTactics = isTrailing
+      ? {
+          ...applyQuickTactic(opponentTacticsRef.current, "chaseGoal"),
+          pressing: "standard" as const,
+          defensiveLine: "standard" as const,
+        }
+      : applyQuickTactic(opponentTacticsRef.current, oppGoals > userGoals ? "protectLead" : "defensive");
+
+    opponentPlayersRef.current = active;
+    opponentBenchRef.current = bench;
+    opponentFormationRef.current = nextFormation;
+    opponentTacticsRef.current = nextTactics;
+    const placed = assignOpponentPlayers(active, nextFormation, event.minute);
+    simInputRef.current = {
+      ...simInputRef.current,
+      oppPlaced: placed,
+      oppAbility: buildTeamAbilityProfile(active),
+      oppAttackBias: FORMATIONS[nextFormation].attackBias,
+    };
+    if (stateRef.current) {
+      applyOpponentFormationToState(stateRef.current, placed, false);
+      const profiles = stateRef.current.shapeProfiles ?? [
+        simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+        simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+      ];
+      stateRef.current.shapeProfiles = [profiles[0], simProfileFromTeamTactics(nextTactics)];
+    }
+    setOpponentTactics(nextTactics);
+    onOpponentTacticChange?.(nextTactics);
+    onOpponentManagementChange?.(active, bench, nextFormation);
+    setOpponentTacticChanges((current) => [...current, {
+      minute: event.minute,
+      title: "상대가 퇴장에 맞춰 대형을 재정비",
+      detail: isTrailing
+        ? `${emergencyKeeperText}10명으로 ${nextFormation} 기반의 공격 대형을 유지하되 압박 강도를 낮췄습니다.`
+        : `${emergencyKeeperText}10명으로 ${nextFormation} 기반의 수비 블록을 만들고 중앙 간격을 좁혔습니다.`,
+      tactics: nextTactics,
+    }]);
+  }
+
+  function updateTeamTactics(next: TeamTactics) {
     tacticsRef.current = next;
     if (stateRef.current) {
       const profiles = stateRef.current.shapeProfiles ?? [
@@ -309,6 +549,7 @@ export function MatchArena({
       oppXg: period.oppXg,
       teamStats: period.teamStats,
       liveSnapshots: period.liveSnapshots,
+      playerStats: period.playerStats,
     };
   }
 
@@ -322,6 +563,12 @@ export function MatchArena({
         accumulated?.liveSnapshots ?? [],
         minute - 1,
       );
+      manageOpponentAtMinute(
+        minute,
+        liveBeforeChange,
+        startScore[0] + (accumulated?.userGoals ?? 0),
+        startScore[1] + (accumulated?.oppGoals ?? 0),
+      );
       const opponentDecision = decideOpponentTacticChange({
         minute,
         userGoals: startScore[0] + (accumulated?.userGoals ?? 0),
@@ -329,6 +576,7 @@ export function MatchArena({
         current: opponentTacticsRef.current,
         userTactics: tacticsRef.current,
         live: liveBeforeChange,
+        reviewMinutes: opponentReviewMinutesRef.current,
       });
       if (
         opponentDecision &&
@@ -393,6 +641,13 @@ export function MatchArena({
       );
       matchWorldRef.current = step.world;
       accumulated = combinePeriods(accumulated, step.result);
+      for (const event of step.result.events) {
+        reactToOpponentDismissal(
+          event,
+          startScore[0] + (accumulated?.userGoals ?? 0),
+          startScore[1] + (accumulated?.oppGoals ?? 0),
+        );
+      }
     }
     if (!accumulated) return;
     periodRef.current = accumulated;
@@ -400,7 +655,6 @@ export function MatchArena({
     const nextSim = arenaSimFromPeriod(accumulated);
     simRef.current = nextSim;
     setSim(nextSim);
-    setSimulatedThrough(target);
   }
 
   function finishLivePeriod() {
@@ -517,12 +771,36 @@ export function MatchArena({
       const pid = slots[slot.id];
       if (pid == null) return;
       const player = pid != null ? playersById.get(pid) : null;
-      let dot = currentUserDots.find((candidate) => candidate.playerId === pid && unused.has(candidate));
-      if (!dot) dot = [...unused][0];
-      if (!dot) return;
-      unused.delete(dot);
       const coordinate = positions?.[slot.id] ?? slot;
       const h = homeFor(coordinate.x, coordinate.y, 0);
+      let dot = currentUserDots.find((candidate) => candidate.playerId === pid && unused.has(candidate));
+      if (!dot) dot = [...unused][0];
+      // A formation/substitution update can arrive on the same frame as a
+      // dismissal reconciliation. Previously there was no spare dot and this
+      // branch simply dropped the player from the renderer forever. Recreate
+      // the visual state from the authoritative lineup instead.
+      if (!dot) {
+        dot = {
+          playerId: player?.player_id ?? -(i + 1),
+          x: h.x,
+          y: h.y,
+          vx: 0,
+          vy: 0,
+          facing: 0,
+          hx: h.x,
+          hy: h.y,
+          team: 0,
+          num: player ? (player.player_id % 30) + 1 : i + 1,
+          name: player?.player_name ?? slot.label,
+          role: slot.position,
+          ...ratingsFor(player, simPlayerFor(player, "user")),
+          nz: 1,
+          ph: (i * 1.73) % 6.28,
+          action: "idle",
+          actionT: 0,
+        };
+      }
+      unused.delete(dot);
       dot.hx = h.x;
       dot.hy = h.y;
       dot.playerId = player?.player_id ?? -(i + 1);
@@ -563,20 +841,21 @@ export function MatchArena({
       const coordinate = positions?.[s.id] ?? s;
       const h = homeFor(coordinate.x, coordinate.y, 0);
       const k = kickoffHomeFor(h.x, h.y, 0);
-      dots.push({ playerId: player?.player_id ?? -(i + 1), x: k.x, y: k.y, vx: 0, vy: 0, facing: 0, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, ...ratingsFor(player, simPlayerFor(player, "user")), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28, action: "idle", actionT: 0 });
+      dots.push({ playerId: player?.player_id ?? -(i + 1), x: k.x, y: k.y, vx: 0, vy: 0, facing: 0, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, tacticalRole: simPlayerFor(player, "user")?.tacticalRole, ...ratingsFor(player, simPlayerFor(player, "user")), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28, action: "idle", actionT: 0 });
     });
+    const liveOpponentPlayers = opponentPlayersRef.current;
     const opponentQueues: Record<Position, Player[]> = {
-      GK: opponentPlayers.filter((player) => player.position === "GK"),
-      DEF: opponentPlayers.filter((player) => player.position === "DEF"),
-      MID: opponentPlayers.filter((player) => player.position === "MID"),
-      FWD: opponentPlayers.filter((player) => player.position === "FWD"),
+      GK: liveOpponentPlayers.filter((player) => player.position === "GK"),
+      DEF: liveOpponentPlayers.filter((player) => player.position === "DEF"),
+      MID: liveOpponentPlayers.filter((player) => player.position === "MID"),
+      FWD: liveOpponentPlayers.filter((player) => player.position === "FWD"),
     };
-    slotsOf(opponentFormation).forEach((s, i) => {
+    slotsOf(opponentFormationRef.current).forEach((s, i) => {
       const h = homeFor(s.x, s.y, 1);
       const k = kickoffHomeFor(h.x, h.y, 1);
-      const player = opponentQueues[s.position].shift() ?? opponentPlayers[i] ?? null;
+      const player = opponentQueues[s.position].shift() ?? liveOpponentPlayers[i] ?? null;
       if (player && dismissedOpponent.has(player.player_id)) return;
-      dots.push({ playerId: player?.player_id ?? -(100 + i + 1), x: k.x, y: k.y, vx: 0, vy: 0, facing: Math.PI, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, ...ratingsFor(player, simPlayerFor(player, "opp")), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28, action: "idle", actionT: 0 });
+      dots.push({ playerId: player?.player_id ?? -(100 + i + 1), x: k.x, y: k.y, vx: 0, vy: 0, facing: Math.PI, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, tacticalRole: simPlayerFor(player, "opp")?.tacticalRole, ...ratingsFor(player, simPlayerFor(player, "opp")), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28, action: "idle", actionT: 0 });
     });
     // The home side kicks off the match; the away side restarts the second
     // half. The taker stands on the centre spot next to the stationary ball.
@@ -601,6 +880,10 @@ export function MatchArena({
         simProfileFromTeamTactics(tacticsRef.current),
         simProfileFromTeamTactics(opponentTacticsRef.current),
       ],
+      setPieceParticipants: {
+        corner: setPieces?.cornerParticipants ?? [],
+        freeKick: setPieces?.freeKickParticipants ?? [],
+      },
       ball: {
         x: 50,
         y: 50,
@@ -719,6 +1002,7 @@ export function MatchArena({
   // are prepended so the list keeps growing across the interval.
   const timeline = [...(priorEvents ?? []), ...playedEvents];
   const discipline = disciplineFromEvents(timeline, "user");
+  const opponentDiscipline = disciplineFromEvents(timeline, "opp");
   useEffect(() => {
     for (const event of playedEvents) {
       if (event.type !== "redCard") continue;
@@ -732,7 +1016,7 @@ export function MatchArena({
       setDismissalNotice(
         `${event.actor} 퇴장 · ${event.side === "user" ? "10명으로 포메이션을 재정비하세요." : "상대가 10명이 되었습니다. 전술을 재정비하세요."}`,
       );
-      openMatchCenter("squad");
+      openMatchCenter(event.side === "opp" && squadControls ? "opponent" : "squad");
     }
     // Event count is the authoritative playback cursor. Other callback/state
     // identities must not make an already handled card fire twice.
@@ -831,14 +1115,19 @@ export function MatchArena({
             positions={positions}
             slotRoles={slotRoles}
             playersById={playersById}
-            opponentPlayers={opponentPlayers}
-            opponentBench={opponentBench}
+            opponentPlayers={opponentPlayersRef.current}
+            opponentBench={opponentBenchRef.current}
+            opponentFormation={opponentFormationRef.current}
+            opponentTactics={opponentTactics}
             squadControls={squadControls}
             onApplyTactics={updateTeamTactics}
             onRoleChange={onRoleChange}
-            onFormationChange={onFormationChange}
+                onFormationChange={onFormationChange}
+                setPieces={setPieces}
+                onSetPieceChange={onSetPieceChange}
             dismissalNotice={dismissalNotice}
             discipline={discipline}
+            opponentDiscipline={opponentDiscipline}
           />
         )}
 
@@ -904,6 +1193,12 @@ export function MatchArena({
             </div>
             {sidebarTab === "stats" ? (
               <div className="arena-live-stats">
+                {opponentTacticChanges.at(-1) && (
+                  <div className="opponent-response-notice" role="status">
+                    <strong>{opponentTacticChanges.at(-1)!.title}</strong>
+                    <span>{opponentTacticChanges.at(-1)!.minute}' · {opponentTacticChanges.at(-1)!.detail}</span>
+                  </div>
+                )}
                 <ArenaLiveStats
                   live={liveSnapshot}
                   userXg={observedUserXg}
@@ -918,16 +1213,6 @@ export function MatchArena({
                 opponentTactics={opponentTactics}
               />
             )}
-            <TacticImpactPanel
-              tactics={teamTactics}
-              changedAt={tacticChangedAt}
-              hasChanged={hasTacticChange}
-              baseline={impactBaseline}
-              live={liveSnapshot}
-              currentMinute={hud.minute}
-              simulatedThrough={simulatedThrough}
-              segments={tacticSegments}
-            />
             </div>
           </div>
         </div>

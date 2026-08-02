@@ -178,116 +178,25 @@
   opacity: .75;
 }
 .arena-bookings li[data-red] i { background: var(--danger); }
-.arena-insights .tactic-impact {
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow-y: auto;
+.opponent-response-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+  padding: 9px 10px;
+  border-left: 3px solid #e1a600;
+  border-radius: 6px;
+  background: #fff8dc;
+  color: #39433b;
 }
+.opponent-response-notice strong { font-size: 10px; }
+.opponent-response-notice span { color: #6a716b; font-size: 8px; line-height: 1.4; }
 @media (max-width: 900px) {
   /* Stacked layout: the sidebar owns its own row again, so it goes back into
      normal flow rather than collapsing to nothing. */
   .arena-insights { position: static; overflow: visible; }
   .arena-insights__inner { position: static; }
   .arena-insights .arena-events__list { max-height: none; }
-}
-.tactic-impact {
-  padding: 13px 14px;
-  border-top: 1px solid var(--border);
-  background: #f4f9f1;
-  color: #142016;
-}
-.tactic-impact__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-.tactic-impact__head div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.tactic-impact__head span {
-  color: #08752d;
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-}
-.tactic-impact__head strong { font-size: 12px; }
-.tactic-impact__head em {
-  padding: 3px 6px;
-  border-radius: 999px;
-  background: #d8f4dc;
-  color: #08752d;
-  font-size: 8px;
-  font-style: normal;
-  font-weight: 900;
-  white-space: nowrap;
-}
-.tactic-impact__plan {
-  margin: 8px 0;
-  overflow: hidden;
-  color: #4e5c50;
-  font-size: 9px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tactic-impact__metrics {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-}
-.tactic-impact__metrics div {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 6px 3px;
-  border: 1px solid #dbe7d9;
-  border-radius: 6px;
-  background: #fff;
-  text-align: center;
-}
-.tactic-impact__metrics span { color: #657267; font-size: 8px; }
-.tactic-impact__metrics strong { color: #08752d; font-size: 13px; }
-.tactic-impact__proof {
-  margin: 8px 0 0;
-  color: #667168;
-  font-size: 8px;
-  line-height: 1.45;
-}
-.tactic-impact__segments {
-  display: grid;
-  gap: 4px;
-  margin-top: 9px;
-  padding-top: 8px;
-  border-top: 1px solid #dbe7d9;
-}
-.tactic-impact__segments > strong {
-  color: #405044;
-  font-size: 9px;
-}
-.tactic-impact__segments > div {
-  display: grid;
-  grid-template-columns: 42px repeat(3, 1fr);
-  gap: 4px;
-  align-items: center;
-  padding: 5px 6px;
-  border-radius: 6px;
-  background: #fff;
-  color: #667168;
-  font-size: 8px;
-}
-.tactic-impact__segments > div[data-active] {
-  background: #dcf5df;
-  color: #075d27;
-}
-.tactic-impact__segments span {
-  font-weight: 900;
-}
-.tactic-impact__segments b {
-  font-weight: 700;
-  text-align: right;
 }
 .arena-banner {
   position: absolute;
@@ -303,7 +212,6 @@
   white-space: nowrap;
   animation: banner-pop 0.3s ease;
 }
-
 .arena-situation {
   position: absolute;
   top: 18px;
@@ -320,14 +228,12 @@
   color: #123d25;
   pointer-events: none;
 }
-
 .arena-situation span {
   color: #5b7162;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
 }
-
 .arena-situation strong {
   font-size: 14px;
 }
@@ -361,7 +267,6 @@
   border-color: #4fd1c5;
 }
 .arena-ctrl:disabled { cursor: not-allowed; opacity: .55; }
-
 /* ============ In-match management center ============ */
 /* The panel is capped so the score header and playback controls stay visible;
    each tab scrolls inside it rather than running off the bottom of the modal. */
@@ -580,6 +485,72 @@
   background: #fff;
 }
 .match-analysis-board > aside { padding: 15px; }
+.analysis-side-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 12px 0 4px;
+}
+.analysis-side-switch button {
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.analysis-side-switch button[data-active] {
+  border-color: var(--accent);
+  background: #e4f5e6;
+  color: var(--accent);
+}
+.set-piece-board {
+  display: grid;
+  grid-template-columns: minmax(220px, .8fr) repeat(2, minmax(240px, 1fr));
+  gap: 14px;
+  padding: 18px;
+}
+.set-piece-board > section {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.set-piece-board h3 { margin: 0 0 12px; font-size: 14px; }
+.set-piece-board__takers label { display: grid; gap: 5px; margin-top: 12px; }
+.set-piece-board__takers label span { color: var(--text-dim); font-size: 9px; font-weight: 800; }
+.set-piece-board select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f9fbf7;
+  font: inherit;
+  font-size: 11px;
+}
+.set-piece-board__participants header { display: flex; justify-content: space-between; align-items: center; }
+.set-piece-board__participants header span { color: var(--accent); font-size: 10px; font-weight: 900; }
+.set-piece-board__participants > div { display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+.set-piece-board__participants button {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafcf9;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.set-piece-board__participants button[data-active] { border-color: var(--accent); background: #e4f5e6; }
+.set-piece-board__participants button:disabled { opacity: .45; cursor: not-allowed; }
+.set-piece-board__participants button strong { font-size: 10px; }
+.set-piece-board__participants button span { color: var(--text-dim); font-size: 8px; }
 .match-analysis-board h3 { margin: 0; font-size: 14px; }
 .match-analysis-board aside label { display: flex; flex-direction: column; gap: 5px; margin: 14px 0; }
 .match-analysis-board aside label span { color: var(--text-dim); font-size: 9px; }
@@ -895,16 +866,13 @@
   min-height: 0;
   overflow: visible;
 }
-
 .match-center > .arena-squad-board { overflow: visible; }
-
 .arena-squad-board__pitch {
   min-width: 0;
   height: var(--arena-management-pitch-height);
   display: flex;
   flex-direction: column;
 }
-
 .arena-squad-board .pitch {
   width: auto;
   height: var(--arena-management-pitch-height);
@@ -923,7 +891,6 @@
     linear-gradient(180deg, #3f7249 0%, #315f3b 100%);
   box-shadow: 0 10px 22px rgba(20, 48, 26, .16);
 }
-
 /* The in-match pitch is intentionally compact. Keep each player's visible
    card small enough for fine positioning, while giving its parent slot a
    larger invisible hit area so swaps do not require pixel-perfect drops. */
@@ -932,47 +899,39 @@
   height: 76px;
   border-radius: 14px;
 }
-
 .arena-squad-board .pitch-slot[data-over="true"] {
   background: rgba(219, 246, 220, .2);
   box-shadow: inset 0 0 0 2px rgba(166, 230, 172, .82);
 }
-
 .arena-squad-board .player-card--slot,
 .arena-drag-overlay .player-card--slot {
   width: 60px;
 }
-
 .arena-squad-board .player-card--slot .player-card__ring,
 .arena-drag-overlay .player-card--slot .player-card__ring {
   width: 35px;
   height: 35px;
   border-width: 2px;
 }
-
 .arena-squad-board .player-card--slot .player-card__name,
 .arena-squad-board .player-card--slot .player-card__sub,
 .arena-drag-overlay .player-card--slot .player-card__name,
 .arena-drag-overlay .player-card--slot .player-card__sub {
   max-width: 60px;
 }
-
 .arena-squad-board .player-card--slot .player-card__name,
 .arena-drag-overlay .player-card--slot .player-card__name {
   font-size: 9px;
 }
-
 .arena-squad-board .player-card--slot .player-card__sub,
 .arena-drag-overlay .player-card--slot .player-card__sub {
   font-size: 8px;
 }
-
 .arena-squad-board .player-card--slot .player-card__condition,
 .arena-drag-overlay .player-card--slot .player-card__condition {
   width: 40px;
   height: 4px;
 }
-
 .arena-squad-board .bench {
   align-self: start;
   min-height: 0;
@@ -982,7 +941,6 @@
   box-sizing: border-box;
   overflow-y: auto;
 }
-
 .arena-squad-board__controls {
   display: flex;
   min-width: 0;
@@ -990,7 +948,6 @@
   flex-direction: column;
   gap: 8px;
 }
-
 .arena-squad-board__team {
   display: flex;
   align-items: center;
@@ -1002,7 +959,6 @@
   border-radius: 12px;
   background: linear-gradient(145deg, #f9fcf7, #edf5e9);
 }
-
 .arena-squad-board__team > span {
   display: flex;
   width: 44px;
@@ -1018,13 +974,11 @@
   font-size: 11px;
   font-weight: 900;
 }
-
 .arena-squad-board__team > span small {
   color: inherit;
   font-size: 8px;
   line-height: 1;
 }
-
 .arena-squad-board__flag {
   width: 27px;
   height: 19px;
@@ -1032,7 +986,6 @@
   border: 1px solid rgba(255, 255, 255, .7);
   border-radius: 4px;
 }
-
 .arena-squad-board__team small,
 .arena-squad-board__team p {
   display: block;
@@ -1041,19 +994,16 @@
   font-size: 9px;
   font-weight: 750;
 }
-
 .arena-squad-board__team h2 {
   margin: 2px 0 3px;
   font-size: 16px;
   line-height: 1.1;
 }
-
 .arena-squad-board__status {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
-
 .arena-squad-board__status > label,
 .arena-squad-board__status > div {
   display: flex;
@@ -1067,24 +1017,20 @@
   border-radius: 11px;
   background: var(--panel);
 }
-
 .arena-squad-board__status span {
   margin-bottom: 5px;
   color: var(--text-dim);
   font-size: 9px;
   font-weight: 750;
 }
-
 .arena-squad-board__status strong {
   color: var(--accent);
   font-size: 15px;
 }
-
 .arena-squad-board__status .match-formation-select {
   width: 100%;
   min-height: 30px;
 }
-
 .arena-squad-board__guide {
   flex: 1 1 auto;
   padding: 13px 14px;
@@ -1092,13 +1038,11 @@
   border-radius: 12px;
   background: var(--panel);
 }
-
 .arena-squad-board__guide h3 {
   margin: 0 0 9px;
   color: var(--accent);
   font-size: 11px;
 }
-
 .arena-squad-board__guide ul {
   margin: 0;
   padding-left: 17px;
@@ -1106,7 +1050,6 @@
   font-size: 10px;
   line-height: 1.7;
 }
-
 .arena-squad-board__reset {
   min-height: 40px;
   border: 1px solid #c8d9c7;
@@ -1117,12 +1060,10 @@
   font-weight: 850;
   cursor: pointer;
 }
-
 .arena-squad-board__reset:hover {
   border-color: var(--accent);
   background: #e1f1df;
 }
-
 .arena-squad-board__meta {
   display: flex;
   align-items: center;
@@ -1137,9 +1078,7 @@
   padding: 8px 22px 28px;
   overflow: hidden;
 }
-
 .match-center > .arena-opponent-board { overflow: hidden; }
-
 /* Match the squad/substitution workspace, but reserve a separate rail for the
    opposition bench: lineup pitch -> report -> substitutes. The pre-match
    report keeps its own vertical layout because every override is arena-scoped. */
@@ -1161,7 +1100,6 @@
   margin: 0 auto;
   padding: 0;
 }
-
 .arena-opponent-board .opponent-report__header {
   grid-area: header;
   min-height: 64px;
@@ -1169,20 +1107,17 @@
   border-radius: 12px;
   box-shadow: none;
 }
-
 .arena-opponent-board .opponent-report__header > span {
   width: 44px;
   height: 44px;
   border-radius: 11px;
 }
-
 .arena-opponent-board .opponent-report__metrics {
   grid-area: metrics;
   align-self: stretch;
   margin: 0;
   gap: 5px;
 }
-
 .arena-opponent-board .opponent-report__metrics > div {
   display: flex;
   min-height: 58px;
@@ -1190,7 +1125,6 @@
   justify-content: center;
   padding: 8px;
 }
-
 .arena-opponent-board .opponent-report__lineup {
   grid-area: lineup;
   min-width: 0;
@@ -1199,7 +1133,6 @@
   display: flex;
   flex-direction: column;
 }
-
 .arena-opponent-board .opponent-report__lineup .pitch.pitch--compact {
   width: auto;
   max-width: none;
@@ -1207,59 +1140,47 @@
   flex: 0 0 auto;
   margin: 0 auto;
 }
-
 .arena-opponent-board .pitch--compact .pitch-slot {
   transform: translate(-50%, -50%);
 }
-
 .arena-opponent-board .pitch--compact .player-card--slot {
   width: 60px;
 }
-
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__name,
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__sub {
   max-width: 60px;
 }
-
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__ring {
   width: 35px;
   height: 35px;
   border-width: 2px;
 }
-
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__name {
   font-size: 9px;
 }
-
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__sub {
   font-size: 8px;
 }
-
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__condition {
   width: 40px;
   height: 4px;
 }
-
 .arena-opponent-board .opponent-report__shape {
   grid-area: tactics;
   margin-top: 0;
   padding: 10px 12px;
 }
-
 .arena-opponent-board .opponent-report__scout {
   grid-area: scout;
   margin-top: 0;
   gap: 6px;
 }
-
 .arena-opponent-board .opponent-report__scout > div { padding: 9px 10px; }
-
 .arena-opponent-board .opponent-report__evidence {
   grid-area: evidence;
   align-self: end;
   margin-top: 0;
 }
-
 .arena-opponent-board .opponent-report__bench {
   grid-area: bench;
   align-self: start;
@@ -1275,12 +1196,10 @@
   border-radius: 12px;
   background: var(--panel);
 }
-
 .arena-opponent-board .opponent-report__bench .opponent-lineup-list {
   grid-template-columns: 1fr;
   gap: 6px;
 }
-
 @media (max-width: 1180px) {
   .arena-squad-board,
   .arena-opponent-board .opponent-report {
@@ -1288,25 +1207,20 @@
     gap: 8px 12px;
   }
 }
-
 @media (max-width: 900px) {
   .match-center > .arena-squad-board,
   .match-center > .arena-opponent-board { overflow-y: auto; }
-
   .arena-squad-board {
     display: block;
     height: auto;
     max-width: none;
   }
-
   .arena-squad-board__pitch { height: min(62vh, 548px); }
   .arena-squad-board__controls { height: auto; margin-top: 10px; }
   .arena-squad-board .bench { height: auto; max-height: 520px; margin-top: 10px; }
-
   .arena-opponent-board .opponent-report {
     display: block;
   }
-
   .arena-opponent-board .opponent-report__metrics,
   .arena-opponent-board .opponent-report__lineup,
   .arena-opponent-board .opponent-report__shape,
@@ -1315,7 +1229,6 @@
   .arena-opponent-board .opponent-report__bench {
     margin-top: 10px;
   }
-
   .arena-opponent-board .opponent-report__bench .opponent-lineup-list {
     grid-template-columns: 1fr;
   }
@@ -1491,7 +1404,6 @@
   justify-content: center;
   font-size: 16px;
 }
-
 .halftime-banner {
   display: flex;
   align-items: center;
@@ -1515,7 +1427,6 @@
   color: var(--accent);
   letter-spacing: 0.08em;
 }
-
 .halftime-editor {
   padding: 14px 16px 4px;
   background: rgba(255, 255, 255, 0.02);
@@ -1543,7 +1454,6 @@
   max-height: 560px;
   overflow: auto;
 }
-
 @media (max-width: 980px) {
   .arena-modal {
     max-height: 94vh;
@@ -1601,7 +1511,6 @@
   .role-board { grid-template-columns: 1fr; }
   .role-board__pitch { width: min(100%, 400px); }
 }
-
 /* ============ GOAL! overlay ============ */
 .arena-goal {
   position: absolute;
@@ -1634,7 +1543,6 @@
   padding: 5px 16px;
   border-radius: 999px;
 }
-
 .arena-opponent-current {
   display: flex;
   align-items: center;
@@ -1645,19 +1553,16 @@
   border-radius: 9px;
   background: #eef3ea;
 }
-
 .arena-opponent-current span {
   color: #687267;
   font-size: 9px;
   font-weight: 750;
 }
-
 .arena-opponent-current strong {
   color: #27462e;
   font-size: 9px;
   text-align: right;
 }
-
 .arena-opponent-change {
   margin: 0 0 12px;
   padding: 11px 12px;
@@ -1665,32 +1570,27 @@
   border-radius: 11px;
   background: #fff8e8;
 }
-
 .arena-opponent-change span,
 .arena-opponent-change strong,
 .arena-opponent-change p {
   display: block;
 }
-
 .arena-opponent-change span {
   color: #9b6412;
   font-size: 9px;
   font-weight: 850;
 }
-
 .arena-opponent-change strong {
   margin-top: 3px;
   color: #5a390b;
   font-size: 11px;
 }
-
 .arena-opponent-change p {
   margin: 5px 0 0;
   color: #745f3c;
   font-size: 9px;
   line-height: 1.4;
 }
-
 /* ============ Penalty shootout: taker order screen ============ */
 .pk-taker-select {
   min-height: 540px;
@@ -1852,7 +1752,6 @@
   font-size: 14px;
   font-weight: 800;
 }
-
 .arena-halftime-transition {
   display: grid;
   place-content: center;
@@ -1862,23 +1761,72 @@
   color: #15251a;
   text-align: center;
 }
-
 .arena-halftime-transition span {
   color: #087333;
   font-size: 12px;
   font-weight: 950;
   letter-spacing: .12em;
 }
-
 .arena-halftime-transition strong {
   margin: 12px 0;
   font-size: 46px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-
 .arena-halftime-transition p {
   margin: 0;
   color: #6a766a;
   font-size: 13px;
 }
+
+/* Saved plans sit under the built-in instructions in the quick tab. */
+.saved-tactics {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+}
+.saved-tactics__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.saved-tactics__head strong { color: var(--text); font-size: 12px; }
+.saved-tactics__save { display: flex; gap: 8px; }
+.saved-tactics__save input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.saved-tactics__save button {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.saved-tactics__save button:disabled { opacity: .45; cursor: not-allowed; }
+.saved-tactics .quick-tactics__grid button { position: relative; }
+.saved-tactics .quick-tactics__grid em {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-style: normal;
+  cursor: pointer;
+}
+.saved-tactics .quick-tactics__grid em:hover { color: #f87171; }

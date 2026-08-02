@@ -1,6 +1,7 @@
 import type { TeamAbilityProfile } from "../playerAbility";
 import type { Position } from "../types";
 import type { PlayerRole } from "../playerRoles";
+import type { SetPieceAssignments } from "../tactics";
 
 export interface PlacedPlayerLite {
   playerId: number;
@@ -46,6 +47,9 @@ export interface PlacedPlayerLite {
   aggression: number;
   stamina: number;
   penalties: number;
+  crossing: number;
+  freeKickAccuracy: number;
+  headingAccuracy: number;
   gkDiving: number;
   gkHandling: number;
   gkPositioning: number;
@@ -241,6 +245,8 @@ export interface SimInput {
   isKnockout: boolean;
   /** Cautions inherited from an earlier period, keyed by player id. */
   initialYellowCards?: Partial<Record<MatchSide, Record<number, number>>>;
+  userSetPieces?: SetPieceAssignments;
+  oppSetPieces?: SetPieceAssignments;
 }
 
 export interface PenaltyResult {

@@ -294,8 +294,12 @@ export function simulatePeriodWithWorld(
     offside: 24,
     goalKick: 22,
     save: 17,
-    turnover: 1.4,
-    tackle: 1.6,
+    // Winning the ball is not instantly playing it. At a second and a half the
+    // recovery and the pass that followed landed almost together in the
+    // replay, so it read as the player who lost the ball simply passing it to
+    // an opponent. The extra beat is the touch that settles it.
+    turnover: 3.4,
+    tackle: 3.8,
     shot: 1,
   } as const;
 
@@ -482,9 +486,27 @@ export function simulatePeriodWithWorld(
   const resolveSetPiece = (
     side: MatchSide,
     kind: "corner" | "freeKick" | "penaltyKick",
-    taker: PlacedPlayerLite,
+    requestedTaker: PlacedPlayerLite,
     keeperPlayer: PlacedPlayerLite,
   ) => {
+    const assignments = side === "user" ? runtimeInput.userSetPieces : runtimeInput.oppSetPieces;
+    const assignedTakerId = kind === "penaltyKick"
+      ? assignments?.penaltyTakerId
+      : kind === "corner"
+        ? assignments?.cornerTakerId
+        : assignments?.freeKickTakerId;
+    const activePlayers = activeSidePlayers(side);
+    const taker = activePlayers.find((player) => player.playerId === assignedTakerId)
+      ?? (requestedTaker.position !== "GK" ? requestedTaker : undefined)
+      ?? weightedPick(
+        outfield(activePlayers),
+        (player) => kind === "penaltyKick"
+          ? player.penalties
+          : kind === "corner"
+            ? player.crossing + player.longPassing * 0.5
+            : player.freeKickAccuracy + player.shotPower * 0.25,
+        rng,
+      );
     // Walking to the ball, forming a wall and waiting for the referee is a
     // real part of the ninety minutes, so a restart costs the clock.
     advanceClock(DEAD_BALL_SECONDS[kind]);
@@ -502,7 +524,17 @@ export function simulatePeriodWithWorld(
     }
     const sideTactics = side === "user" ? userTactics : oppTactics;
     const defendingSide = otherSide(side);
-    const candidates = outfield(activeSidePlayers(side));
+    const designatedParticipants = kind === "corner"
+      ? assignments?.cornerParticipants
+      : kind === "freeKick"
+        ? assignments?.freeKickParticipants
+        : undefined;
+    const allCandidates = outfield(activePlayers).filter((player) => player.playerId !== taker.playerId);
+    const selectedParticipants = (designatedParticipants ?? [])
+      .map((playerId) => allCandidates.find((player) => player.playerId === playerId))
+      .filter((player): player is PlacedPlayerLite => player != null)
+      .slice(0, 3);
+    const candidates = selectedParticipants.length ? selectedParticipants : allCandidates;
     if (kind === "corner") running[side].corners++;
     addEvent(side, kind, taker, keeperPlayer, true);
 
@@ -529,7 +561,7 @@ export function simulatePeriodWithWorld(
           candidates,
           (player) =>
             (player.position === "FWD" ? 2.8 : player.position === "DEF" ? 1.5 : 1.1) *
-            (0.45 + (player.positioning + player.strength + player.finishing) / 300),
+            (0.35 + (player.positioning + player.strength + player.finishing + player.headingAccuracy) / 400),
           rng,
         );
     const shotXg = kind === "penaltyKick"
@@ -1285,7 +1317,7 @@ export function simulatePeriodWithWorld(
           // possession's progress let a side manufacture chances simply by
           // stationing six forwards in the box: every one of them was a
           // shooter the moment the ball reached him. Progress has to earn it.
-          rng() < (roleShotChance * 0.40 + progress * 0.071 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.115) ||
+          rng() < (roleShotChance * 0.43 + progress * 0.078 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.115) ||
           (action === maxActions - 1 && rng() < 0.02 * spaceToShoot)
         );
       if (!shootNow) continue;
@@ -1401,7 +1433,7 @@ export function simulatePeriodWithWorld(
       // range. The former 1.2 boost was compensating for an older, low-quality
       // shot model and now over-converted the better chances created by the
       // positional simulation.
-      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.47, 0.01, 0.72);
+      const goalChance = clamp(shotXg * finishingMultiplier * keeperMultiplier * 1.42, 0.01, 0.72);
       if (rng() < goalChance) {
         running[side].shotsOnTarget++;
         if (shooterStats) {

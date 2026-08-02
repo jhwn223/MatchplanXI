@@ -11,6 +11,7 @@ interface ResultSim {
   comparison?: SimComparison;
   teamStats?: { user: TeamStats; opp: TeamStats };
   liveSnapshots?: LiveMatchSnapshot[];
+  playerStats?: PlayerMatchStats[];
   wentToExtraTime?: boolean;
   penalties?: { userGoals: number; oppGoals: number; winner: "user" | "opp" } | null;
   regulationUserGoals?: number;
@@ -77,7 +78,7 @@ export function ArenaResultPanel({
 
   const comparison = sim.comparison;
   const live = sim.liveSnapshots?.at(-1);
-  const players = live?.players ?? [];
+  const players = sim.playerStats?.length ? sim.playerStats : live?.players ?? [];
   const outcome = sim.userGoals > sim.oppGoals ? "승리" : sim.userGoals < sim.oppGoals ? "패배" : "무승부";
   return (
     <motion.div className="sim-compare sim-compare--final" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
