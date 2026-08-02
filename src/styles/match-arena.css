@@ -1951,9 +1951,14 @@
   position: absolute;
   top: 6px;
   right: 8px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
   color: var(--text-dim);
-  font-size: 10px;
   font-style: normal;
   cursor: pointer;
+  transition: color .15s ease;
 }
 .saved-tactics .quick-tactics__grid em:hover { color: #f87171; }

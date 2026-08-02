@@ -252,7 +252,7 @@ export function MatchBoardScreen({
           ) : (
             <div className="prematch-tactic-summary">
               <TacticItemBoxSelect
-                label="포메이션"
+                label="현재 포메이션"
                 value={lineup.formation}
                 options={FORMATION_KEYS.map((key) => [key, key] as const)}
                 onChange={(value) => onSelectFormation(value as FormationKey)}

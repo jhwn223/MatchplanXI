@@ -192,7 +192,15 @@ export function ArenaTacticsPanel({
                             onDeleteTactic?.(entry.id);
                           }}
                         >
-                          삭제
+                          <svg viewBox="0 0 16 16" width="10" height="10" fill="none" aria-hidden="true">
+                            <path
+                              d="M3.5 4.5h9M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4.5 4.5 5 13a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l.5-8.5M6.7 7v4M9.3 7v4"
+                              stroke="currentColor"
+                              strokeWidth="1.3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
                         </em>
                       </button>
                     ))}
