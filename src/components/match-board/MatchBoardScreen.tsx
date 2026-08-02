@@ -345,6 +345,9 @@ export function MatchBoardScreen({
                 savedTactics={savedTactics}
                 onSaveTactic={onSaveTactic}
                 onDeleteTactic={onDeleteTactic}
+                lineupIncomplete={!ready}
+                placedCount={placedCount}
+                requiredPlayers={requiredPlayers}
               />
             </section>
           )}
