@@ -1,20 +1,32 @@
 import { FORMATIONS, slotsOf, type FormationKey, type FormationSlot } from "./formation";
 import type { ConditionBreakdown } from "./conditionEngine";
+import type { TeamStats } from "./matchSim";
 import type { Player, Position } from "./types";
 
 export type Slots = Record<string, number | null>;
 
-/** Coarse position tiers, back of the pitch to the front. */
-const POSITION_TIER: Record<Position, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
+export interface SetPieceAssignments {
+  penaltyTakerId?: number;
+  cornerTakerId?: number;
+  freeKickTakerId?: number;
+  cornerParticipants: number[];
+  freeKickParticipants: number[];
+}
+
+export const EMPTY_SET_PIECE_ASSIGNMENTS: SetPieceAssignments = {
+  cornerParticipants: [],
+  freeKickParticipants: [],
+};
 
 /**
  * Whether a player of `playerPos` may be placed in a slot of `slotPos`.
- * GK is a wall (GK only in GK, GK can't go outfield); outfield players may
- * cover adjacent tiers only (DEF↔MID↔FWD), so FWD↔DEF is not allowed.
+ * GK is a wall (GK only in GK, GK can't go outfield); any outfield player
+ * may take any outfield slot — playing out of position is the manager's
+ * call, and the ability profile already prices the mismatch.
  */
 export function canPlaceInSlot(playerPos: Position, slotPos: Position): boolean {
   if (playerPos === "GK" || slotPos === "GK") return playerPos === slotPos;
-  return Math.abs(POSITION_TIER[playerPos] - POSITION_TIER[slotPos]) <= 1;
+  return true;
 }
 
 export function emptySlots(formation: FormationKey): Slots {
@@ -47,19 +59,38 @@ export function switchFormationKeepPlayers(
 ): Slots {
   const oldSlotDefs = slotsOf(oldFormation);
   const byPosition: Record<Position, number[]> = { GK: [], DEF: [], MID: [], FWD: [] };
+  const allPlayers: number[] = [];
   for (const def of oldSlotDefs) {
     const pid = oldSlots[def.id];
-    if (pid != null) byPosition[def.position].push(pid);
+    if (pid != null) {
+      byPosition[def.position].push(pid);
+      allPlayers.push(pid);
+    }
   }
   const next = emptySlots(newFormation);
   const cursor: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+  const assigned = new Set<number>();
   for (const def of slotsOf(newFormation)) {
     const pool = byPosition[def.position];
     const idx = cursor[def.position];
     if (idx < pool.length) {
       next[def.id] = pool[idx];
+      assigned.add(pool[idx]);
       cursor[def.position] = idx + 1;
     }
+  }
+
+  // Formations do not always contain the same number of DEF/MID/FWD slots.
+  // The old implementation silently discarded the surplus players whenever
+  // a line became smaller (for example 4-3-3 -> 3-5-2). Fill every remaining
+  // outfield slot with the still-unassigned XI so changing shape never sends
+  // somebody to the bench or makes a player disappear from the live arena.
+  const remaining = allPlayers.filter((playerId) => !assigned.has(playerId));
+  for (const def of slotsOf(newFormation)) {
+    if (next[def.id] != null || def.position === "GK") continue;
+    const playerId = remaining.shift();
+    if (playerId == null) break;
+    next[def.id] = playerId;
   }
   return next;
 }
@@ -74,6 +105,7 @@ interface Norm {
   height: number;
   caps: number;
   condition: number;
+  ability: number;
 }
 
 function normalizeSquad(
@@ -96,6 +128,7 @@ function normalizeSquad(
       height: nh(p.height_cm),
       caps: nc(p.caps),
       condition: (conditions.get(p.player_id)?.score ?? 0) / 100,
+      ability: (p.ability?.overall ?? 65) / 100,
     });
   }
   return m;
@@ -162,7 +195,7 @@ export function autoFillByRole(
         const n = norms.get(p.player_id)!;
         // a known fine-role dominates the heuristic: strong match bonus, mismatch penalty
         const pref = p.preferredRole ? (p.preferredRole === role ? 2 : -0.7) : 0;
-        const score = roleAffinity(role, n) * 1.0 + n.condition * 0.6 + pref;
+        const score = roleAffinity(role, n) * 0.7 + n.condition * 0.55 + n.ability * 1.15 + pref;
         if (score > bestScore) {
           bestScore = score;
           best = p;
@@ -196,3 +229,214 @@ export const TACTICAL_PRESETS: TacticalPreset[] = [
 ];
 
 export const FORMATION_META = FORMATIONS;
+
+// ---- tactic style (playstyle) ----
+
+export type TacticStyleKey =
+  | "possession"
+  | "counter"
+  | "wing"
+  | "halfspace"
+  | "longball"
+  | "gegenpress";
+
+export interface TacticStyle {
+  key: TacticStyleKey;
+  label: string;
+  emoji: string;
+  description: string;
+  /** small nudge blended into the formation/position-derived attack bias */
+  attackBias: number;
+  /** -1..1, how aggressively the team presses/recovers the ball high up the pitch */
+  pressBias: number;
+  /** -1..1, how much fullbacks/wingers overlap and cross */
+  overlapBias: number;
+  /** -1..1, negative = short possession passing, positive = direct/long passing */
+  directnessBias: number;
+  /** -1..1, net tendency to create counters (positive) vs concede them (negative pressure) */
+  counterBias: number;
+}
+
+export const TACTIC_STYLES: TacticStyle[] = [
+  {
+    key: "possession",
+    label: "점유(패스) 전술",
+    emoji: "🎯",
+    description: "짧은 패스, 높은 점유율, 천천히 전개",
+    attackBias: -0.05,
+    pressBias: -0.3,
+    overlapBias: -0.2,
+    directnessBias: -0.9,
+    counterBias: -0.3,
+  },
+  {
+    key: "counter",
+    label: "역습 전술",
+    emoji: "⚡",
+    description: "공을 뺏으면 빠르게 전진",
+    attackBias: -0.15,
+    pressBias: -0.5,
+    overlapBias: -0.1,
+    directnessBias: 0.4,
+    counterBias: 0.9,
+  },
+  {
+    key: "wing",
+    label: "측면(크로스) 전술",
+    emoji: "↗",
+    description: "풀백·윙 활용, 크로스 비중 높음",
+    attackBias: 0.25,
+    pressBias: 0.0,
+    overlapBias: 0.9,
+    directnessBias: 0.1,
+    counterBias: 0.0,
+  },
+  {
+    key: "halfspace",
+    label: "중앙 침투 전술",
+    emoji: "🎯",
+    description: "원투패스, 스루패스, 하프스페이스 활용",
+    attackBias: 0.35,
+    pressBias: 0.1,
+    overlapBias: 0.1,
+    directnessBias: -0.4,
+    counterBias: 0.1,
+  },
+  {
+    key: "longball",
+    label: "롱볼 전술",
+    emoji: "🚀",
+    description: "긴 패스로 최전방 공략",
+    attackBias: 0.15,
+    pressBias: -0.1,
+    overlapBias: 0.0,
+    directnessBias: 0.9,
+    counterBias: 0.2,
+  },
+  {
+    key: "gegenpress",
+    label: "게겐프레싱",
+    emoji: "🔥",
+    description: "높은 압박 후 즉시 탈취",
+    attackBias: 0.45,
+    pressBias: 0.95,
+    overlapBias: 0.3,
+    directnessBias: 0.2,
+    counterBias: -0.4,
+  },
+];
+
+export function tacticStyleByKey(key: TacticStyleKey | null | undefined): TacticStyle {
+  return TACTIC_STYLES.find((s) => s.key === key) ?? TACTIC_STYLES[0];
+}
+
+export interface TacticStat {
+  label: string;
+  /** 0..100, for stat-bar rendering */
+  value: number;
+}
+
+/** bias is -1..1; convert to a 0..100 bar value. */
+function biasToStat(bias: number): number {
+  return Math.round(((bias + 1) / 2) * 100);
+}
+
+/**
+ * Attack/defense stat breakdown for a tactic style, meant to replace raw
+ * bias numbers with labeled bars a screen can render directly.
+ */
+export function tacticStatBreakdown(key: TacticStyleKey | null | undefined): {
+  attack: TacticStat[];
+  defense: TacticStat[];
+} {
+  const style = tacticStyleByKey(key);
+  return {
+    attack: [
+      { label: "공격 전개", value: biasToStat(style.attackBias) },
+      { label: "측면 오버래핑", value: biasToStat(style.overlapBias) },
+      { label: "직선적 전개(롱볼 성향)", value: biasToStat(style.directnessBias) },
+    ],
+    defense: [
+      { label: "전방 압박", value: biasToStat(style.pressBias) },
+      { label: "역습 전환", value: biasToStat(style.counterBias) },
+    ],
+  };
+}
+
+/** Style-flavoured, stat-backed bullet points for the post-match "AI 전술 분석" panel. */
+export function generateTacticAnalysis(key: TacticStyleKey | null | undefined, stats: TeamStats): string[] {
+  const style = tacticStyleByKey(key);
+  const shotAccuracy = stats.shots > 0 ? Math.round((stats.shotsOnTarget / stats.shots) * 100) : 0;
+  const hadMorePossession = stats.possession >= 50;
+  const passedWell = stats.passSuccessRate >= 75;
+
+  switch (style.key) {
+    case "possession":
+      return [
+        hadMorePossession
+          ? `점유율 ${stats.possession}%로 볼을 오래 소유했습니다.`
+          : `점유율에서는 ${stats.possession}%로 밀렸지만 짧은 패스로 안정적인 전개를 시도했습니다.`,
+        `짧은 패스 전개 덕분에 패스 성공률 ${stats.passSuccessRate}%를 기록했습니다.`,
+        `슈팅 ${stats.shots}회 중 유효 슈팅은 ${stats.shotsOnTarget}회(${shotAccuracy}%)였습니다.`,
+      ];
+    case "counter":
+      return [
+        `인터셉트 ${stats.interceptions}회로 볼을 되찾은 뒤 빠르게 전환했습니다.`,
+        `태클 성공 ${stats.tacklesWon}회로 상대 공격을 끊어냈습니다.`,
+        `역습 과정에서 슈팅 ${stats.shots}회 중 ${stats.shotsOnTarget}회가 유효 슈팅으로 이어졌습니다.`,
+      ];
+    case "wing":
+      return [
+        `측면 위주 전개로 점유율 ${stats.possession}%를 기록했습니다.`,
+        `슈팅 ${stats.shots}회 중 ${stats.shotsOnTarget}회(${shotAccuracy}%)가 유효 슈팅이었습니다.`,
+        passedWell
+          ? `패스 성공률 ${stats.passSuccessRate}%로 측면 연계가 원활했습니다.`
+          : `패스 성공률은 ${stats.passSuccessRate}%로 측면 연계가 매끄럽지 않았습니다.`,
+      ];
+    case "halfspace":
+      return [
+        `하프스페이스 침투로 패스 성공률 ${stats.passSuccessRate}%를 기록했습니다.`,
+        `중앙 집중 전개로 슈팅 ${stats.shots}회, 유효 슈팅 ${stats.shotsOnTarget}회를 만들었습니다.`,
+        hadMorePossession
+          ? `점유율 ${stats.possession}%로 안정적인 경기 운영을 보였습니다.`
+          : `점유율은 ${stats.possession}%에 그쳤지만 중앙 침투로 기회를 노렸습니다.`,
+      ];
+    case "longball":
+      return [
+        stats.passSuccessRate >= 60
+          ? `롱볼 위주 전술에도 패스 성공률 ${stats.passSuccessRate}%를 유지했습니다.`
+          : `롱볼 위주 전술로 패스 성공률은 ${stats.passSuccessRate}%에 머물렀습니다.`,
+        `최전방을 직접 공략해 슈팅 ${stats.shots}회를 시도했습니다.`,
+        hadMorePossession
+          ? `점유율 ${stats.possession}%를 기록하면서도 직선적인 공격을 병행했습니다.`
+          : `점유율은 ${stats.possession}%로 낮았지만 직선적인 공격을 노렸습니다.`,
+      ];
+    case "gegenpress":
+      return [
+        `높은 압박으로 인터셉트 ${stats.interceptions}회, 태클 성공 ${stats.tacklesWon}회를 기록했습니다.`,
+        `탈취 직후 빠른 전환으로 슈팅 ${stats.shots}회를 만들어냈습니다.`,
+        hadMorePossession
+          ? `점유율 ${stats.possession}%로 경기를 주도했습니다.`
+          : `점유율은 ${stats.possession}%였지만 압박으로 상대를 흔들었습니다.`,
+      ];
+  }
+}
+
+/** Which tactic styles suit each formation best, most-recommended first. */
+export const FORMATION_RECOMMENDED_STYLES: Record<FormationKey, TacticStyleKey[]> = {
+  "5-4-1": ["counter", "possession"],
+  "5-3-2": ["counter", "longball"],
+  "4-5-1": ["possession", "counter"],
+  "4-4-2": ["wing", "longball"],
+  "4-2-3-1": ["halfspace", "possession"],
+  "4-1-2-3": ["possession", "wing"],
+  "3-5-2": ["wing", "possession"],
+  "3-4-1-2": ["halfspace", "counter"],
+  "4-3-3": ["wing", "gegenpress"],
+  "3-4-3": ["gegenpress", "halfspace"],
+  "5-2-3": ["counter", "wing"],
+};
+
+export function recommendedStylesFor(formation: FormationKey): TacticStyleKey[] {
+  return FORMATION_RECOMMENDED_STYLES[formation] ?? [];
+}

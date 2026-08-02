@@ -22,6 +22,55 @@ export interface Venue {
   elevation_meters: number;
 }
 
+export interface PlayerAbility {
+  source: "fc26" | "estimated";
+  sourcePlayerId?: string;
+  sourceName?: string;
+  overall: number;
+  pace: number;
+  shooting: number;
+  passing: number;
+  dribbling: number;
+  defending: number;
+  physical: number;
+  acceleration: number;
+  sprintSpeed: number;
+  positioning: number;
+  finishing: number;
+  shotPower: number;
+  longShots: number;
+  volleys: number;
+  penalties: number;
+  vision: number;
+  crossing: number;
+  freeKickAccuracy: number;
+  shortPassing: number;
+  longPassing: number;
+  curve: number;
+  agility: number;
+  balance: number;
+  reactions: number;
+  ballControl: number;
+  composure: number;
+  interceptions: number;
+  headingAccuracy: number;
+  defensiveAwareness: number;
+  standingTackle: number;
+  slidingTackle: number;
+  jumping: number;
+  stamina: number;
+  strength: number;
+  aggression: number;
+  gkDiving: number;
+  gkHandling: number;
+  gkKicking: number;
+  gkPositioning: number;
+  gkReflexes: number;
+  weakFoot: number;
+  skillMoves: number;
+  preferredFoot?: string;
+}
+
 export interface Player {
   player_id: number;
   team_id: number;
@@ -35,6 +84,7 @@ export interface Player {
   goals: number;
   /** optional fine-grained role (ST/W/CB/FB/DM/CM/AM/WM) for accurate auto-placement */
   preferredRole?: string;
+  ability?: PlayerAbility;
 }
 
 export interface MatchDetailed {

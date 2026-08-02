@@ -1,0 +1,267 @@
+/* ============ Sim modal (문자중계) ============ */
+.sim-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.sim-modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+}
+.sim-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sim-modal__title { font-weight: 700; font-size: 15px; }
+.sim-modal__close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+}
+.sim-scoreline {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+.sim-scoreline__team {
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+.sim-scoreline__score {
+  font-size: 30px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.sim-xg {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: -6px;
+  padding-bottom: 10px;
+}
+.sim-feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg);
+  min-height: 220px;
+}
+.sim-line {
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--border);
+}
+.sim-line--goal-user { border-left-color: #4fd1c5; background: rgba(79,209,197,0.12); font-weight: 700; }
+.sim-line--goal-opp  { border-left-color: #f87171; background: rgba(248,113,113,0.1); font-weight: 700; }
+.sim-line--chance-user { border-left-color: #86efac; }
+.sim-line--chance-opp  { border-left-color: #fca5a5; }
+.sim-line--info { border-left-color: #fbbf24; color: var(--text-dim); font-style: italic; }
+.sim-line--kickoff, .sim-line--ht, .sim-line--ft {
+  border-left-color: var(--accent);
+  text-align: center;
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.sim-typing { color: var(--text-dim); font-size: 12px; letter-spacing: 3px; padding: 4px 11px; }
+
+.sim-compare {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.sim-compare__et {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+.sim-compare__row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.sim-compare__col {
+  flex: 1;
+  text-align: center;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.sim-compare__label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+.sim-compare__val { font-size: 22px; font-weight: 800; }
+.sim-compare__verdict { font-size: 13px; line-height: 1.5; margin: 0 0 8px; }
+.sim-compare__tactics { font-size: 12px; color: var(--text-dim); margin: 0 0 14px; }
+.sim-compare__actions { display: flex; gap: 8px; }
+
+/* ---- halftime interim layout: stats | (pitch slot, filled elsewhere) | player condition ---- */
+.interim-columns {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(200px, 260px);
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+.interim-columns__side { min-width: 0; }
+.interim-columns__center { min-width: 0; }
+@media (max-width: 820px) {
+  .interim-columns { grid-template-columns: 1fr; }
+  .interim-columns__center:empty { display: none; }
+}
+
+.player-condition {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.player-condition__title { margin: 0 0 10px; font-size: 12px; color: var(--text-dim); font-weight: 700; }
+.player-condition__list { display: flex; flex-direction: column; gap: 6px; }
+.player-condition__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border-left: 3px solid #4fd1c5;
+  background: var(--panel);
+}
+.player-condition__row[data-risk] { border-left-color: #e5484d; }
+.player-condition__name {
+  flex: 0 0 auto;
+  min-width: 64px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.player-condition__name small { color: var(--text-dim); font-size: 10px; font-weight: 500; }
+.player-condition__rating { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.player-condition__rating span { font-size: 12px; font-weight: 800; color: var(--accent); width: 28px; flex-shrink: 0; }
+.player-condition__track { flex: 1; height: 5px; border-radius: 999px; background: rgba(229,72,77,0.2); overflow: hidden; }
+.player-condition__fill { height: 100%; background: #4fd1c5; border-radius: 999px; }
+.player-condition__warn { flex-shrink: 0; font-size: 12px; }
+
+/* ---- AI tactic analysis (post-match) ---- */
+.tactic-analysis {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.tactic-analysis__title { margin: 0 0 8px; font-size: 12px; color: var(--text-dim); font-weight: 700; }
+.tactic-analysis__list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.tactic-analysis__list li { font-size: 12px; line-height: 1.5; color: var(--text); }
+
+/* ---- team stats (pass %, GK save %) ---- */
+.team-stats {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.team-stats__title { margin: 0 0 10px; font-size: 12px; color: var(--text-dim); font-weight: 700; }
+.stat-bar { margin-bottom: 10px; }
+.stat-bar:last-child { margin-bottom: 0; }
+.stat-bar__nums {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.stat-bar__val { font-weight: 800; font-size: 14px; color: var(--accent); }
+.stat-bar__val--opp { color: #e5484d; }
+.stat-bar__sub { font-size: 10px; font-weight: 500; color: var(--text-dim); }
+.stat-bar__label { color: var(--text-dim); font-size: 11px; }
+.stat-bar__track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(229,72,77,0.35);
+  overflow: hidden;
+}
+.stat-bar__fill { height: 100%; background: var(--accent); border-radius: 999px; }
+
+/* ---- cumulative scorer / assist leaderboard ---- */
+.leaderboard {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.leaderboard__title { margin: 0 0 10px; font-size: 12px; color: var(--text-dim); font-weight: 700; }
+.leaderboard__cols { display: flex; gap: 12px; }
+.leaderboard__col { flex: 1; min-width: 0; }
+.leaderboard__col-title { margin: 0 0 6px; font-size: 12px; font-weight: 700; }
+.leaderboard__empty { margin: 0; font-size: 12px; color: var(--text-dim); }
+.leaderboard__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.leaderboard__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: var(--panel);
+}
+.leaderboard__rank { color: var(--text-dim); font-weight: 700; width: 14px; flex-shrink: 0; }
+.leaderboard__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboard__count { font-weight: 800; color: var(--accent); }
+.sim-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 9px;
+  border: none;
+  background: var(--accent);
+  color: #06231f;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sim-btn--ghost {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.sim-btn--accent {
+  background: linear-gradient(180deg, #4fd1c5, #2fb3a6);
+  color: #06231f;
+}
+

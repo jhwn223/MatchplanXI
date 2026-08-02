@@ -1,185 +1,190 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { slotsOf, type FormationKey } from "../data/formation";
-import type { GoalEvent, PenaltyResult, SimComparison, TeamStats } from "../data/matchSim";
+import { FORMATIONS, slotsOf, type FormationKey, type FormationSlot } from "../data/formation";
+import {
+  combinePeriods,
+  simulatePeriodWithWorld,
+  snapshotAtMinute,
+  type HalfResult,
+  type LiveMatchSnapshot,
+  type MatchEvent,
+  type MatchSide,
+  type MatchWorld,
+  type PlacedPlayerLite,
+} from "../data/matchSim";
 import type { Player, Position } from "../data/types";
-import { topAssists, topScorers, type Leaderboard, type LeaderboardEntry } from "../data/leaderboard";
+import { buildTeamAbilityProfile } from "../data/playerAbility";
+import { TeamFlag } from "./TeamFlag";
+import { disciplineFromEvents } from "./playerDiscipline";
+import { ArenaEventFeed } from "./match-arena/ArenaEventFeed";
+import { ArenaLiveStats } from "./match-arena/ArenaLiveStats";
+import { ArenaMatchCenter, type MatchCenterTab } from "./match-arena/ArenaMatchCenter";
+import { ArenaResultPanel } from "./match-arena/ArenaResultPanel";
+import { PenaltyTakerSelect, type PenaltyTakerCandidate } from "./match-arena/PenaltyTakerSelect";
+import {
+  applyQuickTactic,
+  DEFAULT_TEAM_TACTICS,
+  describeTeamTactics,
+  simProfileFromTeamTactics,
+  type TeamTactics,
+} from "./match-arena/tactics";
+import { clamp as clampf, homeFor, kickoffHomeFor } from "./match-arena/runtimeMath";
+import type { ArenaDot as Dot, ArenaState } from "./match-arena/runtimeTypes";
+import type { ArenaSim, MatchArenaProps } from "./match-arena/types";
+import { useArenaLoop } from "./match-arena/useArenaLoop";
+import {
+  decideOpponentTacticChange,
+  type OpponentTacticChange,
+} from "./match-board/opponentPlan";
+import { toSimPlayer } from "./match-board/simInput";
 
-/** Slimmed projection of a match result for one arena segment (a half, or extra time). */
-export interface ArenaSim {
-  goals: GoalEvent[];
-  userGoals: number;
-  oppGoals: number;
-  comparison?: SimComparison;
-  teamStats?: { user: TeamStats; opp: TeamStats };
-  wentToExtraTime?: boolean;
-  penalties?: PenaltyResult | null;
-  regulationUserGoals?: number;
-  regulationOppGoals?: number;
+export type { ArenaSim } from "./match-arena/types";
+
+function inheritedYellowCards(events: MatchEvent[] | undefined) {
+  const cards: Record<MatchSide, Record<number, number>> = { user: {}, opp: {} };
+  for (const event of events ?? []) {
+    if (event.type !== "yellowCard") continue;
+    cards[event.side][event.actorId] = (cards[event.side][event.actorId] ?? 0) + 1;
+  }
+  return cards;
 }
 
-interface Props {
-  sim: ArenaSim;
-  userTeamName: string;
-  userCode: string;
-  oppTeamName: string;
-  oppCode: string;
-  userColor: string;
-  formation: FormationKey;
-  slots: Record<string, number | null>;
-  playersById: Map<number, Player>;
-  leaderboard: Leaderboard;
-  startMinute?: number;
-  endMinute?: number;
-  startScore?: [number, number];
-  /** false = this segment ends at an interim break (halftime / pre-extra-time), not full time */
-  final?: boolean;
-  interimLabel?: string;
-  interimCta?: string;
-  onInterimContinue?: () => void;
-  onComplete: () => void;
-  onClose: () => void;
-  onNext?: () => void;
+/** Deterministic per match, but deliberately avoids the artificial :00/:05 cadence. */
+function opponentMinuteSchedule(seed: number, bases: readonly number[], salt: number) {
+  const scheduled = bases.map((base, index) => {
+    const hash = Math.abs(Math.imul(seed + salt + index * 7919, 1103515245));
+    let minute = base + (hash % 7) - 3;
+    if (minute % 5 === 0) minute += hash % 2 === 0 ? 1 : -1;
+    return Math.max(18, Math.min(116, minute));
+  });
+  return [...new Set(scheduled)].sort((a, b) => a - b);
 }
 
-interface Dot {
-  x: number;
-  y: number;
-  hx: number; // home x
-  hy: number;
-  team: 0 | 1; // 0 = user, 1 = opp
-  num: number;
-  name: string;
-  role: Position;
-  react: number; // reaction-speed multiplier
-  nz: number; // idle-noise frequency
-  ph: number; // noise phase offset
+function ScorerList({
+  scorers,
+}: {
+  scorers: { playerId: number; minute: number; name: string }[];
+}) {
+  // Always render the <ul>, even empty — it reserves the same slot on both
+  // sides of the scoreboard, so a team with only a card (no goal) doesn't
+  // end up with its booking line sitting one slot higher than the other
+  // side's and throwing the two columns out of alignment.
+  const groupedScorers = Array.from(
+    scorers.reduce((groups, scorer) => {
+      const existing = groups.get(scorer.playerId);
+      if (existing) {
+        existing.minutes.push(scorer.minute);
+      } else {
+        groups.set(scorer.playerId, {
+          playerId: scorer.playerId,
+          name: scorer.name,
+          minutes: [scorer.minute],
+        });
+      }
+      return groups;
+    }, new Map<number, { playerId: number; name: string; minutes: number[] }>()),
+    ([, scorer]) => scorer,
+  );
+  return (
+    <ul className="arena-scorers">
+      {groupedScorers.map((scorer) => (
+        <li key={scorer.playerId}>
+          <i aria-hidden="true">⚽</i>
+          <span>{scorer.name}</span>
+          <em>{scorer.minutes.map((minute) => `${minute}′`).join(", ")}</em>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-type LiveIntensity = {
-  fluidDefense: number;
-  attackPress: number;
-};
-
-const DEFAULT_LIVE_INTENSITY: LiveIntensity = { fluidDefense: 35, attackPress: 30 };
-
-type DefenseStyle = "dropBack" | "balanced" | "errorPress" | "lossPress" | "constantPress";
-type BuildUpPlay = "shortPass" | "balanced" | "longPass" | "fastBuildUp";
-type ChanceCreation = "possession" | "balanced" | "directPassing" | "forwardRuns";
-
-interface TeamTactics {
-  defenseStyle: DefenseStyle;
-  width: number;
-  depth: number;
-  buildUpPlay: BuildUpPlay;
-  chanceCreation: ChanceCreation;
-  attackWidth: number;
-  boxPlayers: number;
-  corners: number;
-  freeKicks: number;
+function BookingList({
+  bookings,
+}: {
+  bookings: { minute: number; name: string; red: boolean }[];
+}) {
+  // Always render the <ul> — see the comment in ScorerList above.
+  return (
+    <ul className="arena-bookings">
+      {bookings.map((booking, index) => (
+        <li
+          key={`${booking.minute}-${booking.name}-${index}`}
+          data-red={booking.red || undefined}
+        >
+          <i aria-hidden="true" />
+          <span>{booking.name}</span>
+          <em>{booking.minute}′</em>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-type TacticSelectKey = "defenseStyle" | "buildUpPlay" | "chanceCreation";
-type TacticMeterKey = "width" | "depth" | "attackWidth" | "boxPlayers" | "corners" | "freeKicks";
-
-const DEFAULT_TEAM_TACTICS: TeamTactics = {
-  defenseStyle: "balanced",
-  width: 5,
-  depth: 4,
-  buildUpPlay: "balanced",
-  chanceCreation: "balanced",
-  attackWidth: 6,
-  boxPlayers: 6,
-  corners: 1,
-  freeKicks: 3,
-};
-
-const TACTIC_SELECTS: Record<TacticSelectKey, { title: string; options: Array<{ value: string; label: string }> }> = {
-  defenseStyle: {
-    title: "수비 스타일",
-    options: [
-      { value: "dropBack", label: "후퇴" },
-      { value: "balanced", label: "밸런스" },
-      { value: "errorPress", label: "볼 터치 실수 시 압박" },
-      { value: "lossPress", label: "공 뺏긴 직후 압박" },
-      { value: "constantPress", label: "지속적인 압박" },
-    ],
-  },
-  buildUpPlay: {
-    title: "빌드업 플레이",
-    options: [
-      { value: "shortPass", label: "짧은 패스" },
-      { value: "balanced", label: "밸런스" },
-      { value: "longPass", label: "긴 패스" },
-      { value: "fastBuildUp", label: "빠른 빌드업" },
-    ],
-  },
-  chanceCreation: {
-    title: "기회 만들기",
-    options: [
-      { value: "possession", label: "점유율" },
-      { value: "balanced", label: "밸런스" },
-      { value: "directPassing", label: "침투 패스" },
-      { value: "forwardRuns", label: "전방 침투" },
-    ],
-  },
-};
-
-const KOREAN_CANVAS_FONT = `"Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Segoe UI", sans-serif`;
-
-interface ArenaState {
-  clock: number;
-  phase: "play" | "celebrate" | "penalties" | "interim" | "ended";
-  celebrateT: number;
-  actionT: number;
-  score: [number, number];
-  nextGoal: number;
-  dots: Dot[];
-  ball: { x: number; y: number; owner: number; flightTo: number; lastTeam: 0 | 1 };
-  banner: string | null;
-  goalSide: 0 | 1 | null;
-  time: number;
-  pendingKick?: number | null;
-  scoring?: { side: 0 | 1; scorer?: string; assist?: string; t: number } | null;
-  periodBanner: string | null;
-  periodBannerT: number;
-  announcedET1: boolean;
-  announcedET2: boolean;
-  penT: number;
+function remappedIndex(oldDots: Dot[], nextDots: Dot[], index: number | null | undefined) {
+  if (index == null || index < 0) return index ?? -1;
+  const dot = oldDots[index];
+  return dot ? nextDots.indexOf(dot) : -1;
 }
 
-const MIN_PER_SEC = 3.4; // 90' in ~26s at 1x
+/** Keep every index-based animation reference valid when a player leaves. */
+function replaceDotsAndRemapIndexes(s: ArenaState, oldDots: Dot[], nextDots: Dot[]) {
+  s.ball.owner = remappedIndex(oldDots, nextDots, s.ball.owner);
+  s.ball.flightTo = remappedIndex(oldDots, nextDots, s.ball.flightTo);
+  if (s.ball.flightTarget) {
+    const owner = s.ball.flightTarget.owner;
+    const chaser = s.ball.flightTarget.chaser;
+    s.ball.flightTarget.owner = owner == null ? null : remappedIndex(oldDots, nextDots, owner);
+    s.ball.flightTarget.chaser = chaser == null ? null : remappedIndex(oldDots, nextDots, chaser);
+  }
+  if (s.pendingKick != null) {
+    const next = remappedIndex(oldDots, nextDots, s.pendingKick);
+    s.pendingKick = next >= 0 ? next : null;
+  }
+  if (s.scoring) {
+    const shooter = remappedIndex(oldDots, nextDots, s.scoring.shooter);
+    s.scoring = shooter >= 0 ? { ...s.scoring, shooter } : null;
+  }
+  if (s.scriptedRun) {
+    const actor = remappedIndex(oldDots, nextDots, s.scriptedRun.actor);
+    s.scriptedRun = actor >= 0 ? { ...s.scriptedRun, actor } : null;
+  }
+  if (s.situation) {
+    const actor = remappedIndex(oldDots, nextDots, s.situation.actor);
+    s.situation = actor >= 0 ? { ...s.situation, actor } : null;
+  }
+  s.dots = nextDots;
+}
 
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * Math.min(1, t);
-}
-function d2(ax: number, ay: number, bx: number, by: number) {
-  const dx = ax - bx,
-    dy = ay - by;
-  return dx * dx + dy * dy;
-}
-function clampf(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-// map a formation slot to arena coords. side 0 (user) attacks right (+x), side 1 attacks left.
-function homeFor(slotX: number, slotY: number, side: 0 | 1) {
-  const ax = (100 - slotY) * 0.46 + 4;
-  const ay = slotX * 0.86 + 7;
-  if (side === 0) return { x: ax, y: ay };
-  return { x: 100 - ax, y: 100 - ay };
+function removePlayerFromArena(s: ArenaState, side: MatchSide, playerId: number) {
+  const team = side === "user" ? 0 : 1;
+  const oldDots = [...s.dots];
+  const dismissed = oldDots.find((dot) => dot.team === team && dot.playerId === playerId);
+  if (!dismissed) return;
+  if (s.ball.owner >= 0 && oldDots[s.ball.owner] === dismissed) {
+    s.ball.x = dismissed.x;
+    s.ball.y = dismissed.y;
+  }
+  replaceDotsAndRemapIndexes(s, oldDots, oldDots.filter((dot) => dot !== dismissed));
 }
 
 export function MatchArena({
-  sim,
+  simInput,
+  priorEvents,
+  squadControls,
   userTeamName,
   userCode,
   oppTeamName,
   oppCode,
   userColor,
   formation,
+  formationLabel,
+  tacticStyleKey,
   slots,
+  positions,
+  slotRoles,
   playersById,
+  opponentPlayers,
+  opponentBench,
   leaderboard,
   startMinute = 0,
   endMinute = 90,
@@ -188,79 +193,705 @@ export function MatchArena({
   interimLabel = "구간 종료",
   interimCta = "계속하기 →",
   onInterimContinue,
+  initialTactics = DEFAULT_TEAM_TACTICS,
+  initialOpponentTactics = DEFAULT_TEAM_TACTICS,
+  opponentFormation = "4-3-3",
+  onTacticChange,
+  onRoleChange,
+  setPieces,
+  onSetPieceChange,
+  savedTactics,
+  onSaveTactic,
+  onDeleteTactic,
+  onOpponentTacticChange,
+  onOpponentManagementChange,
+  onFormationChange,
+  onPlayerDismissed,
+  onMinuteChange,
+  onPeriodComplete,
   onComplete,
+  onCommitSubstitutions,
   onClose,
+  onSchedule,
   onNext,
-}: Props) {
+}: MatchArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const simInputRef = useRef(simInput);
   const stateRef = useRef<ArenaState | null>(null);
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
-  const liveIntensityRef = useRef<LiveIntensity>(DEFAULT_LIVE_INTENSITY);
+  const skipRequestedRef = useRef(false);
+  const pausedBeforePanelRef = useRef(false);
   const completedRef = useRef(false);
+  const pkOrderRef = useRef<number[] | null>(null);
+  const tacticsRef = useRef<TeamTactics>(initialTactics);
+  const opponentTacticsRef = useRef<TeamTactics>(initialOpponentTactics);
+  const opponentPlayersRef = useRef(opponentPlayers);
+  const opponentBenchRef = useRef(opponentBench);
+  // Keep a roster history so a dismissed opponent can still be identified in
+  // the analysis view after being correctly removed from the active XI.
+  const knownOpponentPlayersRef = useRef(
+    new Map([...opponentPlayers, ...opponentBench].map((player) => [player.player_id, player])),
+  );
+  const opponentFormationRef = useRef<FormationKey>(opponentFormation);
+  const opponentReviewMinutesRef = useRef(
+    opponentMinuteSchedule(simInput.seed, [23, 36, 51, 64, 76, 84, 106], 17),
+  );
+  const opponentManagementMinutesRef = useRef(
+    opponentMinuteSchedule(simInput.seed, [56, 67, 78, 107], 53),
+  );
+  const handledOpponentManagementRef = useRef(new Set<number>());
+  const handledOpponentDismissalManagementRef = useRef(new Set<string>());
+  const periodRef = useRef<HalfResult | null>(null);
+  const matchWorldRef = useRef<MatchWorld | null>(null);
+  const simulatedThroughRef = useRef(startMinute);
+  const handledDismissalsRef = useRef(
+    new Set(
+      (priorEvents ?? [])
+        .filter((event) => event.type === "redCard")
+        .map((event) => `${event.side}:${event.actorId}:${event.minute}`),
+    ),
+  );
+  const periodEndedRef = useRef(false);
+  const simRef = useRef<ArenaSim>({
+    goals: [],
+    events: [],
+    positionSamples: [],
+    userGoals: startScore[0],
+    oppGoals: startScore[1],
+    userXg: 0,
+    oppXg: 0,
+  });
 
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [teamTactics, setTeamTactics] = useState<TeamTactics>(DEFAULT_TEAM_TACTICS);
-  const [openTacticSelect, setOpenTacticSelect] = useState<TacticSelectKey | null>(null);
+  const [activePanel, setActivePanel] = useState<MatchCenterTab | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<"stats" | "feed">("stats");
+  const [teamTactics, setTeamTactics] = useState<TeamTactics>(initialTactics);
+  const [opponentTactics, setOpponentTactics] = useState<TeamTactics>(initialOpponentTactics);
   const [hud, setHud] = useState({
     minute: startMinute,
     home: startScore[0],
     away: startScore[1],
     banner: null as string | null,
     periodBanner: null as string | null,
+    eventCount: 0,
+    situation: null as string | null,
   });
   const [ended, setEnded] = useState(false);
+  const [pendingPenalties, setPendingPenalties] = useState(false);
+  const [sim, setSim] = useState<ArenaSim>(simRef.current);
+  const [opponentTacticChanges, setOpponentTacticChanges] = useState<OpponentTacticChange[]>([]);
+  const [dismissalNotice, setDismissalNotice] = useState<string | null>(null);
+  const [dismissalSide, setDismissalSide] = useState<MatchSide | null>(null);
+
+  useEffect(() => {
+    simInputRef.current = simInput;
+  }, [simInput]);
+
+  useEffect(() => {
+    opponentPlayersRef.current = opponentPlayers;
+    opponentBenchRef.current = opponentBench;
+    opponentFormationRef.current = opponentFormation;
+    for (const player of [...opponentPlayers, ...opponentBench]) {
+      knownOpponentPlayersRef.current.set(player.player_id, player);
+    }
+  }, [opponentBench, opponentFormation, opponentPlayers]);
+
+  function assignOpponentPlayers(players: Player[], nextFormation: FormationKey, minute: number) {
+    const available = new Set(players);
+    const previous = new Map(simInputRef.current.oppPlaced.map((player) => [player.playerId, player]));
+    return slotsOf(nextFormation).flatMap((slot) => {
+      const candidates = [...available];
+      const player = candidates
+        .filter((candidate) => candidate.position === slot.position)
+        .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0]
+        ?? candidates
+          .filter((candidate) => slot.position !== "GK" && candidate.position !== "GK")
+          .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0]
+        ?? candidates.sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0];
+      if (!player) return [];
+      available.delete(player);
+      const old = previous.get(player.player_id);
+      return [toSimPlayer(
+        player,
+        slot,
+        old?.condition ?? 100,
+        old?.enteredAtMinute ?? minute,
+      )];
+    });
+  }
+
+  function applyOpponentFormationToState(s: ArenaState, placed: PlacedPlayerLite[], snapToShape: boolean) {
+    const oldDots = [...s.dots];
+    const current = oldDots.filter((dot) => dot.team === 1);
+    const unused = new Set(current);
+    const nextDots: Dot[] = [];
+    placed.forEach((simPlayer, index) => {
+      const slot = slotsOf(opponentFormationRef.current).find((entry) => entry.id === simPlayer.slotId)
+        ?? ({ x: simPlayer.baseY, y: 100 - simPlayer.baseX, position: simPlayer.position } as FormationSlot);
+      const h = homeFor(slot.x, slot.y, 1);
+      const player = opponentPlayersRef.current.find((entry) => entry.player_id === simPlayer.playerId);
+      let dot = current.find((candidate) => candidate.playerId === simPlayer.playerId && unused.has(candidate));
+      if (!dot) dot = [...unused][0];
+      if (!dot) {
+        dot = {
+          playerId: simPlayer.playerId, x: h.x, y: h.y, vx: 0, vy: 0, facing: Math.PI,
+          hx: h.x, hy: h.y, team: 1, num: (simPlayer.playerId % 30) + 1,
+          name: simPlayer.name, role: simPlayer.position, tacticalRole: simPlayer.tacticalRole,
+          ...ratingsFor(player, simPlayer), nz: 1, ph: (index * 1.73) % 6.28,
+          action: "idle", actionT: 0,
+        };
+      }
+      unused.delete(dot);
+      dot.playerId = simPlayer.playerId;
+      dot.name = simPlayer.name;
+      dot.role = simPlayer.position;
+      dot.hx = h.x;
+      dot.hy = h.y;
+      Object.assign(dot, ratingsFor(player, simPlayer));
+      if (snapToShape) {
+        dot.x = h.x;
+        dot.y = h.y;
+        dot.vx = 0;
+        dot.vy = 0;
+      }
+      nextDots.push(dot);
+    });
+    replaceDotsAndRemapIndexes(s, oldDots, [
+      ...oldDots.filter((dot) => dot.team === 0),
+      ...nextDots,
+    ]);
+  }
+
+  function manageOpponentAtMinute(
+    minute: number,
+    live: LiveMatchSnapshot | null,
+    userGoals: number,
+    oppGoals: number,
+  ) {
+    if (!opponentManagementMinutesRef.current.includes(minute) || handledOpponentManagementRef.current.has(minute)) return;
+    handledOpponentManagementRef.current.add(minute);
+    const scoreDifference = oppGoals - userGoals;
+    const previousFormation = opponentFormationRef.current;
+    const nextFormation: FormationKey = scoreDifference <= -2
+      ? "3-4-3"
+      : scoreDifference < 0
+        ? "4-3-3"
+        : scoreDifference > 0 && minute >= 70
+          ? "5-4-1"
+          : previousFormation;
+    let active = [...opponentPlayersRef.current];
+    let bench = [...opponentBenchRef.current];
+    const stats = new Map(
+      (live?.players ?? []).filter((stat) => stat.side === "opp").map((stat) => [stat.playerId, stat]),
+    );
+    const previouslyDismissed = new Set(
+      (priorEvents ?? [])
+        .filter((event) => event.side === "opp" && event.type === "redCard")
+        .map((event) => event.actorId),
+    );
+    const candidate = active
+      .filter((player) => player.position !== "GK" && !previouslyDismissed.has(player.player_id) && !(stats.get(player.player_id)?.redCards))
+      .sort((a, b) => {
+        const aStat = stats.get(a.player_id);
+        const bStat = stats.get(b.player_id);
+        const fatigueA = aStat?.condition ?? 100;
+        const fatigueB = bStat?.condition ?? 100;
+        const inheritedA = (priorEvents ?? []).filter((event) => event.side === "opp" && event.actorId === a.player_id && event.type === "yellowCard").length;
+        const inheritedB = (priorEvents ?? []).filter((event) => event.side === "opp" && event.actorId === b.player_id && event.type === "yellowCard").length;
+        const riskA = ((aStat?.yellowCards ?? 0) + inheritedA) * 18 + (100 - fatigueA) + Math.max(0, 6.2 - (aStat?.rating ?? 6)) * 8;
+        const riskB = ((bStat?.yellowCards ?? 0) + inheritedB) * 18 + (100 - fatigueB) + Math.max(0, 6.2 - (bStat?.rating ?? 6)) * 8;
+        return riskB - riskA;
+      })[0];
+    const candidateStat = candidate ? stats.get(candidate.player_id) : null;
+    const candidateInheritedYellows = candidate
+      ? (priorEvents ?? []).filter((event) => event.side === "opp" && event.actorId === candidate.player_id && event.type === "yellowCard").length
+      : 0;
+    const shouldSubstitute = candidate && bench.length > 0 && (
+      (candidateStat?.condition ?? 100) < (minute >= 75 ? 82 : minute >= 65 ? 76 : 70)
+      || (candidateStat?.yellowCards ?? 0) + candidateInheritedYellows > 0
+      || scoreDifference !== 0
+    );
+    let substitutionText = "";
+    if (shouldSubstitute && candidate) {
+      const wanted = scoreDifference < 0
+        ? ["FWD", "MID"]
+        : scoreDifference > 0
+          ? ["DEF", "MID"]
+          : [candidate.position];
+      const incoming = [...bench]
+        .sort((a, b) => {
+          const fitA = wanted.includes(a.position) ? 20 : a.position === candidate.position ? 10 : 0;
+          const fitB = wanted.includes(b.position) ? 20 : b.position === candidate.position ? 10 : 0;
+          return fitB + (b.ability?.overall ?? 0) - fitA - (a.ability?.overall ?? 0);
+        })[0];
+      if (incoming) {
+        active = active.map((player) => player.player_id === candidate.player_id ? incoming : player);
+        bench = bench.filter((player) => player.player_id !== incoming.player_id);
+        substitutionText = `${candidate.player_name} 대신 ${incoming.player_name} 투입`;
+      }
+    }
+    if (!substitutionText && nextFormation === previousFormation) return;
+    opponentPlayersRef.current = active;
+    opponentBenchRef.current = bench;
+    opponentFormationRef.current = nextFormation;
+    const placed = assignOpponentPlayers(active, nextFormation, minute);
+    simInputRef.current = {
+      ...simInputRef.current,
+      oppPlaced: placed,
+      oppAbility: buildTeamAbilityProfile(active),
+      oppAttackBias: FORMATIONS[nextFormation].attackBias,
+    };
+    if (stateRef.current) applyOpponentFormationToState(stateRef.current, placed, false);
+    onOpponentManagementChange?.(active, bench, nextFormation);
+    const formationText = nextFormation !== previousFormation ? `포메이션 ${nextFormation} 전환` : "";
+    const detail = [substitutionText, formationText].filter(Boolean).join(" · ");
+    setOpponentTacticChanges((current) => [...current, {
+      minute,
+      title: "상대 감독이 선수 구성을 조정",
+      detail,
+      tactics: opponentTacticsRef.current,
+    }]);
+  }
+
+  function reactToOpponentDismissal(
+    event: MatchEvent,
+    userGoals: number,
+    oppGoals: number,
+  ) {
+    if (event.side !== "opp" || event.type !== "redCard") return;
+    const key = `${event.actorId}:${event.minute}`;
+    if (handledOpponentDismissalManagementRef.current.has(key)) return;
+    handledOpponentDismissalManagementRef.current.add(key);
+
+    const dismissedPlayer = opponentPlayersRef.current.find(
+      (player) => player.player_id === event.actorId,
+    );
+    let active = opponentPlayersRef.current.filter(
+      (player) => player.player_id !== event.actorId,
+    );
+    if (active.length === opponentPlayersRef.current.length) return;
+    let bench = [...opponentBenchRef.current];
+    let emergencyKeeperText = "";
+    if (dismissedPlayer?.position === "GK") {
+      const replacementKeeper = bench
+        .filter((player) => player.position === "GK")
+        .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0];
+      const sacrificedOutfielder = [...active]
+        .filter((player) => player.position !== "GK")
+        .sort((a, b) => {
+          const priorityA = a.position === "FWD" ? 0 : a.position === "MID" ? 1 : 2;
+          const priorityB = b.position === "FWD" ? 0 : b.position === "MID" ? 1 : 2;
+          return priorityA - priorityB || (a.ability?.overall ?? 0) - (b.ability?.overall ?? 0);
+        })[0];
+      if (replacementKeeper && sacrificedOutfielder) {
+        active = active
+          .filter((player) => player.player_id !== sacrificedOutfielder.player_id)
+          .concat(replacementKeeper);
+        bench = bench.filter((player) => player.player_id !== replacementKeeper.player_id);
+        emergencyKeeperText = `${sacrificedOutfielder.player_name}을 빼고 ${replacementKeeper.player_name} 골키퍼를 투입했습니다. `;
+      }
+    }
+
+    const isTrailing = oppGoals < userGoals;
+    // With ten players these nominal shapes resolve to 4-3-2 or 4-4-1 because
+    // assignOpponentPlayers leaves the final attacking slot vacant.
+    const nextFormation: FormationKey = isTrailing ? "4-3-3" : "4-4-2";
+    const nextTactics = isTrailing
+      ? {
+          ...applyQuickTactic(opponentTacticsRef.current, "chaseGoal"),
+          pressing: "standard" as const,
+          defensiveLine: "standard" as const,
+        }
+      : applyQuickTactic(opponentTacticsRef.current, oppGoals > userGoals ? "protectLead" : "defensive");
+
+    opponentPlayersRef.current = active;
+    opponentBenchRef.current = bench;
+    opponentFormationRef.current = nextFormation;
+    opponentTacticsRef.current = nextTactics;
+    const placed = assignOpponentPlayers(active, nextFormation, event.minute);
+    simInputRef.current = {
+      ...simInputRef.current,
+      oppPlaced: placed,
+      oppAbility: buildTeamAbilityProfile(active),
+      oppAttackBias: FORMATIONS[nextFormation].attackBias,
+    };
+    if (stateRef.current) {
+      applyOpponentFormationToState(stateRef.current, placed, false);
+      const profiles = stateRef.current.shapeProfiles ?? [
+        simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+        simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+      ];
+      stateRef.current.shapeProfiles = [profiles[0], simProfileFromTeamTactics(nextTactics)];
+    }
+    setOpponentTactics(nextTactics);
+    onOpponentTacticChange?.(nextTactics);
+    onOpponentManagementChange?.(active, bench, nextFormation);
+    setOpponentTacticChanges((current) => [...current, {
+      minute: event.minute,
+      title: "상대가 퇴장에 맞춰 대형을 재정비",
+      detail: isTrailing
+        ? `${emergencyKeeperText}10명으로 ${nextFormation} 기반의 공격 대형을 유지하되 압박 강도를 낮췄습니다.`
+        : `${emergencyKeeperText}10명으로 ${nextFormation} 기반의 수비 블록을 만들고 중앙 간격을 좁혔습니다.`,
+      tactics: nextTactics,
+    }]);
+  }
 
   function updateTeamTactics(next: TeamTactics) {
-    liveIntensityRef.current = intensityFromTeamTactics(next);
+    tacticsRef.current = next;
+    if (stateRef.current) {
+      const profiles = stateRef.current.shapeProfiles ?? [
+        simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+        simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+      ];
+      stateRef.current.shapeProfiles = [simProfileFromTeamTactics(next), profiles[1]];
+    }
     setTeamTactics(next);
+    onTacticChange?.(next);
   }
 
-  function setTacticSelect<K extends TacticSelectKey>(key: K, value: TeamTactics[K]) {
-    updateTeamTactics({ ...teamTactics, [key]: value });
-    setOpenTacticSelect(null);
+  function arenaSimFromPeriod(period: HalfResult): ArenaSim {
+    return {
+      goals: period.goals,
+      events: period.events,
+      positionSamples: period.positionSamples,
+      track: period.track,
+      userGoals: startScore[0] + period.userGoals,
+      oppGoals: startScore[1] + period.oppGoals,
+      userXg: period.userXg,
+      oppXg: period.oppXg,
+      teamStats: period.teamStats,
+      liveSnapshots: period.liveSnapshots,
+      playerStats: period.playerStats,
+    };
   }
 
-  function nudgeMeter(key: TacticMeterKey, delta: number) {
-    updateTeamTactics({ ...teamTactics, [key]: clampf(teamTactics[key] + delta, 1, 10) });
+  function ensureSimulatedThrough(targetMinute: number) {
+    const target = Math.min(endMinute, Math.max(startMinute, Math.floor(targetMinute)));
+    if (target <= simulatedThroughRef.current || periodEndedRef.current) return;
+
+    let accumulated = periodRef.current;
+    for (let minute = simulatedThroughRef.current + 1; minute <= target; minute++) {
+      const liveBeforeChange = snapshotAtMinute(
+        accumulated?.liveSnapshots ?? [],
+        minute - 1,
+      );
+      manageOpponentAtMinute(
+        minute,
+        liveBeforeChange,
+        startScore[0] + (accumulated?.userGoals ?? 0),
+        startScore[1] + (accumulated?.oppGoals ?? 0),
+      );
+      const opponentDecision = decideOpponentTacticChange({
+        minute,
+        userGoals: startScore[0] + (accumulated?.userGoals ?? 0),
+        oppGoals: startScore[1] + (accumulated?.oppGoals ?? 0),
+        current: opponentTacticsRef.current,
+        userTactics: tacticsRef.current,
+        live: liveBeforeChange,
+        reviewMinutes: opponentReviewMinutesRef.current,
+      });
+      if (
+        opponentDecision &&
+        JSON.stringify(opponentDecision.tactics) !== JSON.stringify(opponentTacticsRef.current)
+      ) {
+        opponentTacticsRef.current = opponentDecision.tactics;
+        if (stateRef.current) {
+          const profiles = stateRef.current.shapeProfiles ?? [
+            simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+            simProfileFromTeamTactics(DEFAULT_TEAM_TACTICS),
+          ];
+          stateRef.current.shapeProfiles = [
+            profiles[0],
+            simProfileFromTeamTactics(opponentDecision.tactics),
+          ];
+        }
+        setOpponentTactics(opponentDecision.tactics);
+        onOpponentTacticChange?.(opponentDecision.tactics);
+        setOpponentTacticChanges((current) => [...current, opponentDecision]);
+      }
+      const priorPlayerStats = accumulated?.playerStats ?? [];
+      const availablePlayers = (
+        players: PlacedPlayerLite[],
+        side: "user" | "opp",
+      ) => {
+        const dismissed = new Set(
+          [
+            ...priorPlayerStats
+              .filter((stat) => stat.side === side && stat.redCards > 0)
+              .map((stat) => stat.playerId),
+            ...(priorEvents ?? [])
+              .filter((event) => event.side === side && event.type === "redCard")
+              .map((event) => event.actorId),
+          ],
+        );
+        const injured = new Set(
+          priorPlayerStats
+            .filter((stat) => stat.side === side && stat.injuries > 0)
+            .map((stat) => stat.playerId),
+        );
+        const remaining = players.filter((player) => !dismissed.has(player.playerId));
+        return remaining.map((player) =>
+          injured.has(player.playerId)
+            ? { ...player, condition: Math.max(20, player.condition - 30) }
+            : player,
+        );
+      };
+      const minuteInput = {
+        ...simInputRef.current,
+        placed: availablePlayers(simInputRef.current.placed, "user"),
+        oppPlaced: availablePlayers(simInputRef.current.oppPlaced, "opp"),
+        userTactics: simProfileFromTeamTactics(tacticsRef.current),
+        oppTactics: simProfileFromTeamTactics(opponentTacticsRef.current),
+        initialYellowCards: inheritedYellowCards(priorEvents),
+      };
+      const step = simulatePeriodWithWorld(
+        minuteInput,
+        minute,
+        minute,
+        minute * 999_983,
+        matchWorldRef.current ?? undefined,
+      );
+      matchWorldRef.current = step.world;
+      accumulated = combinePeriods(accumulated, step.result);
+      for (const event of step.result.events) {
+        reactToOpponentDismissal(
+          event,
+          startScore[0] + (accumulated?.userGoals ?? 0),
+          startScore[1] + (accumulated?.oppGoals ?? 0),
+        );
+      }
+    }
+    if (!accumulated) return;
+    periodRef.current = accumulated;
+    simulatedThroughRef.current = target;
+    const nextSim = arenaSimFromPeriod(accumulated);
+    simRef.current = nextSim;
+    setSim(nextSim);
+  }
+
+  function finishLivePeriod() {
+    if (periodEndedRef.current) return;
+    ensureSimulatedThrough(endMinute);
+    const period = periodRef.current;
+    if (!period) return;
+    periodEndedRef.current = true;
+    const completedSim = onPeriodComplete(period);
+    simRef.current = completedSim;
+    setSim(completedSim);
+  }
+
+  function openMatchCenter(tab: MatchCenterTab) {
+    if (activePanel == null) pausedBeforePanelRef.current = pausedRef.current;
+    pausedRef.current = true;
+    setPaused(true);
+    setActivePanel(tab);
+  }
+
+  function closeMatchCenter() {
+    setActivePanel(null);
+    pausedRef.current = pausedBeforePanelRef.current;
+    setPaused(pausedBeforePanelRef.current);
+    onCommitSubstitutions?.();
+  }
+
+  function togglePause() {
+    setPaused((current) => {
+      const next = !current;
+      pausedRef.current = next;
+      return next;
+    });
+  }
+
+  // Instantly resolves the rest of this segment instead of waiting on
+  // animated playback. finishLivePeriod() is the same call the arena loop
+  // makes on a natural period end — it both runs the remaining simulation
+  // and hands the finished half's data to the parent (via onPeriodComplete),
+  // which is what actually unlocks the next segment (e.g. second half
+  // kickoff). Skipping straight to setEnded without it left the parent
+  // thinking the half never finished.
+  function skipToResult() {
+    finishLivePeriod();
+    skipRequestedRef.current = true;
+  }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" || event.repeat) return;
+      // Only text entry keeps the space bar. Buttons are deliberately not
+      // excluded: clicking a speed or tab button leaves it focused, and
+      // skipping the shortcut there made the key look broken. Preventing the
+      // default keeps the focused button from also firing its click.
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+      if (activePanel != null || ended || pendingPenalties) return;
+      event.preventDefault();
+      togglePause();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activePanel, ended, pendingPenalties]);
+
+
+  function penaltyTakerCandidates(): PenaltyTakerCandidate[] {
+    return slotsOf(formation)
+      .filter((slot) => slot.position !== "GK")
+      .map((slot) => {
+        const pid = slots[slot.id];
+        const player = pid != null ? playersById.get(pid) : null;
+        if (!player) return null;
+        return {
+          playerId: player.player_id,
+          name: player.player_name,
+          position: player.position,
+          overall: player.ability?.overall ?? 65,
+          composure: player.ability?.composure ?? 65,
+          penalties: player.ability?.penalties ?? 65,
+        };
+      })
+      .filter((entry): entry is PenaltyTakerCandidate => entry != null);
+  }
+
+  function confirmPenaltyTakers(order: number[]) {
+    pkOrderRef.current = order;
+    setPendingPenalties(false);
+  }
+
+  function ratingsFor(
+    player: Player | null | undefined,
+    simPlayer?: PlacedPlayerLite,
+    fallback = 65,
+  ) {
+    const ability = player?.ability;
+    return {
+      react: clampf((ability?.reactions ?? fallback) / 70, 0.72, 1.32),
+      pace: ability?.pace ?? fallback,
+      passing: ability?.passing ?? fallback,
+      vision: ability?.vision ?? simPlayer?.vision ?? fallback,
+      positioning: ability?.positioning ?? simPlayer?.positioning ?? fallback,
+      dribbling: ability?.dribbling ?? fallback,
+      shooting: ability?.shooting ?? fallback,
+      defending: ability?.defending ?? fallback,
+      goalkeeping: player?.position === "GK"
+        ? ((ability?.gkDiving ?? fallback) + (ability?.gkReflexes ?? fallback) + (ability?.gkPositioning ?? fallback)) / 3
+        : 10,
+      stamina: ability?.stamina ?? fallback,
+      condition: simPlayer?.condition ?? 100,
+    };
+  }
+
+  function simPlayerFor(player: Player | null | undefined, side: "user" | "opp") {
+    if (!player) return undefined;
+    const squad = side === "user" ? simInputRef.current.placed : simInputRef.current.oppPlaced;
+    return squad.find((entry) => entry.playerId === player.player_id);
   }
 
   function applyUserFormationToState(s: ArenaState, snapToShape: boolean) {
     const userSlots = slotsOf(formation);
+    const oldDots = [...s.dots];
+    const currentUserDots = oldDots.filter((dot) => dot.team === 0);
+    const unused = new Set(currentUserDots);
+    const nextUserDots: Dot[] = [];
     userSlots.forEach((slot, i) => {
-      const dot = s.dots[i];
-      if (!dot || dot.team !== 0) return;
       const pid = slots[slot.id];
+      if (pid == null) return;
       const player = pid != null ? playersById.get(pid) : null;
-      const h = homeFor(slot.x, slot.y, 0);
+      const coordinate = positions?.[slot.id] ?? slot;
+      const h = homeFor(coordinate.x, coordinate.y, 0);
+      let dot = currentUserDots.find((candidate) => candidate.playerId === pid && unused.has(candidate));
+      if (!dot) dot = [...unused][0];
+      // A formation/substitution update can arrive on the same frame as a
+      // dismissal reconciliation. Previously there was no spare dot and this
+      // branch simply dropped the player from the renderer forever. Recreate
+      // the visual state from the authoritative lineup instead.
+      if (!dot) {
+        dot = {
+          playerId: player?.player_id ?? -(i + 1),
+          x: h.x,
+          y: h.y,
+          vx: 0,
+          vy: 0,
+          facing: 0,
+          hx: h.x,
+          hy: h.y,
+          team: 0,
+          num: player ? (player.player_id % 30) + 1 : i + 1,
+          name: player?.player_name ?? slot.label,
+          role: slot.position,
+          ...ratingsFor(player, simPlayerFor(player, "user")),
+          nz: 1,
+          ph: (i * 1.73) % 6.28,
+          action: "idle",
+          actionT: 0,
+        };
+      }
+      unused.delete(dot);
       dot.hx = h.x;
       dot.hy = h.y;
+      dot.playerId = player?.player_id ?? -(i + 1);
       dot.role = slot.position;
       dot.num = player ? (player.player_id % 30) + 1 : i + 1;
       dot.name = player?.player_name ?? slot.label;
+      Object.assign(dot, ratingsFor(player, simPlayerFor(player, "user")));
       if (snapToShape) {
         dot.x = h.x;
         dot.y = h.y;
+        dot.vx = 0;
+        dot.vy = 0;
       }
+      nextUserDots.push(dot);
     });
+    replaceDotsAndRemapIndexes(s, oldDots, [
+      ...nextUserDots,
+      ...oldDots.filter((dot) => dot.team === 1),
+    ]);
   }
 
   function buildState(): ArenaState {
     const dots: Dot[] = [];
+    const previouslyDismissed = (side: MatchSide) => new Set(
+      (priorEvents ?? [])
+        .filter((event) => event.side === side && event.type === "redCard")
+        .map((event) => event.actorId),
+    );
+    const dismissedUser = previouslyDismissed("user");
+    const dismissedOpponent = previouslyDismissed("opp");
     const rnd = (i: number) => ((Math.sin(i * 12.9898) * 43758.5453) % 1 + 1) % 1;
     const userSlots = slotsOf(formation);
     userSlots.forEach((s, i) => {
       const pid = slots[s.id];
       const player = pid != null ? playersById.get(pid) : null;
+      if (player && dismissedUser.has(player.player_id)) return;
       const num = player ? (player.player_id % 30) + 1 : i + 1;
-      const h = homeFor(s.x, s.y, 0);
-      dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, react: 0.85 + rnd(i) * 0.4, nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28 });
+      const coordinate = positions?.[s.id] ?? s;
+      const h = homeFor(coordinate.x, coordinate.y, 0);
+      const k = kickoffHomeFor(h.x, h.y, 0);
+      dots.push({ playerId: player?.player_id ?? -(i + 1), x: k.x, y: k.y, vx: 0, vy: 0, facing: 0, hx: h.x, hy: h.y, team: 0, num, name: player?.player_name ?? s.label, role: s.position, tacticalRole: simPlayerFor(player, "user")?.tacticalRole, ...ratingsFor(player, simPlayerFor(player, "user")), nz: 0.6 + rnd(i + 5) * 1.6, ph: rnd(i + 9) * 6.28, action: "idle", actionT: 0 });
     });
-    slotsOf("4-3-3").forEach((s, i) => {
+    const liveOpponentPlayers = opponentPlayersRef.current;
+    const opponentQueues: Record<Position, Player[]> = {
+      GK: liveOpponentPlayers.filter((player) => player.position === "GK"),
+      DEF: liveOpponentPlayers.filter((player) => player.position === "DEF"),
+      MID: liveOpponentPlayers.filter((player) => player.position === "MID"),
+      FWD: liveOpponentPlayers.filter((player) => player.position === "FWD"),
+    };
+    slotsOf(opponentFormationRef.current).forEach((s, i) => {
       const h = homeFor(s.x, s.y, 1);
-      dots.push({ x: h.x, y: h.y, hx: h.x, hy: h.y, team: 1, num: i + 1, name: `${oppCode} ${i + 1}`, role: s.position, react: 0.85 + rnd(i + 20) * 0.4, nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28 });
+      const k = kickoffHomeFor(h.x, h.y, 1);
+      const player = opponentQueues[s.position].shift() ?? liveOpponentPlayers[i] ?? null;
+      if (player && dismissedOpponent.has(player.player_id)) return;
+      dots.push({ playerId: player?.player_id ?? -(100 + i + 1), x: k.x, y: k.y, vx: 0, vy: 0, facing: Math.PI, hx: h.x, hy: h.y, team: 1, num: player ? (player.player_id % 30) + 1 : i + 1, name: player?.player_name ?? `${oppCode} ${i + 1}`, role: s.position, tacticalRole: simPlayerFor(player, "opp")?.tacticalRole, ...ratingsFor(player, simPlayerFor(player, "opp")), nz: 0.6 + rnd(i + 25) * 1.6, ph: rnd(i + 29) * 6.28, action: "idle", actionT: 0 });
     });
+    // The home side kicks off the match; the away side restarts the second
+    // half. The taker stands on the centre spot next to the stationary ball.
+    const kickoffTeam: 0 | 1 = startMinute === 45 ? 1 : 0;
+    let taker = dots.findIndex((dot) => dot.team === kickoffTeam && dot.role === "FWD");
+    if (taker < 0) taker = dots.findIndex((dot) => dot.team === kickoffTeam);
+    if (taker >= 0) {
+      dots[taker].x = kickoffTeam === 0 ? 48.6 : 51.4;
+      dots[taker].y = 50;
+    }
     return {
       clock: startMinute,
       phase: "play",
@@ -268,16 +899,43 @@ export function MatchArena({
       actionT: 0.5,
       score: [...startScore],
       nextGoal: 0,
+      nextEvent: 0,
+      kickoffPauseT: 1,
       dots,
-      ball: { x: 50, y: 50, owner: 8, flightTo: -1, lastTeam: 0 },
+      shapeProfiles: [
+        simProfileFromTeamTactics(tacticsRef.current),
+        simProfileFromTeamTactics(opponentTacticsRef.current),
+      ],
+      setPieceParticipants: {
+        corner: setPieces?.cornerParticipants ?? [],
+        freeKick: setPieces?.freeKickParticipants ?? [],
+      },
+      ball: {
+        x: 50,
+        y: 50,
+        previousX: 50,
+        previousY: 50,
+        owner: taker,
+        flightTo: -1,
+        flightTarget: null,
+        lastTeam: kickoffTeam,
+        scripted: false,
+        trail: [],
+      },
       banner: null,
       goalSide: null,
+      scriptedRun: null,
       time: 0,
       periodBanner: null,
       periodBannerT: 0,
+      situation: null,
       announcedET1: false,
       announcedET2: false,
       penT: 0,
+      pkSequence: [],
+      pkIndex: 0,
+      pkScore: [0, 0],
+      pkStage: "aim",
     };
   }
 
@@ -286,448 +944,149 @@ export function MatchArena({
     if (!s) return;
     applyUserFormationToState(s, pausedRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formation, slots, playersById]);
+  }, [formation, slots, positions, playersById]);
+
+  useArenaLoop({
+    simRef,
+    canvasRef,
+    stateRef,
+    completedRef,
+    pausedRef,
+    speedRef,
+    skipRequestedRef,
+    pkOrderRef,
+    buildState,
+    userTeamName,
+    oppTeamName,
+    userColor,
+    startMinute,
+    endMinute,
+    onMinuteEnter: ensureSimulatedThrough,
+    onPeriodEnd: finishLivePeriod,
+    onPenaltiesPending: () => setPendingPenalties(true),
+    onComplete,
+    setEnded,
+    setPaused,
+    setHud,
+  });
 
   useEffect(() => {
-    stateRef.current = buildState();
-    completedRef.current = false;
-    setEnded(false);
-    setPaused(false);
-    pausedRef.current = false;
-    const canvas = canvasRef.current!;
-    const ctx = canvas.getContext("2d")!;
+    if (!ended || final || !onInterimContinue) return;
+    const timer = window.setTimeout(onInterimContinue, 350);
+    return () => window.clearTimeout(timer);
+  }, [ended, final, onInterimContinue]);
 
-    function resize() {
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    resize();
-    window.addEventListener("resize", resize);
-
-    let raf = 0;
-    let last = performance.now();
-    let hudAcc = 0;
-    const rng = mulbFromSeed(sim.goals.length * 7 + sim.userGoals * 131 + 97);
-
-    const goalMouth = (side: 0 | 1) => (side === 0 ? { x: 99, y: 50 } : { x: 1, y: 50 });
-
-    function doAction(s: ArenaState) {
-      const ownerTeam = s.dots[s.ball.owner].team;
-      const attackingRight = ownerTeam === 0;
-      const gm = goalMouth(ownerTeam);
-      const owner = s.dots[s.ball.owner];
-      const nearGoal = Math.abs(owner.x - gm.x) < 30;
-      if (nearGoal && rng() < 0.4) {
-        // shot saved -> goal kick to defending keeper
-        s.ball.owner = -1;
-        s.ball.flightTo = -1;
-        s.ball.x = gm.x;
-        s.ball.y = gm.y;
-        s.pendingKick = ownerTeam === 0 ? 11 : 0;
-        s.actionT = 0.5;
-        return;
-      }
-      const mates: number[] = [];
-      s.dots.forEach((d, i) => {
-        if (d.team === ownerTeam && i !== s.ball.owner) mates.push(i);
-      });
-      mates.sort((a, b) => {
-        const fa = attackingRight ? s.dots[a].x : -s.dots[a].x;
-        const fb = attackingRight ? s.dots[b].x : -s.dots[b].x;
-        return fb - fa;
-      });
-      const pick = mates[Math.floor(rng() * Math.min(4, mates.length))];
-      s.ball.owner = -1;
-      s.ball.flightTo = pick;
-      s.actionT = 0.35 + rng() * 0.45;
-    }
-
-    function triggerGoal(s: ArenaState, side: 0 | 1, scorer?: string, assist?: string) {
-      s.phase = "celebrate";
-      s.celebrateT = 1.9;
-      s.goalSide = side;
-      s.scoring = null;
-      if (side === 0) s.score[0]++;
-      else s.score[1]++;
-      const gm = goalMouth(side);
-      s.ball.owner = -1;
-      s.ball.flightTo = -1;
-      s.ball.x = gm.x;
-      s.ball.y = gm.y;
-      s.banner =
-        side === 0 ? `${scorer ?? userTeamName}${assist ? ` (도움: ${assist})` : ""}` : oppTeamName;
-    }
-
-    function kickoff(s: ArenaState, toTeam: 0 | 1) {
-      s.dots.forEach((d) => {
-        d.x = d.hx;
-        d.y = d.hy;
-      });
-      s.ball.x = 50;
-      s.ball.y = 50;
-      s.ball.owner = toTeam === 0 ? 8 : 19;
-      s.ball.flightTo = -1;
-      s.ball.lastTeam = toTeam;
-      s.banner = null;
-      s.goalSide = null;
-      s.scoring = null;
-      s.phase = "play";
-      s.actionT = 0.6;
-    }
-
-    // begin a scripted attack toward goal; GOAL only fires once the ball arrives
-    function startScoring(s: ArenaState, side: 0 | 1, scorer?: string, assist?: string) {
-      if (s.scoring) return;
-      s.scoring = { side, scorer, assist, t: 0 };
-      const gm = goalMouth(side);
-      let best = -1;
-      let bmin = Infinity;
-      s.dots.forEach((d, i) => {
-        if (d.team !== side) return;
-        const bias = d.role === "FWD" ? -300 : d.role === "MID" ? 0 : 300;
-        const score = Math.abs(d.x - gm.x) + bias;
-        if (score < bmin) {
-          bmin = score;
-          best = i;
-        }
-      });
-      if (best >= 0) s.ball.owner = best;
-      s.ball.flightTo = -1;
-    }
-
-    function finishSegment(s: ArenaState) {
-      s.phase = "ended";
-      s.score = [sim.userGoals, sim.oppGoals];
-      if (!completedRef.current) {
-        completedRef.current = true;
-        onComplete();
-        setEnded(true);
-      }
-    }
-
-    function update(dt: number) {
-      const s = stateRef.current!;
-      if (s.phase === "ended" || s.phase === "interim") return;
-      s.time += dt;
-
-      if (s.periodBannerT > 0) {
-        s.periodBannerT -= dt;
-        if (s.periodBannerT <= 0) s.periodBanner = null;
-      }
-
-      if (s.phase === "penalties") {
-        s.penT -= dt;
-        if (s.penT <= 0) finishSegment(s);
-        return;
-      }
-
-      if (s.phase === "celebrate") {
-        s.celebrateT -= dt;
-        if (s.celebrateT <= 0) kickoff(s, s.goalSide === 0 ? 1 : 0);
-        return;
-      }
-
-      // extra-time period announcements (only for a segment that plays past 90')
-      if (endMinute > 90) {
-        if (!s.announcedET1 && s.clock >= 90) {
-          s.announcedET1 = true;
-          s.periodBanner = "연장 전반";
-          s.periodBannerT = 2.2;
-        }
-        if (!s.announcedET2 && s.clock >= 105) {
-          s.announcedET2 = true;
-          s.periodBanner = "연장 후반";
-          s.periodBannerT = 2.2;
-        }
-      }
-
-      s.clock += dt * MIN_PER_SEC;
-      if (s.clock >= endMinute) {
-        s.clock = endMinute;
-        s.phase = "ended";
-        s.score = [sim.userGoals, sim.oppGoals];
-        if (!completedRef.current) {
-          completedRef.current = true;
-          onComplete();
-          setEnded(true);
-        }
-        if (sim.penalties) {
-          s.phase = "penalties";
-          s.penT = 3.6;
-          s.periodBanner = "승부차기";
-          s.periodBannerT = 3.6;
-          return;
-        }
-        finishSegment(s);
-        return;
-      }
-
-      // a scheduled goal starts an attacking run (not an instant teleport-to-net)
-      if (!s.scoring && s.nextGoal < sim.goals.length && s.clock >= sim.goals[s.nextGoal].minute) {
-        const g = sim.goals[s.nextGoal];
-        s.nextGoal++;
-        startScoring(s, g.side === "user" ? 0 : 1, g.scorer, g.assist);
-      }
-
-      if (s.pendingKick != null) {
-        s.ball.owner = s.pendingKick;
-        s.pendingKick = null;
-      }
-
-      if (s.scoring) {
-        // rush the ball to the goal; only celebrate once it actually arrives
-        s.scoring.t += dt;
-        const gm = goalMouth(s.scoring.side);
-        const owner = s.ball.owner >= 0 ? s.dots[s.ball.owner] : null;
-        if (owner) {
-          s.ball.x = lerp(s.ball.x, owner.x, dt * 12);
-          s.ball.y = lerp(s.ball.y, owner.y, dt * 12);
-        }
-        const arrived = owner ? Math.abs(owner.x - gm.x) < 9 : Math.abs(s.ball.x - gm.x) < 9;
-        if (arrived || s.scoring.t > 2.6) {
-          triggerGoal(s, s.scoring.side, s.scoring.scorer, s.scoring.assist);
-          return;
-        }
-      } else {
-        s.actionT -= dt;
-        if (s.actionT <= 0 && s.ball.owner >= 0) doAction(s);
-
-        // ball movement / interception
-        if (s.ball.flightTo >= 0) {
-          const tgt = s.dots[s.ball.flightTo];
-          s.ball.x = lerp(s.ball.x, tgt.x, dt * 9);
-          s.ball.y = lerp(s.ball.y, tgt.y, dt * 9);
-          const flightTeam = tgt.team;
-          let stolen = -1;
-          s.dots.forEach((d, i) => {
-            if (d.team !== flightTeam && d2(d.x, d.y, s.ball.x, s.ball.y) < 5) stolen = i;
-          });
-          if (stolen >= 0) {
-            s.ball.owner = stolen;
-            s.ball.flightTo = -1;
-          } else if (d2(s.ball.x, s.ball.y, tgt.x, tgt.y) < 4) {
-            s.ball.owner = s.ball.flightTo;
-            s.ball.flightTo = -1;
-          }
-        } else if (s.ball.owner >= 0) {
-          const o = s.dots[s.ball.owner];
-          s.ball.x = lerp(s.ball.x, o.x, dt * 12);
-          s.ball.y = lerp(s.ball.y, o.y, dt * 12);
-        }
-      }
-      if (s.ball.owner >= 0) s.ball.lastTeam = s.dots[s.ball.owner].team;
-
-      // ---- movement AI ----
-      const ballTeam: 0 | 1 =
-        s.ball.owner >= 0 ? s.dots[s.ball.owner].team : s.ball.flightTo >= 0 ? s.dots[s.ball.flightTo].team : s.ball.lastTeam;
-      const fwdDir = (t: 0 | 1) => (t === 0 ? 1 : -1); // +x is attack for team 0
-      const intensity = liveIntensityRef.current;
-      const fluidDefense = intensity.fluidDefense / 100;
-      const attackPress = intensity.attackPress / 100;
-      // is the ball in the attacking team's own build-up third? (defending team can high-press)
-      const deepLine = 34 + attackPress * 18 + fluidDefense * 8;
-      const deep = ballTeam === 0 ? s.ball.x < deepLine : s.ball.x > 100 - deepLine;
-
-      // defending team pressers: closest defender to ball, plus (if deep) their nearest forward
-      let presser = -1,
-        pmin = Infinity;
-      let highPress = -1,
-        hpMin = Infinity;
-      s.dots.forEach((d, i) => {
-        if (d.team === ballTeam) return;
-        const dd = d2(d.x, d.y, s.ball.x, s.ball.y);
-        if (dd < pmin) {
-          pmin = dd;
-          presser = i;
-        }
-        if (deep && d.role === "FWD" && dd < hpMin) {
-          hpMin = dd;
-          highPress = i;
-        }
-      });
-
-      s.dots.forEach((d, i) => {
-        let tx: number, ty: number, sp: number;
-        const dir = fwdDir(d.team);
-        const oppGoal = goalMouth(d.team);
-
-        if (s.scoring && i === s.ball.owner) {
-          // scoring run: sprint straight at the goal
-          tx = oppGoal.x;
-          ty = oppGoal.y + Math.sin(s.time * 4 + d.ph) * 4;
-          sp = 5.5;
-        } else if (i === s.ball.owner) {
-          // dribble toward opponent goal, weaving
-          tx = d.x + dir * 7 + Math.sin(s.time * 3 + d.ph) * 3;
-          ty = d.y + (oppGoal.y - d.y) * 0.05 + Math.sin(s.time * 2 + d.ph) * 3;
-          sp = 3.3;
-        } else if (i === presser || i === highPress) {
-          // press the ball directly (a lone striker can chase the keeper)
-          tx = s.ball.x + dir * -2;
-          ty = s.ball.y;
-          sp = 3.4 + attackPress * 1.5;
-        } else if (d.team === ballTeam) {
-          // attacking team: role-differentiated support (not a uniform block)
-          const ballPull = clampf((s.ball.y - d.hy) * 0.01, -0.5, 0.5);
-          const attackPush = d.team === 0 ? attackPress * 8 : 0;
-          const defenseHold = d.team === 0 ? -fluidDefense * 7 : 0;
-          if (d.role === "FWD") {
-            tx = d.hx + dir * (22 + attackPush + defenseHold);
-            ty = d.hy + (s.ball.y - d.hy) * 0.45;
-            sp = 2.7;
-          } else if (d.role === "MID") {
-            tx = d.hx + dir * (11 + attackPush * 0.8 + defenseHold * 0.5);
-            ty = d.hy + (s.ball.y - d.hy) * 0.3;
-            sp = 2.2;
-          } else if (d.role === "DEF") {
-            tx = d.hx + dir * (4 + attackPush * 0.35 + defenseHold);
-            ty = d.hy + ballPull * (8 + fluidDefense * 12);
-            sp = 1.7;
-          } else {
-            tx = d.hx + dir * 1;
-            ty = d.hy + (s.ball.y - 50) * 0.06;
-            sp = 1.3;
-          }
-        } else {
-          // defending team: compact block, drop toward own goal, shift to ball side
-          const compact = d.team === 0 ? 1 + fluidDefense * 0.55 : 1;
-          const pressStep = d.team === 0 ? -attackPress * 5 : 0;
-          const drop = (d.role === "MID" ? 8 : d.role === "DEF" ? 5 : d.role === "FWD" ? 3 : 0) * compact + pressStep;
-          tx = d.hx - dir * drop;
-          ty = d.hy + (s.ball.y - d.hy) * (0.28 + fluidDefense * 0.24);
-          sp = d.role === "GK" ? 1.2 : 1.9 + attackPress * 0.9;
-        }
-
-        // per-player idle noise so nobody glides in lockstep
-        tx += Math.sin(s.time * d.nz + d.ph) * 1.4;
-        ty += Math.cos(s.time * d.nz * 1.2 + d.ph) * 1.4;
-
-        d.x = lerp(d.x, clampf(tx, 2, 98), dt * sp * d.react);
-        d.y = lerp(d.y, clampf(ty, 3, 97), dt * sp * d.react);
-      });
-    }
-
-    function draw() {
-      const s = stateRef.current!;
-      const rect = canvas.getBoundingClientRect();
-      const W = rect.width,
-        H = rect.height;
-      const X = (x: number) => (x / 100) * W;
-      const Y = (y: number) => (y / 100) * H;
-
-      ctx.fillStyle = "#123a1e";
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = "rgba(255,255,255,0.03)";
-      for (let i = 0; i < 10; i += 2) ctx.fillRect((i / 10) * W, 0, W / 10, H);
-      ctx.strokeStyle = "rgba(255,255,255,0.25)";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(X(2), Y(4), X(96) - X(2), Y(96) - Y(4));
-      ctx.beginPath();
-      ctx.moveTo(X(50), Y(4));
-      ctx.lineTo(X(50), Y(96));
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(X(50), Y(50), X(9), 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeRect(X(2), Y(30), X(12) - X(2), Y(70) - Y(30));
-      ctx.strokeRect(X(88), Y(30), X(98) - X(88), Y(70) - Y(30));
-
-      s.dots.forEach((d, i) => {
-        const r = Math.max(7, W * 0.016);
-        const px = X(d.x);
-        const py = Y(d.y);
-        ctx.beginPath();
-        ctx.arc(px, py, r, 0, Math.PI * 2);
-        ctx.fillStyle = d.team === 0 ? userColor : "#e5484d";
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = i === s.ball.owner ? "#fde047" : "rgba(0,0,0,0.35)";
-        ctx.stroke();
-        ctx.fillStyle = d.team === 0 ? "#06231f" : "#fff";
-        ctx.font = `bold ${Math.max(8, W * 0.014)}px ${KOREAN_CANVAS_FONT}`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(String(d.num), px, py);
-
-        if (d.team === 0) {
-          const label = `${d.num} ${displayArenaName(d.name)}`;
-          const labelFont = Math.max(12, Math.min(15, W * 0.015));
-          const labelY = clampf(py - r - 9, labelFont + 3, H - 6);
-          ctx.font = `800 ${labelFont}px ${KOREAN_CANVAS_FONT}`;
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
-          ctx.strokeText(label, px, labelY);
-          ctx.fillStyle = "#fff";
-          ctx.fillText(label, px, labelY);
-        }
-      });
-
-      ctx.beginPath();
-      ctx.arc(X(s.ball.x), Y(s.ball.y), Math.max(4, W * 0.008), 0, Math.PI * 2);
-      ctx.fillStyle = "#fff";
-      ctx.fill();
-      ctx.strokeStyle = "#111";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
-    const step = (now: number) => {
-      const dt = Math.min(0.045, (now - last) / 1000);
-      last = now;
-      if (!pausedRef.current) {
-        const steps = speedRef.current >= 3 ? 6 : speedRef.current;
-        for (let k = 0; k < steps; k++) update(dt);
-      }
-      draw();
-      hudAcc += dt;
-      if (hudAcc > 0.08) {
-        hudAcc = 0;
-        const s = stateRef.current!;
-        const periodBanner =
-          s.phase === "penalties"
-            ? s.penT > 2.1
-              ? "승부차기"
-              : `PK ${sim.penalties?.userGoals} : ${sim.penalties?.oppGoals}`
-            : s.periodBannerT > 0
-              ? s.periodBanner
-              : null;
-        setHud({
-          minute: Math.floor(s.clock),
-          home: s.score[0],
-          away: s.score[1],
-          banner: s.phase === "celebrate" ? s.banner : null,
-          periodBanner,
-        });
-      }
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sim]);
 
   function replay() {
     stateRef.current = buildState();
+    // Replay the finished timeline without simulating or recording the match again.
     completedRef.current = true;
+    pkOrderRef.current = null;
+    setPendingPenalties(false);
     setEnded(false);
-    setHud({ minute: startMinute, home: startScore[0], away: startScore[1], banner: null, periodBanner: null });
+    setHud({
+      minute: startMinute,
+      home: startScore[0],
+      away: startScore[1],
+      banner: null,
+      periodBanner: null,
+      eventCount: 0,
+      situation: null,
+    });
     setPaused(false);
     pausedRef.current = false;
   }
 
-  const cmp = sim.comparison;
-  const scorers = topScorers(leaderboard);
-  const assisters = topAssists(leaderboard);
+  const playedEvents = (sim.events ?? []).slice(0, hud.eventCount);
+  const observedUserGoals =
+    startScore[0] +
+    playedEvents.filter((event) => event.type === "goal" && event.side === "user").length;
+  const observedOppGoals =
+    startScore[1] +
+    playedEvents.filter((event) => event.type === "goal" && event.side === "opp").length;
+  const observedUserXg = playedEvents
+    .filter((event) => event.type === "shot" && event.side === "user")
+    .reduce((sum, event) => sum + (event.xg ?? 0), 0);
+  const observedOppXg = playedEvents
+    .filter((event) => event.type === "shot" && event.side === "opp")
+    .reduce((sum, event) => sum + (event.xg ?? 0), 0);
+  const observedSim: ArenaSim = {
+    ...sim,
+    events: playedEvents,
+    userGoals: observedUserGoals,
+    oppGoals: observedOppGoals,
+    userXg: observedUserXg,
+    oppXg: observedOppXg,
+  };
+  const liveSnapshot = snapshotAtMinute(sim.liveSnapshots ?? [], hud.minute);
+  // The board owns the lineup, so it needs the clock to stamp a substitution
+  // with the minute the player actually came on.
+  useEffect(() => {
+    onMinuteChange?.(hud.minute);
+  }, [hud.minute, onMinuteChange]);
+  // Bookings are read from the card events rather than the running totals so
+  // each one carries the minute it happened, and the periods already played
+  // are prepended so the list keeps growing across the interval.
+  const timeline = [...(priorEvents ?? []), ...playedEvents];
+  const discipline = disciplineFromEvents(timeline, "user");
+  const opponentDiscipline = disciplineFromEvents(timeline, "opp");
+  const dismissedOpponentPlayers = [...knownOpponentPlayersRef.current.values()].filter(
+    (player) => opponentDiscipline.get(player.player_id) === "red",
+  );
+  useEffect(() => {
+    for (const event of playedEvents) {
+      if (event.type !== "redCard") continue;
+      const key = `${event.side}:${event.actorId}:${event.minute}`;
+      if (handledDismissalsRef.current.has(key)) continue;
+      handledDismissalsRef.current.add(key);
+      if (stateRef.current) {
+        removePlayerFromArena(stateRef.current, event.side, event.actorId);
+      }
+      onPlayerDismissed?.(event.side, event.actorId);
+      setDismissalSide(event.side);
+      setDismissalNotice(
+        event.side === "user"
+          ? `우리 팀 퇴장 · ${event.actor} — 10명으로 재정비해야 합니다.`
+          : `상대 팀 퇴장 · ${event.actor} — 수적 우세를 활용하도록 스쿼드와 전술을 조정하세요.`,
+      );
+      // A dismissal always changes the playable shape. Open the one place the
+      // user can react to it, regardless of which side lost the player.
+      openMatchCenter("squad");
+    }
+    // Event count is the authoritative playback cursor. Other callback/state
+    // identities must not make an already handled card fire twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hud.eventCount]);
+  const bookings = (side: "user" | "opp") =>
+    timeline
+      .filter(
+        (event) =>
+          event.side === side &&
+          (event.type === "yellowCard" || event.type === "redCard"),
+      )
+      .map((event) => ({
+        minute: event.minute,
+        name: event.actor,
+        red: event.type === "redCard",
+      }));
+  const scorers = (side: "user" | "opp") =>
+    timeline
+      .filter((event) => event.side === side && event.type === "goal")
+      .map((event) => ({
+        playerId: event.actorId,
+        minute: event.minute,
+        name: event.actor,
+      }));
+  // 연장전(90~120분)은 한 화면 안에서 105분을 기준으로 연장 전반/후반 두 구간으로 나눠서 게이지를 채운다.
+  const isExtraTime = endMinute > 90;
+  const extraTimeHalf = isExtraTime && hud.minute >= 105;
+  const segmentStart = isExtraTime ? (extraTimeHalf ? 105 : 90) : startMinute;
+  const segmentEnd = isExtraTime ? (extraTimeHalf ? 120 : 105) : endMinute;
+  // 눈금은 항상 90분 고정이 아니라 현재 구간(전반/후반/연장 전반/연장 후반)의 시작~종료 분에 맞춰 계산
+  const timelineTicks = Array.from({ length: 7 }, (_, i) => Math.round(segmentStart + ((segmentEnd - segmentStart) * i) / 6));
 
   return (
-    <motion.div className="sim-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+    <motion.div className="sim-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.div
         className="arena-modal"
         initial={{ scale: 0.95, y: 16, opacity: 0 }}
@@ -736,62 +1095,187 @@ export function MatchArena({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="arena-score">
-          <span className="arena-score__side" style={{ color: userColor }}>
-            {userCode}
-          </span>
-          <span className="arena-score__nums">
-            {hud.home} : {hud.away}
-          </span>
-          <span className="arena-score__side arena-score__side--opp">{oppCode}</span>
-          <span className="arena-score__clock">{hud.minute}′</span>
-          <button type="button" className="arena-close" onClick={onClose}>
-            ✕
-          </button>
+          <div className="arena-score__team">
+            <small>HOME</small>
+            <div>
+              <span style={{ background: userColor }}>
+                <TeamFlag fifaCode={userCode} className="arena-score__flag" />
+                <em>{userCode}</em>
+              </span>
+              <strong>{userTeamName}</strong>
+            </div>
+            <ScorerList scorers={scorers("user")} />
+            <BookingList bookings={bookings("user")} />
+          </div>
+          <div className="arena-score__center">
+            <span className="arena-score__clock">● {hud.minute}′ {endMinute <= 45 ? "전반전" : endMinute <= 90 ? "후반전" : extraTimeHalf ? "연장 후반" : "연장 전반"}</span>
+            <strong className="arena-score__nums">{hud.home} <i>:</i> {hud.away}</strong>
+          </div>
+          <div className="arena-score__team arena-score__team--away">
+            <small>AWAY</small>
+            <div>
+              <strong>{oppTeamName}</strong>
+              <span>
+                <TeamFlag fifaCode={oppCode} className="arena-score__flag" />
+                <em>{oppCode}</em>
+              </span>
+            </div>
+            <ScorerList scorers={scorers("opp")} />
+            <BookingList bookings={bookings("opp")} />
+          </div>
         </div>
 
-        <div className="arena-canvas-wrap">
-          <canvas ref={canvasRef} className="arena-canvas" />
-          <AnimatePresence>
-            {hud.periodBanner && (
-              <motion.div
-                key={hud.periodBanner}
-                className="arena-banner"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-              >
-                {hud.periodBanner}
-              </motion.div>
+        {!ended && pendingPenalties && (
+          <PenaltyTakerSelect
+            userTeamName={userTeamName}
+            candidates={penaltyTakerCandidates()}
+            onConfirm={confirmPenaltyTakers}
+          />
+        )}
+
+        {!ended && !pendingPenalties && activePanel && (
+          <ArenaMatchCenter
+            activeTab={activePanel}
+            onTabChange={setActivePanel}
+            sim={observedSim}
+            live={liveSnapshot}
+            minute={hud.minute}
+            userTeamName={userTeamName}
+            userCode={userCode}
+            formation={formation}
+            formationLabel={formationLabel}
+            tactics={teamTactics}
+            slots={slots}
+            positions={positions}
+            slotRoles={slotRoles}
+            playersById={playersById}
+            opponentPlayers={opponentPlayersRef.current}
+            opponentBench={opponentBenchRef.current}
+            dismissedOpponentPlayers={dismissedOpponentPlayers}
+            opponentFormation={opponentFormationRef.current}
+            opponentTactics={opponentTactics}
+            squadControls={squadControls}
+            onApplyTactics={updateTeamTactics}
+            onRoleChange={onRoleChange}
+                onFormationChange={onFormationChange}
+                setPieces={setPieces}
+                onSetPieceChange={onSetPieceChange}
+            dismissalNotice={dismissalNotice}
+            dismissalSide={dismissalSide}
+            discipline={discipline}
+            opponentDiscipline={opponentDiscipline}
+            savedTactics={savedTactics}
+            onSaveTactic={onSaveTactic}
+            onDeleteTactic={onDeleteTactic}
+          />
+        )}
+
+        <div
+          className={`arena-live-grid${activePanel || ended || pendingPenalties ? " arena-live-grid--panel-open" : ""}`}
+          aria-hidden={activePanel != null || ended || pendingPenalties}
+        >
+          <div className="arena-canvas-wrap">
+            <canvas ref={canvasRef} className="arena-canvas" />
+            <div className="arena-live-tactic">진행 중인 전술<br /><strong>{formation} · {describeTeamTactics(teamTactics)}</strong></div>
+            <AnimatePresence>
+              {hud.periodBanner && (
+                <motion.div
+                  key={hud.periodBanner}
+                  className="arena-banner"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                >
+                  {hud.periodBanner}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {hud.situation && (
+              <div className="arena-situation" role="status">
+                <span>경기 상황</span>
+                <strong>{hud.situation}</strong>
+              </div>
             )}
-          </AnimatePresence>
-          <AnimatePresence>
-            {hud.banner && (
-              <motion.div
-                key="goal"
-                className="arena-goal"
-                initial={{ scale: 0.3, opacity: 0, rotate: -8 }}
-                animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                exit={{ scale: 1.4, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 260, damping: 12 }}
-              >
-                <span className="arena-goal__big">GOAL!</span>
-                <span className="arena-goal__scorer">⚽ {hud.banner}</span>
-              </motion.div>
+            <AnimatePresence>
+              {hud.banner && (
+                <motion.div
+                  key="goal"
+                  className="arena-goal"
+                  initial={{ scale: 0.3, opacity: 0, rotate: -8 }}
+                  animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                  exit={{ scale: 1.4, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 12 }}
+                >
+                  <span className="arena-goal__big">GOAL!</span>
+                  <span className="arena-goal__scorer">⚽ {hud.banner}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          <div className="arena-insights">
+            {/* The inner box is taken out of flow on wide screens so the
+                sidebar cannot stretch the grid row past the pitch. */}
+            <div className="arena-insights__inner">
+            <div className="arena-insights__tabs" role="tablist">
+              {([["stats", "통계"], ["feed", "경기정보"]] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={sidebarTab === key}
+                  data-active={sidebarTab === key || undefined}
+                  onClick={() => setSidebarTab(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {sidebarTab === "stats" ? (
+              <div className="arena-live-stats">
+                {opponentTacticChanges.at(-1) && (
+                  <div className="opponent-response-notice" role="status">
+                    <strong>{opponentTacticChanges.at(-1)!.title}</strong>
+                    <span>{opponentTacticChanges.at(-1)!.minute}' · {opponentTacticChanges.at(-1)!.detail}</span>
+                  </div>
+                )}
+                <ArenaLiveStats
+                  live={liveSnapshot}
+                  userXg={observedUserXg}
+                  oppXg={observedOppXg}
+                />
+              </div>
+            ) : (
+              <ArenaEventFeed
+                events={playedEvents}
+                minute={hud.minute}
+                opponentTacticChanges={opponentTacticChanges}
+                opponentTactics={opponentTactics}
+              />
             )}
-          </AnimatePresence>
+            </div>
+          </div>
         </div>
 
         {!ended ? (
-          <div className="arena-controls">
-            <button type="button" className="arena-ctrl" onClick={() => { pausedRef.current = !paused; setPaused(!paused); }}>
-              {paused ? "▶ 재생" : "⏸ 일시정지"}
+          <div className="arena-live-controls">
+            <div className="arena-timeline">
+              <i style={{ width: `${Math.max(0, Math.min(100, ((hud.minute - segmentStart) / Math.max(1, segmentEnd - segmentStart)) * 100))}%` }} />
+              {timelineTicks.map((tick, index) => <span key={index}>{tick}′</span>)}
+            </div>
+            <div className="arena-controls">
+            <button type="button" className="arena-ctrl" disabled={activePanel != null} onClick={togglePause}>
+              {activePanel ? "분석 중 · 일시정지" : paused ? "▶ 재생 (Space)" : "⏸ 일시정지 (Space)"}
             </button>
-            {[1, 2, 4].map((sp) => (
+            {/* 16x is a skip tier, not a viewing speed: the shortest pass
+                flight is under one frame there, and it only reaches a true
+                16x above ~46fps before the simulation accumulator clamps. */}
+            {[1, 2, 4, 16].map((sp) => (
               <button
                 key={sp}
                 type="button"
                 className="arena-ctrl"
                 data-active={speed === sp || undefined}
+                disabled={activePanel != null}
                 onClick={() => { speedRef.current = sp; setSpeed(sp); }}
               >
                 {sp}배속
@@ -799,358 +1283,47 @@ export function MatchArena({
             ))}
             <button
               type="button"
-              className="arena-ctrl arena-ctrl--skip"
-              onClick={() => { stateRef.current!.clock = endMinute; }}
+              className="arena-ctrl arena-ctrl--section"
+              disabled={activePanel != null || pendingPenalties}
+              onClick={skipToResult}
             >
-              결과로 건너뛰기 ⏭
+              ⏭ 결과만 보기
             </button>
+            {/* One entry point: the match centre already carries tabs for
+                개요 · 평점 · 분석 · 스쿼드 · 상대 분석 alongside 전술. Once it's
+                open this same slot becomes the way back out, so there's a
+                single obvious place to look for either action. */}
+            {activePanel != null ? (
+              <button type="button" className="arena-ctrl arena-ctrl--section arena-ctrl--skip" data-active onClick={closeMatchCenter}>▶ 경기 재개</button>
+            ) : (
+              <button type="button" className="arena-ctrl arena-ctrl--section arena-ctrl--skip" onClick={() => openMatchCenter("tactics")}>✎ 전술 변경</button>
+            )}
+            </div>
           </div>
-        ) : !final ? (
-          <motion.div className="sim-compare" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="sim-compare__row">
-              <div className="sim-compare__col">
-                <span className="sim-compare__label">{interimLabel}</span>
-                <span className="sim-compare__val">
-                  {sim.userGoals} - {sim.oppGoals}
-                </span>
-              </div>
-            </div>
-            <p className="sim-compare__verdict">전술과 라인업을 조정할 수 있습니다.</p>
-            <div className="sim-compare__actions">
-              <button type="button" className="sim-btn" onClick={onInterimContinue ?? onClose}>
-                {interimCta}
-              </button>
-            </div>
-          </motion.div>
+        ) : final ? (
+          <ArenaResultPanel
+            sim={sim}
+            final={final}
+            interimLabel={interimLabel}
+            interimCta={interimCta}
+            userTeamName={userTeamName}
+            oppTeamName={oppTeamName}
+            tacticStyleKey={tacticStyleKey}
+            leaderboard={leaderboard}
+            onInterimContinue={onInterimContinue}
+            onReplay={replay}
+            onClose={onClose}
+            onSchedule={onSchedule}
+            onNext={onNext}
+          />
         ) : (
-          <motion.div className="sim-compare" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            {sim.wentToExtraTime && (
-              <p className="sim-compare__et">
-                90분 {sim.regulationUserGoals}-{sim.regulationOppGoals} → 연장 {sim.userGoals}-{sim.oppGoals}
-                {sim.penalties &&
-                  ` → 승부차기 ${sim.penalties.userGoals}-${sim.penalties.oppGoals} (${
-                    sim.penalties.winner === "user" ? userTeamName : oppTeamName
-                  } 승)`}
-              </p>
-            )}
-            <div className="sim-compare__row">
-              <div className="sim-compare__col">
-                <span className="sim-compare__label">내 전술 결과</span>
-                <span className="sim-compare__val">
-                  {sim.userGoals} - {sim.oppGoals}
-                </span>
-              </div>
-              {cmp?.hasActual && (
-                <div className="sim-compare__col">
-                  <span className="sim-compare__label">실제 결과</span>
-                  <span className="sim-compare__val">
-                    {cmp.actualUserGoals} - {cmp.actualOppGoals}
-                  </span>
-                </div>
-              )}
-            </div>
-            {cmp && (
-              <>
-                <p className="sim-compare__verdict">{cmp.verdict}</p>
-                <p className="sim-compare__tactics">🧩 {cmp.tacticsNote}</p>
-              </>
-            )}
-
-            {sim.teamStats && (
-              <div className="team-stats">
-                <h4 className="team-stats__title">팀 스탯</h4>
-                <TeamStatBar
-                  label="패스 성공률"
-                  userVal={sim.teamStats.user.passSuccessRate}
-                  oppVal={sim.teamStats.opp.passSuccessRate}
-                />
-                <TeamStatBar
-                  label="GK 선방률"
-                  userVal={sim.teamStats.user.saveRate}
-                  oppVal={sim.teamStats.opp.saveRate}
-                  userSub={`${sim.teamStats.user.saves}/${sim.teamStats.user.shotsFaced} 선방`}
-                  oppSub={`${sim.teamStats.opp.saves}/${sim.teamStats.opp.shotsFaced} 선방`}
-                />
-              </div>
-            )}
-
-            <div className="leaderboard">
-              <h4 className="leaderboard__title">🏆 대회 누적 순위 — {userTeamName}</h4>
-              <div className="leaderboard__cols">
-                <LeaderboardCol title="⚽ 득점왕" rows={scorers} field="goals" />
-                <LeaderboardCol title="🎯 어시스트왕" rows={assisters} field="assists" />
-              </div>
-            </div>
-
-            <div className="sim-compare__actions">
-              <button type="button" className="sim-btn sim-btn--ghost" onClick={replay}>
-                다시 보기
-              </button>
-              <button type="button" className="sim-btn" onClick={onClose}>
-                확인
-              </button>
-              {onNext && (
-                <button type="button" className="sim-btn sim-btn--accent" onClick={onNext}>
-                  다음 경기 →
-                </button>
-              )}
-            </div>
-          </motion.div>
-        )}
-        {!ended && (
-          <div className="arena-team-tactics">
-            <div className="arena-team-tactics__head">
-              <strong>팀 전술</strong>
-              <span>{userTeamName}</span>
-            </div>
-            <div className="arena-team-tactics__formation">{userCode} / {formation}</div>
-
-            <TacticSelectRow
-              label="수비 스타일"
-              value={teamTactics.defenseStyle}
-              selectKey="defenseStyle"
-              openKey={openTacticSelect}
-              onToggle={setOpenTacticSelect}
-              onSelect={(value) => setTacticSelect("defenseStyle", value as DefenseStyle)}
-            />
-            <TacticMeter label="폭" value={teamTactics.width} onNudge={(delta) => nudgeMeter("width", delta)} />
-            <TacticMeter label="깊이" value={teamTactics.depth} onNudge={(delta) => nudgeMeter("depth", delta)} />
-
-            <div className="arena-team-tactics__section">공격</div>
-            <TacticSelectRow
-              label="빌드업 플레이"
-              value={teamTactics.buildUpPlay}
-              selectKey="buildUpPlay"
-              openKey={openTacticSelect}
-              onToggle={setOpenTacticSelect}
-              onSelect={(value) => setTacticSelect("buildUpPlay", value as BuildUpPlay)}
-            />
-            <TacticSelectRow
-              label="기회 만들기"
-              value={teamTactics.chanceCreation}
-              selectKey="chanceCreation"
-              openKey={openTacticSelect}
-              onToggle={setOpenTacticSelect}
-              onSelect={(value) => setTacticSelect("chanceCreation", value as ChanceCreation)}
-            />
-            <TacticMeter label="폭" value={teamTactics.attackWidth} onNudge={(delta) => nudgeMeter("attackWidth", delta)} />
-            <TacticMeter label="박스 안쪽 선수" value={teamTactics.boxPlayers} onNudge={(delta) => nudgeMeter("boxPlayers", delta)} />
-            <TacticMeter label="코너킥" value={teamTactics.corners} onNudge={(delta) => nudgeMeter("corners", delta)} />
-            <TacticMeter label="프리킥" value={teamTactics.freeKicks} onNudge={(delta) => nudgeMeter("freeKicks", delta)} />
+          <div className="arena-halftime-transition" role="status">
+            <span>{interimLabel}</span>
+            <strong>{sim.userGoals} : {sim.oppGoals}</strong>
+            <p>전반 분석과 후반 전술 보드를 준비하고 있습니다.</p>
           </div>
         )}
       </motion.div>
     </motion.div>
   );
-}
-
-function TacticSelectRow({
-  label,
-  value,
-  selectKey,
-  openKey,
-  onToggle,
-  onSelect,
-}: {
-  label: string;
-  value: string;
-  selectKey: TacticSelectKey;
-  openKey: TacticSelectKey | null;
-  onToggle: (key: TacticSelectKey | null) => void;
-  onSelect: (value: string) => void;
-}) {
-  const config = TACTIC_SELECTS[selectKey];
-  const currentLabel = config.options.find((o) => o.value === value)?.label ?? "밸런스";
-  const open = openKey === selectKey;
-  return (
-    <div className="tactic-row-wrap">
-      <button type="button" className="tactic-row tactic-row--select" onClick={() => onToggle(open ? null : selectKey)}>
-        <span>{label}</span>
-        <strong>{currentLabel}</strong>
-        <span className="tactic-row__chevron">▾</span>
-      </button>
-      {open && (
-        <div className="tactic-menu">
-          <div className="tactic-menu__title">
-            {config.title}
-            <button type="button" onClick={() => onToggle(null)}>×</button>
-          </div>
-          {config.options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className="tactic-menu__option"
-              data-active={option.value === value || undefined}
-              onClick={() => onSelect(option.value)}
-            >
-              <span>{option.label}</span>
-              {option.value === value && <strong>✓</strong>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TacticMeter({ label, value, onNudge }: { label: string; value: number; onNudge: (delta: number) => void }) {
-  return (
-    <div className="tactic-row tactic-row--meter">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <button type="button" className="tactic-step" onClick={() => onNudge(-1)} aria-label={`${label} 낮추기`}>
-        ◂
-      </button>
-      <div className="tactic-meter" aria-hidden="true">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <span key={i} data-on={i < value || undefined} />
-        ))}
-      </div>
-      <button type="button" className="tactic-step" onClick={() => onNudge(1)} aria-label={`${label} 높이기`}>
-        ▸
-      </button>
-    </div>
-  );
-}
-
-function TeamStatBar({
-  label,
-  userVal,
-  oppVal,
-  userSub,
-  oppSub,
-}: {
-  label: string;
-  userVal: number;
-  oppVal: number;
-  userSub?: string;
-  oppSub?: string;
-}) {
-  const total = Math.max(1, userVal + oppVal);
-  const userPct = Math.round((userVal / total) * 100);
-  return (
-    <div className="stat-bar">
-      <div className="stat-bar__nums">
-        <span className="stat-bar__val">
-          {Math.round(userVal)}%
-          {userSub && <span className="stat-bar__sub"> · {userSub}</span>}
-        </span>
-        <span className="stat-bar__label">{label}</span>
-        <span className="stat-bar__val stat-bar__val--opp">
-          {Math.round(oppVal)}%
-          {oppSub && <span className="stat-bar__sub"> · {oppSub}</span>}
-        </span>
-      </div>
-      <div className="stat-bar__track">
-        <div className="stat-bar__fill" style={{ width: `${userPct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function LeaderboardCol({
-  title,
-  rows,
-  field,
-}: {
-  title: string;
-  rows: LeaderboardEntry[];
-  field: "goals" | "assists";
-}) {
-  return (
-    <div className="leaderboard__col">
-      <h5 className="leaderboard__col-title">{title}</h5>
-      {rows.length === 0 ? (
-        <p className="leaderboard__empty">아직 기록 없음</p>
-      ) : (
-        <ol className="leaderboard__list">
-          {rows.map((row, i) => (
-            <li key={`${row.name}-${i}`} className="leaderboard__row">
-              <span className="leaderboard__rank">{i + 1}</span>
-              <span className="leaderboard__name">{row.name}</span>
-              <span className="leaderboard__count">{row[field]}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
-  );
-}
-
-function mulbFromSeed(seed: number) {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function displayArenaName(name: string) {
-  const koreanName = KOREAN_ARENA_NAMES[name];
-  if (koreanName) return koreanName;
-  const parts = name.trim().split(/\s+/);
-  if (parts.length <= 2) return name;
-  return `${parts[0]} ${parts[parts.length - 1]}`;
-}
-
-const KOREAN_ARENA_NAMES: Record<string, string> = {
-  "Seunggyu Kim": "김승규",
-  "Hanbeom Lee": "이한범",
-  "Gihyuk Lee": "이기혁",
-  "Minjae Kim": "김민재",
-  "Taehyeon Kim": "김태현",
-  "Inbeom Hwang": "황인범",
-  "Heung Min Son": "손흥민",
-  "Seungho Paik": "백승호",
-  "Guesung Cho": "조규성",
-  "Jae Sung Lee": "이재성",
-  "Hee Chan Hwang": "황희찬",
-  "Bumkeun Song": "송범근",
-  "Taeseok Lee": "이태석",
-  "Wije Cho": "조유제",
-  "Moonhwan Kim": "김문환",
-  "Jinseob Park": "박진섭",
-  "Junho Bae": "배준호",
-  "Hyeongyu Oh": "오현규",
-  "Kangin Lee": "이강인",
-  "Hyunjun Yang": "양현준",
-  "Hyeonwoo Jo": "조현우",
-  "Youngwoo Seol": "설영우",
-  "Jens Castrop": "옌스 카스트로프",
-  "Jingyu Kim": "김진규",
-  "Jisung Eom": "엄지성",
-  "Donggyeong Lee": "이동경",
-};
-
-function intensityFromTeamTactics(tactics: TeamTactics): LiveIntensity {
-  const stylePress: Record<DefenseStyle, number> = {
-    dropBack: 10,
-    balanced: 30,
-    errorPress: 48,
-    lossPress: 64,
-    constantPress: 84,
-  };
-  const buildPress: Record<BuildUpPlay, number> = {
-    shortPass: -4,
-    balanced: 0,
-    longPass: 4,
-    fastBuildUp: 12,
-  };
-  const chancePress: Record<ChanceCreation, number> = {
-    possession: -4,
-    balanced: 0,
-    directPassing: 7,
-    forwardRuns: 12,
-  };
-  return {
-    fluidDefense: clampf(82 - tactics.depth * 6 + tactics.width * 2, 0, 100),
-    attackPress: clampf(
-      stylePress[tactics.defenseStyle] + tactics.depth * 2 + buildPress[tactics.buildUpPlay] + chancePress[tactics.chanceCreation],
-      0,
-      100
-    ),
-  };
 }

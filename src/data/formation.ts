@@ -9,15 +9,25 @@ export interface FormationSlot {
   y: number;
 }
 
+export interface PitchCoordinate {
+  x: number;
+  y: number;
+}
+
+export type SlotPositions = Record<string, PitchCoordinate>;
+
 export type FormationKey =
   | "5-4-1"
   | "5-3-2"
   | "4-5-1"
   | "4-4-2"
   | "4-2-3-1"
+  | "4-1-2-3"
   | "3-5-2"
+  | "3-4-1-2"
   | "4-3-3"
-  | "3-4-3";
+  | "3-4-3"
+  | "5-2-3";
 
 export interface FormationMeta {
   slots: FormationSlot[];
@@ -106,6 +116,22 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
       { id: "st", label: "ST", position: "FWD", x: 50, y: 14 },
     ],
   },
+  "4-1-2-3": {
+    attackBias: 0.45,
+    slots: [
+      { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
+      { id: "lb", label: "LB", position: "DEF", x: 15, y: 72 },
+      { id: "cb1", label: "CB", position: "DEF", x: 37, y: 78 },
+      { id: "cb2", label: "CB", position: "DEF", x: 63, y: 78 },
+      { id: "rb", label: "RB", position: "DEF", x: 85, y: 72 },
+      { id: "dm", label: "DM", position: "MID", x: 50, y: 60 },
+      { id: "lcm", label: "LCM", position: "MID", x: 34, y: 44 },
+      { id: "rcm", label: "RCM", position: "MID", x: 66, y: 44 },
+      { id: "lw", label: "LW", position: "FWD", x: 18, y: 22 },
+      { id: "st", label: "ST", position: "FWD", x: 50, y: 14 },
+      { id: "rw", label: "RW", position: "FWD", x: 82, y: 22 },
+    ],
+  },
   "3-5-2": {
     attackBias: 0.2,
     slots: [
@@ -120,6 +146,22 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
       { id: "rwb", label: "RWB", position: "MID", x: 89, y: 54 },
       { id: "st1", label: "ST", position: "FWD", x: 40, y: 18 },
       { id: "st2", label: "ST", position: "FWD", x: 60, y: 18 },
+    ],
+  },
+  "3-4-1-2": {
+    attackBias: 0.3,
+    slots: [
+      { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
+      { id: "cb1", label: "CB", position: "DEF", x: 30, y: 78 },
+      { id: "cb2", label: "CB", position: "DEF", x: 50, y: 80 },
+      { id: "cb3", label: "CB", position: "DEF", x: 70, y: 78 },
+      { id: "lwb", label: "LWB", position: "MID", x: 12, y: 54 },
+      { id: "cm1", label: "CM", position: "MID", x: 38, y: 56 },
+      { id: "cm2", label: "CM", position: "MID", x: 62, y: 56 },
+      { id: "rwb", label: "RWB", position: "MID", x: 88, y: 54 },
+      { id: "cam", label: "CAM", position: "MID", x: 50, y: 36 },
+      { id: "st1", label: "ST", position: "FWD", x: 39, y: 17 },
+      { id: "st2", label: "ST", position: "FWD", x: 61, y: 17 },
     ],
   },
   "4-3-3": {
@@ -154,6 +196,22 @@ export const FORMATIONS: Record<FormationKey, FormationMeta> = {
       { id: "rw", label: "RW", position: "FWD", x: 80, y: 20 },
     ],
   },
+  "5-2-3": {
+    attackBias: -0.1,
+    slots: [
+      { id: "gk", label: "GK", position: "GK", x: 50, y: 92 },
+      { id: "lwb", label: "LWB", position: "DEF", x: 9, y: 67 },
+      { id: "cb1", label: "CB", position: "DEF", x: 29, y: 78 },
+      { id: "cb2", label: "CB", position: "DEF", x: 50, y: 81 },
+      { id: "cb3", label: "CB", position: "DEF", x: 71, y: 78 },
+      { id: "rwb", label: "RWB", position: "DEF", x: 91, y: 67 },
+      { id: "cm1", label: "CM", position: "MID", x: 39, y: 51 },
+      { id: "cm2", label: "CM", position: "MID", x: 61, y: 51 },
+      { id: "lw", label: "LW", position: "FWD", x: 19, y: 22 },
+      { id: "st", label: "ST", position: "FWD", x: 50, y: 15 },
+      { id: "rw", label: "RW", position: "FWD", x: 81, y: 22 },
+    ],
+  },
 };
 
 export const FORMATION_KEYS = Object.keys(FORMATIONS) as FormationKey[];
@@ -161,6 +219,29 @@ export const FORMATION_KEYS = Object.keys(FORMATIONS) as FormationKey[];
 /** slot list for a formation (convenience) */
 export function slotsOf(key: FormationKey): FormationSlot[] {
   return FORMATIONS[key].slots;
+}
+
+export function detectFormationShape(
+  base: FormationKey,
+  slots: Record<string, number | null>,
+  positions?: SlotPositions
+): string {
+  const formation = slotsOf(base);
+  const occupied = formation.filter((slot) => slots[slot.id] != null);
+  if (occupied.length !== 11) return base;
+
+  const lines = { DEF: 0, MID: 0, FWD: 0 };
+  let changedLine = false;
+  for (const slot of occupied) {
+    if (slot.position === "GK") continue;
+    const y = positions?.[slot.id]?.y ?? slot.y;
+    const line = y <= 28 ? "FWD" : y >= 65 ? "DEF" : "MID";
+    lines[line]++;
+    if (line !== slot.position) changedLine = true;
+  }
+
+  if (!changedLine) return base;
+  return `${lines.DEF}-${lines.MID}-${lines.FWD}`;
 }
 
 export const BENCH_ZONE_ID = "bench";

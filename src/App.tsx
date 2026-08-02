@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import "./App.css";
 import { useTournamentData } from "./hooks/useTournamentData";
 import { getTeamMatches, type PlayedMap, type PlayedResult, type TeamMatch } from "./data/tournament";
@@ -11,16 +11,25 @@ import type { MatchDetailed } from "./data/types";
 import { CountrySelect } from "./components/CountrySelect";
 import { TeamHub } from "./components/TeamHub";
 import { Bracket } from "./components/Bracket";
-import { MatchBoard, emptySlots, type Lineup } from "./components/MatchBoard";
+import { MatchBoard } from "./components/MatchBoard";
+import type { Lineup } from "./components/match-board/types";
+import { emptySlots } from "./data/tactics";
+import { deleteSavedTactic, saveTactic, type SavedTactic } from "./data/savedTactics";
+import type { TeamTactics } from "./components/match-arena/tactics";
 
 type View = "select" | "hub" | "match" | "bracket" | "komatch";
-
-const BGM_PATH = `${import.meta.env.BASE_URL}audio/dreamers.mp3`;
 
 function koMatchIdNum(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   return 900000 + (Math.abs(h) % 90000);
+}
+
+function createTournamentSeed(): number {
+  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+    return crypto.getRandomValues(new Uint32Array(1))[0];
+  }
+  return Date.now() >>> 0;
 }
 
 function App() {
@@ -31,10 +40,22 @@ function App() {
   const [lineups, setLineups] = useState<Record<number, Lineup>>({});
   const [played, setPlayed] = useState<PlayedMap>({});
   const [leaderboard, setLeaderboard] = useState<Leaderboard>({});
+  const [tournamentSeed, setTournamentSeed] = useState(createTournamentSeed);
   // knockout state
   const [koResults, setKoResults] = useState<KOResults>({});
   const [koLineups, setKoLineups] = useState<Record<string, Lineup>>({});
   const [activeKo, setActiveKo] = useState<KOMatch | null>(null);
+  // Kept for the whole run only — not persisted storage, so it resets like
+  // everything else on a full reload instead of surviving it.
+  const [savedTactics, setSavedTactics] = useState<SavedTactic[]>([]);
+
+  function handleSaveTactic(name: string, tactics: TeamTactics) {
+    setSavedTactics((prev) => saveTactic(prev, name, tactics));
+  }
+
+  function handleDeleteTactic(id: string) {
+    setSavedTactics((prev) => deleteSavedTactic(prev, id));
+  }
 
   const team = useMemo(
     () => (data && teamId != null ? data.teams.find((t) => t.team_id === teamId) ?? null : null),
@@ -44,7 +65,6 @@ function App() {
     () => (data && team ? getTeamMatches(data, team.team_name) : []),
     [data, team]
   );
-  useDreamersBgm(view);
 
   if (loading) return <div className="status-screen">데이터를 불러오는 중…</div>;
   if (error || !data)
@@ -57,6 +77,7 @@ function App() {
     setKoResults({});
     setKoLineups({});
     setLeaderboard({});
+    setTournamentSeed(createTournamentSeed());
     setView("hub");
   }
 
@@ -64,9 +85,21 @@ function App() {
     setPlayed((prev) => ({ ...prev, [matchId]: result }));
   }
 
+  function restartTournament() {
+    setTeamId(null);
+    setActiveMatchId(null);
+    setLineups({});
+    setPlayed({});
+    setLeaderboard({});
+    setKoResults({});
+    setKoLineups({});
+    setActiveKo(null);
+    setView("select");
+  }
+
   /** cumulative scorer/assist ranking, carried across the whole tournament */
   function recordMatchStats(sim: SimResult) {
-    setLeaderboard((prev) => applyMatchToLeaderboard(prev, sim.goals));
+    setLeaderboard((prev) => applyMatchToLeaderboard(prev, sim));
   }
 
   function openMatch(matchId: number) {
@@ -118,7 +151,7 @@ function App() {
       match_id: koMatchIdNum(m.id),
       date: "",
       kickoff_time_utc: "",
-      stage_name: KO_ROUND_EN[m.round],
+      stage_name: m.placement === "third" ? "Third-place play-off" : KO_ROUND_EN[m.round],
       stadium_name: m.venue.stadium_name,
       city: m.venue.city,
       country: m.venue.country,
@@ -173,6 +206,7 @@ function App() {
         team={team}
         lineupCounts={lineupCounts}
         played={played}
+        tournamentSeed={tournamentSeed}
         onBack={() => setView("select")}
         onOpenMatch={openMatch}
         onOpenBracket={() => setView("bracket")}
@@ -187,8 +221,11 @@ function App() {
         team={team}
         played={played}
         koResults={koResults}
+        tournamentSeed={tournamentSeed}
+        leaderboard={leaderboard}
         onBack={() => setView("hub")}
         onPlayKO={openKO}
+        onRestart={restartTournament}
       />
     );
   }
@@ -210,6 +247,9 @@ function App() {
           onMatchSim={recordMatchStats}
           leaderboard={leaderboard}
           onNextMatch={goToNextMatch}
+          savedTactics={savedTactics}
+          onSaveTactic={handleSaveTactic}
+          onDeleteTactic={handleDeleteTactic}
         />
       );
     }
@@ -243,6 +283,9 @@ function App() {
           onMatchSim={recordMatchStats}
           leaderboard={leaderboard}
           onNextMatch={goToNextMatch}
+          savedTactics={savedTactics}
+          onSaveTactic={handleSaveTactic}
+          onDeleteTactic={handleDeleteTactic}
         />
       );
     }
@@ -252,57 +295,3 @@ function App() {
 }
 
 export default App;
-
-function useDreamersBgm(view: View) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const unlockedRef = useRef(false);
-  const shouldPlayRef = useRef(true);
-  const shouldPlay = view !== "match" && view !== "komatch";
-
-  useEffect(() => {
-    shouldPlayRef.current = shouldPlay;
-  }, [shouldPlay]);
-
-  useEffect(() => {
-    const audio = new Audio(BGM_PATH);
-    audio.loop = true;
-    audio.volume = 0.32;
-    audio.preload = "auto";
-    audioRef.current = audio;
-
-    function unlockAudio() {
-      unlockedRef.current = true;
-      if (shouldPlayRef.current) {
-        void audio.play().catch(() => {
-          // Browser autoplay policy or a missing local file can block playback.
-        });
-      }
-    }
-
-    window.addEventListener("pointerdown", unlockAudio, { once: true });
-    window.addEventListener("keydown", unlockAudio, { once: true });
-
-    return () => {
-      window.removeEventListener("pointerdown", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
-      audio.pause();
-      audioRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (shouldPlay) {
-      if (unlockedRef.current) {
-        void audio.play().catch(() => {
-          // Keep the app quiet if /audio/dreamers.mp3 is not present yet.
-        });
-      }
-    } else {
-      audio.pause();
-    }
-  }, [shouldPlay]);
-}

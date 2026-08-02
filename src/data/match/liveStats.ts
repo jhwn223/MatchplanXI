@@ -1,0 +1,266 @@
+import { currentCondition } from "./playerRuntime";
+import { clamp } from "./random";
+import { combineTeamStatsPair, finalizeTeamStatsPair, type RunningStats } from "./stats";
+import { tacticsForSide } from "./tactics";
+import type {
+  LiveMatchSnapshot,
+  MatchSide,
+  PlacedPlayerLite,
+  PlayerMatchStats,
+  SimInput,
+} from "./types";
+
+export type PlayerStatsBySide = Record<MatchSide, Map<number, PlayerMatchStats>>;
+
+export function createPlayerStats(input: SimInput): PlayerStatsBySide {
+  return {
+    user: createSidePlayerStats("user", input.placed),
+    opp: createSidePlayerStats("opp", input.oppPlaced),
+  };
+}
+
+function createSidePlayerStats(side: MatchSide, players: PlacedPlayerLite[]) {
+  return new Map(players.map((player) => [player.playerId, {
+    side,
+    playerId: player.playerId,
+    teamId: player.teamId,
+    name: player.name,
+    position: player.position,
+    condition: player.condition,
+    rating: 6,
+    minutesPlayed: 0,
+    touches: 0,
+    passesAttempted: 0,
+    passesCompleted: 0,
+    dribblesAttempted: 0,
+    dribblesCompleted: 0,
+    tacklesWon: 0,
+    interceptions: 0,
+    shots: 0,
+    shotsOnTarget: 0,
+    goals: 0,
+    assists: 0,
+    keyPasses: 0,
+    blocks: 0,
+    bigChancesMissed: 0,
+    goalsConceded: 0,
+    saves: 0,
+    foulsCommitted: 0,
+    yellowCards: 0,
+    redCards: 0,
+    offsides: 0,
+    injuries: 0,
+    distanceKm: 0,
+  } satisfies PlayerMatchStats]));
+}
+
+export function playerStat(stats: PlayerStatsBySide, side: MatchSide, player: PlacedPlayerLite) {
+  return stats[side].get(player.playerId);
+}
+
+function playerRating(stat: PlayerMatchStats): number {
+  const passAccuracy = stat.passesAttempted ? stat.passesCompleted / stat.passesAttempted : 0.75;
+  const missedPasses = stat.passesAttempted - stat.passesCompleted;
+  const failedDribbles = stat.dribblesAttempted - stat.dribblesCompleted;
+  const missedShots = stat.shots - stat.shotsOnTarget;
+  const passConfidence = clamp(stat.passesAttempted / 35, 0, 1);
+  const shotsFaced = stat.saves + stat.goalsConceded;
+  const saveRate = shotsFaced ? stat.saves / shotsFaced : 0.7;
+  const defensiveConcessionPenalty =
+    stat.position === "GK" ? stat.goalsConceded * 0.24 :
+      stat.position === "DEF" ? stat.goalsConceded * 0.12 :
+        stat.goalsConceded * 0.04;
+  const cleanSheetBonus =
+    stat.minutesPlayed >= 60 && stat.goalsConceded === 0 && (stat.position === "GK" || stat.position === "DEF")
+      ? 0.15
+      : 0;
+  const attackWeight = stat.position === "FWD" ? 1 : stat.position === "MID" ? 0.9 : 0.68;
+  const defenseWeight = stat.position === "DEF" ? 1 : stat.position === "MID" ? 0.82 : 0.48;
+  const involvement = clamp(stat.minutesPlayed / 60, 0.2, 1);
+  const decisiveActions = stat.goals + stat.assists + stat.saves + stat.tacklesWon + stat.interceptions;
+  let value = 6.15
+    + stat.goals * (stat.position === "GK" || stat.position === "DEF" ? 1.45 : 1.18)
+    + stat.assists * 0.72
+    + stat.keyPasses * 0.075 * attackWeight
+    + stat.shotsOnTarget * 0.055 * attackWeight
+    + stat.dribblesCompleted * 0.045 * attackWeight
+    + stat.tacklesWon * 0.075 * defenseWeight
+    + stat.interceptions * 0.075 * defenseWeight
+    + stat.blocks * 0.09 * defenseWeight
+    + stat.saves * (stat.position === "GK" ? 0.11 : 0.02)
+    + (saveRate - 0.65) * Math.min(0.35, shotsFaced * 0.05)
+    + (passAccuracy - 0.78) * 1.05 * passConfidence
+    + cleanSheetBonus
+    - missedPasses * 0.0035
+    - failedDribbles * 0.03
+    - missedShots * 0.025
+    - stat.bigChancesMissed * 0.24
+    - stat.foulsCommitted * 0.04
+    - stat.yellowCards * 0.18
+    - stat.redCards * 1.65
+    - stat.offsides * 0.045
+    - stat.injuries * 0.25
+    - defensiveConcessionPenalty;
+  // A five-minute cameo with one safe pass should remain close to the neutral
+  // baseline; decisive actions (goal, save, tackle, interception) are allowed
+  // to break through the sample-size dampening immediately.
+  if (involvement < 1 && decisiveActions === 0) {
+    value = 6 + (value - 6) * involvement;
+  }
+  return Math.round(clamp(value, 3.5, 10) * 10) / 10;
+}
+
+function distanceForMinutes(
+  player: PlacedPlayerLite,
+  stat: PlayerMatchStats,
+  minutesPlayed: number,
+  elevation: number,
+  tacticalIntensity: number,
+) {
+  const roleRate = player.position === "MID" ? 0.122 : player.position === "FWD" ? 0.116 : player.position === "DEF" ? 0.108 : 0.052;
+  const workRate = 0.9 + clamp((player.stamina - 55) / 250, -0.08, 0.14);
+  const tacticalDistance = 1 + clamp(tacticalIntensity, 0, 1.6) * 0.085;
+  const actionBonus = Math.min(0.7, (stat.touches + stat.tacklesWon + stat.interceptions) * 0.006);
+  const altitudePenalty = clamp((elevation - 1200) / 12000, 0, 0.12);
+  return Math.round(
+    (minutesPlayed * roleRate * workRate * tacticalDistance * (1 - altitudePenalty) + actionBonus) * 10,
+  ) / 10;
+}
+
+export function finalizePlayerStats(
+  input: SimInput,
+  stats: PlayerStatsBySide,
+  minute: number,
+  periodStartMinute = 0
+): PlayerMatchStats[] {
+  const result: PlayerMatchStats[] = [];
+  /** A substitute's clock starts when he came on, not when the period did. */
+  const minutesFor = (player: PlacedPlayerLite) =>
+    Math.max(0, minute - Math.max(periodStartMinute, player.enteredAtMinute ?? 0));
+  for (const side of ["user", "opp"] as const) {
+    const players = side === "user" ? input.placed : input.oppPlaced;
+    const tactics = tacticsForSide(input, side);
+    const tacticalIntensity =
+      Math.max(0, tactics.pressBias) * 0.55 +
+      Math.max(0, tactics.tempoBias) * 0.35 +
+      Math.max(0, tactics.attackBias) * 0.1;
+    for (const player of players) {
+      const stat = stats[side].get(player.playerId);
+      if (!stat) continue;
+      const minutesPlayed = minutesFor(player);
+      const finalized = {
+        ...stat,
+        condition: currentCondition(player, minute, input.elevation, tactics),
+        minutesPlayed,
+        distanceKm: distanceForMinutes(
+          player,
+          stat,
+          minutesPlayed,
+          input.elevation,
+          tacticalIntensity,
+        ),
+      };
+      finalized.rating = playerRating(finalized);
+      result.push(finalized);
+    }
+  }
+  return result;
+}
+
+export function createLiveSnapshot(
+  input: SimInput,
+  minute: number,
+  running: Record<MatchSide, RunningStats>,
+  stats: PlayerStatsBySide,
+  goals: { side: MatchSide }[],
+  periodStartMinute = 0
+): LiveMatchSnapshot {
+  return {
+    minute,
+    userGoals: goals.filter((goal) => goal.side === "user").length,
+    oppGoals: goals.filter((goal) => goal.side === "opp").length,
+    userXg: Math.round(running.user.xg * 100) / 100,
+    oppXg: Math.round(running.opp.xg * 100) / 100,
+    teamStats: finalizeTeamStatsPair(running),
+    players: finalizePlayerStats(input, stats, minute, periodStartMinute),
+  };
+}
+
+export function combinePlayerStats(a: PlayerMatchStats[], b: PlayerMatchStats[]): PlayerMatchStats[] {
+  const combined = new Map<string, PlayerMatchStats>();
+  for (const stat of [...a, ...b]) {
+    const key = `${stat.side}:${stat.playerId}`;
+    const previous = combined.get(key);
+    if (!previous) {
+      combined.set(key, { ...stat });
+      continue;
+    }
+    const merged = {
+      ...stat,
+      minutesPlayed: previous.minutesPlayed + stat.minutesPlayed,
+      touches: previous.touches + stat.touches,
+      passesAttempted: previous.passesAttempted + stat.passesAttempted,
+      passesCompleted: previous.passesCompleted + stat.passesCompleted,
+      dribblesAttempted: previous.dribblesAttempted + stat.dribblesAttempted,
+      dribblesCompleted: previous.dribblesCompleted + stat.dribblesCompleted,
+      tacklesWon: previous.tacklesWon + stat.tacklesWon,
+      interceptions: previous.interceptions + stat.interceptions,
+      shots: previous.shots + stat.shots,
+      shotsOnTarget: previous.shotsOnTarget + stat.shotsOnTarget,
+      goals: previous.goals + stat.goals,
+      assists: previous.assists + stat.assists,
+      keyPasses: previous.keyPasses + stat.keyPasses,
+      blocks: previous.blocks + stat.blocks,
+      bigChancesMissed: previous.bigChancesMissed + stat.bigChancesMissed,
+      goalsConceded: previous.goalsConceded + stat.goalsConceded,
+      saves: previous.saves + stat.saves,
+      foulsCommitted: previous.foulsCommitted + stat.foulsCommitted,
+      yellowCards: previous.yellowCards + stat.yellowCards,
+      redCards: previous.redCards + stat.redCards,
+      offsides: previous.offsides + stat.offsides,
+      injuries: previous.injuries + stat.injuries,
+      distanceKm: Math.round((previous.distanceKm + stat.distanceKm) * 10) / 10,
+    };
+    merged.rating = playerRating(merged);
+    combined.set(key, merged);
+  }
+  return [...combined.values()];
+}
+
+export function selectPlayerOfMatch(stats: PlayerMatchStats[]): PlayerMatchStats | null {
+  return [...stats].sort((a, b) =>
+    b.rating - a.rating ||
+    b.goals - a.goals ||
+    b.assists - a.assists ||
+    b.keyPasses - a.keyPasses ||
+    b.saves - a.saves ||
+    b.minutesPlayed - a.minutesPlayed
+  )[0] ?? null;
+}
+
+export function combineLiveSnapshots(
+  previous: LiveMatchSnapshot[],
+  next: LiveMatchSnapshot[]
+): LiveMatchSnapshot[] {
+  if (!previous.length) return next;
+  const base = previous[previous.length - 1];
+  const cumulative = next.map((snapshot) => ({
+    ...snapshot,
+    userGoals: base.userGoals + snapshot.userGoals,
+    oppGoals: base.oppGoals + snapshot.oppGoals,
+    userXg: Math.round((base.userXg + snapshot.userXg) * 100) / 100,
+    oppXg: Math.round((base.oppXg + snapshot.oppXg) * 100) / 100,
+    teamStats: combineTeamStatsPair(base.teamStats, snapshot.teamStats),
+    players: combinePlayerStats(base.players, snapshot.players),
+  }));
+  return [...previous, ...cumulative.filter((snapshot) => snapshot.minute > base.minute)];
+}
+
+export function snapshotAtMinute(snapshots: LiveMatchSnapshot[], minute: number): LiveMatchSnapshot | null {
+  let found: LiveMatchSnapshot | null = null;
+  for (const snapshot of snapshots) {
+    if (snapshot.minute > minute) break;
+    found = snapshot;
+  }
+  return found ?? snapshots[0] ?? null;
+}

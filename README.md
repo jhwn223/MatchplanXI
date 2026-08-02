@@ -21,12 +21,16 @@
 
 CC0 퍼블릭 도메인 — [FIFA World Cup 2026 Dataset by mominullptr](https://github.com/mominullptr/FIFA-World-Cup-2026-Dataset)
 
+선수 사진은 Wikidata의 선수 식별자와 생년월일을 대조한 뒤 Wikimedia Commons에서 공개 라이선스가 확인된 파일만 사용합니다. 사진별 작가, 라이선스, 원본 링크는 `public/player-photos/ATTRIBUTION.md`와 선수 상세 모달에서 확인할 수 있습니다. 사진이 없거나 라이선스를 확인할 수 없는 선수는 이니셜 아바타로 표시합니다.
+
 ## 개발
 
 ```bash
 npm install
 npm run dev       # 개발 서버
 npm run build     # 프로덕션 빌드
+npm run sync:player-photos                    # 전체 선수 Commons 사진 및 출처 갱신
+npm run sync:player-photos -- --team=KOR      # 특정 대표팀만 갱신
 npx gh-pages -d dist   # GitHub Pages 배포
 ```
 

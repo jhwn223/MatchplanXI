@@ -1,0 +1,1874 @@
+/* ============ 2D Match Arena ============ */
+.arena-modal {
+  width: 100%;
+  max-width: 1120px;
+  max-height: 92vh;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: auto;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+}
+.arena-score {
+  display: flex;
+  /* dashboard-layouts.css's later .arena-score rule wins on `display`
+     (grid) but not on align-items (only set here), so this value still
+     governs the live grid layout. `center` let the shorter team column
+     (no scorer/booking content) center within the shared row track while
+     the taller column (with a booking line) sat higher — misaligning the
+     two team-name rows. Stretch keeps both flush to the row's top. */
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.arena-score__side { font-weight: 800; font-size: 16px; }
+.arena-score__side--opp { color: #e5484d; }
+.arena-score__nums {
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.arena-score__clock {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.arena-canvas-wrap {
+  position: relative;
+  width: 100%;
+  /* Regulation pitch proportions (105m × 68m). A 16:9 canvas made lateral
+     movement look unnaturally flat and exaggerated every horizontal pass. */
+  aspect-ratio: 105 / 68;
+  background: #0d2f18;
+}
+.arena-canvas { width: 100%; height: 100%; display: block; }
+.arena-live-grid--panel-open { display: none !important; }
+.arena-insights {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-left: 1px solid var(--border);
+}
+.arena-insights .arena-events {
+  min-height: 0;
+  flex: 1;
+  border-left: 0;
+}
+/* The pitch keeps its 105:68 box, so the sidebar must not be able to stretch
+   the grid row. Taking its contents out of flow leaves the row sized by the
+   pitch alone and makes the panels scroll inside it instead. */
+.arena-insights { position: relative; min-height: 0; overflow: hidden; }
+.arena-insights__inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.arena-insights__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.arena-insights__tabs button {
+  padding: 12px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.arena-insights__tabs button[data-active] {
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.arena-live-stats {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+/* Four entries stay visible and the rest of the match history scrolls, so the
+   panel never grows as events accumulate. */
+.arena-insights .arena-events__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 236px;
+  overflow-y: auto;
+}
+/* Goals sit directly under the team name in full strength; cautions go below
+   them, dimmer and separated by a rule, so the two never read as one list. */
+.arena-scorers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  /* .arena-score__team--away sets align-items: flex-end, which would shrink
+     this to 0 width when empty, making it disappear entirely instead of
+     reserving the same slot the home side keeps. align-self (not width:
+     100%) avoids a circular-sizing blowout since the parent column itself
+     is auto/shrink-to-fit width. */
+  align-self: stretch;
+  /* Without this, an empty list is 0 tall while a scored side's list is
+     16.5px, so the .arena-bookings row below starts at a different height
+     on each team's column the moment only one side has scored. */
+  min-height: 16.5px;
+}
+.arena-score__team--away .arena-scorers { justify-content: flex-end; }
+.arena-scorers li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+.arena-scorers i { font-style: normal; font-size: 10px; }
+.arena-scorers em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--accent);
+}
+.arena-bookings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 6px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px dashed var(--border);
+  list-style: none;
+  /* Same reasoning as .arena-scorers above: without this, it collapses to
+     0 width on the away side (align-items: flex-end) while staying full
+     width on the home side (align-items: stretch). */
+  align-self: stretch;
+  /* Reserve the height of one populated line (15px li + 6px padding-top +
+     1px border) so a booked side and an unbooked side start at the same
+     spot rather than the row growing only when a card actually lands. */
+  min-height: 22px;
+}
+.arena-score__team--away .arena-bookings { justify-content: flex-end; }
+.arena-bookings li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.arena-bookings i {
+  width: 7px;
+  height: 10px;
+  border-radius: 1px;
+  background: #f2c94c;
+  flex: 0 0 auto;
+}
+.arena-bookings em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  opacity: .75;
+}
+.arena-bookings li[data-red] i { background: var(--danger); }
+.opponent-response-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+  padding: 9px 10px;
+  border-left: 3px solid #e1a600;
+  border-radius: 6px;
+  background: #fff8dc;
+  color: #39433b;
+}
+.opponent-response-notice strong { font-size: 10px; }
+.opponent-response-notice span { color: #6a716b; font-size: 8px; line-height: 1.4; }
+@media (max-width: 900px) {
+  /* Stacked layout: the sidebar owns its own row again, so it goes back into
+     normal flow rather than collapsing to nothing. */
+  .arena-insights { position: static; overflow: visible; }
+  .arena-insights__inner { position: static; }
+  .arena-insights .arena-events__list { max-height: none; }
+}
+.arena-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.7);
+  color: #fde047;
+  font-weight: 800;
+  font-size: 18px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  white-space: nowrap;
+  animation: banner-pop 0.3s ease;
+}
+.arena-situation {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 5;
+  display: grid;
+  gap: 2px;
+  min-width: 132px;
+  padding: 9px 13px;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 8px 24px rgb(8 55 29 / 16%);
+  color: #123d25;
+  pointer-events: none;
+}
+.arena-situation span {
+  color: #5b7162;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.arena-situation strong {
+  font-size: 14px;
+}
+@keyframes banner-pop {
+  from { transform: translateX(-50%) scale(0.6); opacity: 0; }
+  to { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+.arena-controls {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.arena-ctrl {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.arena-ctrl[data-active] { background: var(--accent); color: #06231f; border-color: var(--accent); }
+.arena-ctrl--skip { margin-left: auto; }
+.arena-ctrl--resume {
+  background: linear-gradient(180deg, #4fd1c5, #2fb3a6);
+  color: #06231f;
+  border-color: #4fd1c5;
+}
+.arena-ctrl:disabled { cursor: not-allowed; opacity: .55; }
+/* ============ In-match management center ============ */
+/* The panel is capped so the score header and playback controls stay visible;
+   each tab scrolls inside it rather than running off the bottom of the modal. */
+.match-center {
+  --arena-management-pitch-height: min(56vh, 500px, calc(72vh - 170px));
+  min-height: min(540px, 72vh);
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  background: #f3f7f0;
+  border-bottom: 1px solid var(--border);
+}
+.match-center__header { flex: 0 0 auto; }
+.match-center > .player-ratings-board,
+.match-center > .match-analysis-board,
+.match-center > .match-tactics-editor,
+.match-center > .arena-squad-board,
+.match-center > .arena-opponent-board,
+.match-center > .opponent-report {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* Both tabs fit their fixed-height panel without needing to scroll — auto
+   was reserving a scrollbar track here for a sliver of overflow nothing
+   actually needs. */
+.match-center > .match-analysis-board,
+.match-center > .player-ratings-board {
+  overflow-y: hidden;
+}
+.match-center__header {
+  min-height: 62px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 22px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+.match-center__header nav { display: flex; align-items: stretch; gap: 2px; }
+.match-center__header nav button {
+  position: relative;
+  min-width: 112px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.match-center__header nav button[data-active] { color: var(--accent); }
+.match-center__header nav button[data-active]::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+}
+.match-center__close {
+  align-self: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+.match-stat-rows { margin-top: 10px; }
+.match-stat-rows > div {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+.match-stat-rows strong:last-child { text-align: right; }
+.match-stat-rows span { color: var(--text-dim); text-align: center; }
+.arena-event-map { width: 100%; max-height: 300px; display: block; }
+.arena-event-map__grass { fill: #172331; stroke: #71808c; stroke-width: .55; }
+.arena-event-map__stripe { fill: #233242; opacity: .38; }
+.arena-event-map__stripe[data-alt] { fill: #111c29; opacity: .3; }
+.arena-event-map__heat { mix-blend-mode: screen; }
+.arena-event-map__line {
+  fill: none;
+  stroke: rgba(232,239,242,.76);
+  stroke-width: .42;
+  pointer-events: none;
+}
+.arena-event-map text { fill: var(--text-dim); font-size: 4px; }
+.player-ratings-board {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 20px 22px 26px;
+}
+.player-ratings-board section {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.player-ratings-board h3 { margin: 0 0 8px; color: var(--accent); font-size: 14px; }
+.live-player-rating {
+  min-height: 39px;
+  display: grid;
+  grid-template-columns: minmax(120px, 1.3fr) minmax(70px, .8fr) 42px;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+}
+.live-player-rating > span { display: flex; flex-direction: column; }
+.live-player-rating > span strong { font-size: 10px; }
+.live-player-rating > span small { color: var(--text-dim); font-size: 8px; }
+.live-player-rating > i { height: 5px; overflow: hidden; border-radius: 99px; background: var(--panel-3); }
+.live-player-rating > i b { height: 100%; display: block; background: #87cf45; }
+.live-player-rating > em {
+  width: 38px;
+  padding: 4px 0;
+  border-radius: 6px;
+  background: #edf1e9;
+  color: var(--text);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  text-align: center;
+}
+.live-player-rating > em[data-level="good"] { background: #d9f4dc; color: #08752d; }
+.live-player-rating > em[data-level="bad"] { background: #ffe1e1; color: #b42323; }
+.match-analysis-board {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 14px;
+  padding: 20px 22px 24px;
+}
+.match-analysis-board--with-flow {
+  grid-template-columns: 210px 1fr 210px;
+}
+.match-analysis-board > aside,
+.match-analysis-board > section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.match-analysis-board > aside,
+.match-analysis-board__stats { padding: 15px; }
+.analysis-side-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 12px 0 4px;
+}
+.analysis-side-switch button {
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.analysis-side-switch button[data-active] {
+  border-color: var(--accent);
+  background: #e4f5e6;
+  color: var(--accent);
+}
+.set-piece-board-wrap { position: relative; }
+.set-piece-board-wrap[data-disabled] .set-piece-board {
+  filter: grayscale(0.6);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.set-piece-board-lock {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+.set-piece-board-lock span {
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: #ffe1e5;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  color: #9a2434;
+  font-size: 13px;
+  font-weight: 800;
+}
+.set-piece-board {
+  display: grid;
+  grid-template-columns: minmax(220px, .8fr) repeat(2, minmax(240px, 1fr));
+  gap: 14px;
+  padding: 18px;
+}
+.set-piece-board > section {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.set-piece-board h3 { margin: 0 0 12px; font-size: 14px; }
+/* Same TacticItemBoxSelect used by every other tactics tab, instead of a
+   plain native <select> — a native dropdown's own popup renders in the
+   browser/OS's UI font regardless of the page's font-family, which is what
+   made this one panel read as a different typeface from the rest. */
+.set-piece-board__taker-fields { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+/* A player name + stat ("손흥민 · PK 75") reads larger than every other
+   box's short value at the shared size, so this one is scaled down alone. */
+.set-piece-board__taker-fields .match-tactic-itembox > strong { font-size: 11px; }
+.set-piece-board__participants header { display: flex; justify-content: space-between; align-items: center; }
+.set-piece-board__participants header span { color: var(--accent); font-size: 10px; font-weight: 900; }
+.set-piece-board__participants > div { display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.set-piece-board__participants button {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafcf9;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.set-piece-board__participants button[data-active] { border-color: var(--accent); background: #e4f5e6; }
+.set-piece-board__participants button:disabled { opacity: .45; cursor: not-allowed; }
+.set-piece-board__participants button strong { font-size: 10px; }
+.set-piece-board__participants button span { color: var(--text-dim); font-size: 8px; }
+.match-analysis-board h3 { margin: 0; font-size: 14px; }
+.match-analysis-board aside label { display: flex; flex-direction: column; gap: 5px; margin: 14px 0; }
+.match-analysis-board aside label span { color: var(--text-dim); font-size: 9px; }
+.match-analysis-board select {
+  min-height: 36px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+}
+.match-analysis-board aside > button {
+  width: 100%;
+  min-height: 39px;
+  margin-top: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+.match-analysis-board aside > button { display: flex; align-items: center; justify-content: space-between; }
+.match-analysis-board aside > button strong { color: var(--accent); font-size: 10px; }
+.match-analysis-board aside > button[data-active] { border-color: var(--accent); background: #e8f6e8; color: var(--accent); }
+.match-analysis-board > section { padding: 15px 18px; }
+.match-analysis-board > section header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.match-analysis-board > section header span { color: var(--text-dim); font-size: 9px; }
+.match-analysis-board > section .arena-event-map { max-height: 390px; }
+.pass-map-legend {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.pass-map-legend button {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #172331;
+  color: #e7ecef;
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+.pass-map-legend button:not([data-active]) { opacity: .38; }
+.pass-map-legend button[data-active] { border-color: var(--pass-color); }
+.pass-map-legend button i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--pass-color);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.18);
+}
+.pass-map-legend button strong { color: #fff; font-size: 9px; }
+.match-tactics-editor { display: grid; grid-template-columns: 270px 1fr; min-height: 475px; }
+.match-tactics-editor__summary {
+  padding: 22px;
+  border-right: 1px solid var(--border);
+  background: #e8f2e5;
+}
+/* Scoped to this class (not a bare "> div") because .prematch-mini-pitch
+   (the pitch preview below) is also a direct-child div of the summary —
+   a generic child-div selector here was bleeding this badge styling onto
+   the pitch's own player-position dots. */
+.match-tactics-editor__team {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 9px;
+  margin-bottom: 18px;
+}
+.match-tactics-editor__team span {
+  grid-row: span 2;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+.match-tactics-editor__team span small { color: #fff; font-size: 7px; line-height: 1; }
+.match-tactics-editor__team strong { font-size: 13px; }
+.match-tactics-editor__team small { color: var(--text-dim); font-size: 9px; }
+.match-tactics-editor__body { min-width: 0; padding: 0 20px 76px; }
+.match-tactics-tabs { height: 56px; display: grid; grid-template-columns: repeat(6, 1fr); border-bottom: 1px solid var(--border); }
+.match-tactics-tabs button {
+  position: relative;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.match-tactics-tabs button[data-active] { color: var(--accent); }
+.match-tactics-tabs button[data-active]::after { content: ""; position: absolute; left: 20%; right: 20%; bottom: -1px; height: 3px; background: var(--accent); }
+.match-tactics-fields { padding-top: 16px; }
+.tactic-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px 14px; }
+.match-tactic-field {
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.match-tactic-field > span { color: var(--text-dim); font-size: 9px; font-weight: 750; }
+.match-tactic-field select { border: 0; outline: 0; background: #fff; color: var(--text); font: inherit; font-size: 11px; font-weight: 800; }
+.match-tactic-field input[type="range"] { accent-color: var(--accent); }
+.match-tactic-field--toggle { flex-direction: row; align-items: center; justify-content: space-between; }
+.match-tactic-field--toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+.role-explainer {
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #c7dfc9;
+  border-radius: 8px;
+  background: #edf8ed;
+}
+.role-explainer strong { color: var(--accent); font-size: 10px; }
+.role-explainer span { color: var(--text-dim); font-size: 8px; line-height: 1.4; }
+.role-board {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.95fr) minmax(380px, 1.05fr);
+  align-items: start;
+  gap: 30px;
+  width: 100%;
+  min-height: 525px;
+}
+.role-board__pitch {
+  position: relative;
+  width: min(100%, 410px);
+  aspect-ratio: 68 / 92;
+  justify-self: center;
+  overflow: hidden;
+  border: 1px solid #8bc29b;
+  border-radius: 6px;
+  background: #16763a;
+  box-shadow: inset 0 0 0 4px rgba(255,255,255,.08);
+}
+.role-board__markings,
+.role-board__markings::before,
+.role-board__markings::after,
+.role-board__markings i,
+.role-board__markings b,
+.role-board__markings span,
+.role-board__markings em { position: absolute; pointer-events: none; }
+.role-board__markings { inset: 10px; border: 1px solid rgba(255,255,255,.5); }
+.role-board__markings::before { content: ""; left: 0; right: 0; top: 50%; border-top: 1px solid rgba(255,255,255,.5); }
+.role-board__markings::after { content: ""; left: 50%; top: 50%; width: 78px; height: 78px; border: 1px solid rgba(255,255,255,.5); border-radius: 50%; transform: translate(-50%, -50%); }
+.role-board__markings i,
+.role-board__markings b { left: 50%; width: 48%; height: 16%; border: 1px solid rgba(255,255,255,.48); transform: translateX(-50%); }
+.role-board__markings i { top: -1px; border-top: 0; }
+.role-board__markings b { bottom: -1px; border-bottom: 0; }
+.role-board__markings span,
+.role-board__markings em { left: 50%; width: 22%; height: 6%; border: 1px solid rgba(255,255,255,.42); transform: translateX(-50%); }
+.role-board__markings span { top: -1px; border-top: 0; }
+.role-board__markings em { bottom: -1px; border-bottom: 0; }
+.role-board__slot {
+  position: absolute;
+  z-index: 1;
+  width: 100px;
+  min-height: 70px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+.role-board__slot strong {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 3px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #0b5627;
+  box-shadow: 0 2px 5px rgba(0,0,0,.22);
+  font-size: 11px;
+}
+.role-board__slot > span {
+  display: block;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,.7);
+}
+.role-board__slot > span { font-size: 10px; font-weight: 800; }
+.role-board__slot > small {
+  width: 100px;
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: #d7f6dc;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-wrap: balance;
+  text-shadow: 0 1px 2px rgba(0,0,0,.7);
+}
+.role-board__slot[data-active] strong { background: #fff; color: #08662d; box-shadow: 0 0 0 4px #f6c945, 0 2px 6px rgba(0,0,0,.25); }
+.role-board__editor { min-width: 0; }
+.role-board__editor > header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 72px;
+  padding: 2px 4px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.role-board__editor > header small { color: var(--accent); font-size: 9px; font-weight: 800; }
+.role-board__editor > header h3 { margin: 4px 0 0; color: var(--text); font-size: 15px; }
+.role-board__options { display: grid; }
+.role-board__options > button {
+  min-height: 100px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.role-board__options > button:hover { background: #f1f7ee; }
+.role-board__options > button[data-active] { background: #e7f4e5; }
+.role-board__check { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid #9eb39f; border-radius: 50%; color: #fff; font-size: 10px; }
+.role-board__options > button[data-active] .role-board__check { border-color: var(--accent); background: var(--accent); }
+.role-board__option-copy { min-width: 0; }
+.role-board__option-copy > strong { display: block; font-size: 13px; }
+.role-board__option-copy > small { display: grid; gap: 6px; margin-top: 8px; font-size: 11px; line-height: 1.5; }
+.role-board__option-copy > small b,
+.role-board__option-copy > small i { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 8px; font-weight: 650; font-style: normal; }
+.role-board__option-copy > small b { color: #256b3d; }
+.role-board__option-copy > small i { color: #9a4c44; }
+.role-board__option-copy > small span { font-size: 9px; font-weight: 900; }
+.quick-tactics__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.quick-tactics__grid button {
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.quick-tactics__grid button:hover { border-color: var(--accent); background: #edf8ed; }
+.quick-tactics__grid strong { color: var(--accent); font-size: 13px; }
+.quick-tactics__grid span { color: var(--text-dim); font-size: 9px; }
+.quick-tactics > p { margin: 14px 0 0; color: var(--text-dim); font-size: 9px; }
+.match-tactics-actions {
+  position: absolute;
+  right: 22px;
+  bottom: 18px;
+  display: flex;
+  gap: 8px;
+}
+.match-tactics-editor { position: relative; }
+.match-tactics-actions .sim-btn { min-width: 100px; min-height: 38px; }
+.arena-ctrl--section { font-size: 11px; }
+.arena-squad-board {
+  display: grid;
+  grid-template-columns: minmax(250px, 340px) minmax(300px, 400px) minmax(300px, 400px);
+  align-items: start;
+  justify-content: center;
+  gap: 16px;
+  width: calc(100% - 44px);
+  height: var(--arena-management-pitch-height);
+  max-width: 1172px;
+  margin: 8px auto 12px;
+  padding: 0;
+  min-height: 0;
+  /* visible let the pitch bleed past match-center's height cap and paint
+     over the playback timeline below it instead of being clipped there —
+     same failure mode as the opponent board, which already uses hidden. */
+  overflow: hidden;
+}
+.match-center > .arena-squad-board { overflow: hidden; }
+.arena-squad-board__pitch {
+  min-width: 0;
+  height: var(--arena-management-pitch-height);
+  display: flex;
+  flex-direction: column;
+}
+.arena-squad-board .pitch {
+  width: auto;
+  height: var(--arena-management-pitch-height);
+  flex: 0 0 auto;
+  margin: 0 auto;
+  border-width: 2px;
+  border-radius: 14px;
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, .055) 0,
+      rgba(255, 255, 255, .055) 10%,
+      rgba(0, 0, 0, .035) 10%,
+      rgba(0, 0, 0, .035) 20%
+    ),
+    linear-gradient(180deg, #3f7249 0%, #315f3b 100%);
+  box-shadow: 0 10px 22px rgba(20, 48, 26, .16);
+}
+/* The in-match pitch is intentionally compact. Keep each player's visible
+   card small enough for fine positioning, while giving its parent slot a
+   larger invisible hit area so swaps do not require pixel-perfect drops. */
+.arena-squad-board .pitch-slot {
+  width: 72px;
+  height: 76px;
+  border-radius: 14px;
+}
+.arena-squad-board .pitch-slot[data-over="true"] {
+  background: rgba(219, 246, 220, .2);
+  box-shadow: inset 0 0 0 2px rgba(166, 230, 172, .82);
+}
+.arena-squad-board .player-card--slot,
+.arena-drag-overlay .player-card--slot {
+  width: 60px;
+}
+.arena-squad-board .player-card--slot .player-card__ring,
+.arena-drag-overlay .player-card--slot .player-card__ring {
+  width: 35px;
+  height: 35px;
+  border-width: 2px;
+}
+.arena-squad-board .player-card--slot .player-card__name,
+.arena-squad-board .player-card--slot .player-card__sub,
+.arena-drag-overlay .player-card--slot .player-card__name,
+.arena-drag-overlay .player-card--slot .player-card__sub {
+  max-width: 60px;
+}
+.arena-squad-board .player-card--slot .player-card__name,
+.arena-drag-overlay .player-card--slot .player-card__name {
+  font-size: 9px;
+}
+.arena-squad-board .player-card--slot .player-card__sub,
+.arena-drag-overlay .player-card--slot .player-card__sub {
+  font-size: 8px;
+}
+.arena-squad-board .player-card--slot .player-card__condition,
+.arena-drag-overlay .player-card--slot .player-card__condition {
+  width: 40px;
+  height: 4px;
+}
+.arena-squad-board .bench {
+  align-self: start;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+.arena-squad-board__controls {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+.arena-squad-board__team {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 64px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 1px solid #c8d9c7;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #f9fcf7, #edf5e9);
+}
+.arena-squad-board__team > span {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 11px;
+  background: #173f24;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+.arena-squad-board__team > span small {
+  color: inherit;
+  font-size: 8px;
+  line-height: 1;
+}
+.arena-squad-board__flag {
+  width: 27px;
+  height: 19px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 4px;
+}
+.arena-squad-board__team small,
+.arena-squad-board__team p {
+  display: block;
+  margin: 0;
+  color: #728070;
+  font-size: 9px;
+  font-weight: 750;
+}
+.arena-squad-board__team h2 {
+  margin: 2px 0 3px;
+  font-size: 16px;
+  line-height: 1.1;
+}
+.arena-squad-board__status {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.arena-squad-board__status > label,
+.arena-squad-board__status > div {
+  display: flex;
+  min-width: 0;
+  min-height: 72px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 9px 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel);
+}
+.arena-squad-board__status span {
+  margin-bottom: 5px;
+  color: var(--text-dim);
+  font-size: 9px;
+  font-weight: 750;
+}
+.arena-squad-board__status strong {
+  color: var(--accent);
+  font-size: 15px;
+}
+.arena-squad-board__status .match-formation-select {
+  width: 100%;
+  min-height: 30px;
+}
+.arena-squad-board__guide {
+  flex: 0 0 auto;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.arena-squad-board__guide h3 {
+  margin: 0 0 9px;
+  color: var(--accent);
+  font-size: 11px;
+}
+.arena-squad-board__guide ul {
+  margin: 0;
+  padding-left: 17px;
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1.7;
+}
+.arena-squad-board__reset {
+  min-height: 40px;
+  border: 1px solid #c8d9c7;
+  border-radius: 10px;
+  background: #edf5e9;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+.arena-squad-board__reset:hover {
+  border-color: var(--accent);
+  background: #e1f1df;
+}
+.arena-squad-board__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+.arena-opponent-board {
+  min-height: 0;
+  padding: 8px 22px 28px;
+  overflow: hidden;
+}
+.match-center > .arena-opponent-board { overflow: hidden; }
+/* Match the squad/substitution workspace, but reserve a separate rail for the
+   opposition bench: lineup pitch -> report -> substitutes. The pre-match
+   report keeps its own vertical layout because every override is arena-scoped. */
+.arena-opponent-board .opponent-report {
+  display: grid;
+  grid-template-columns: minmax(250px, 340px) minmax(300px, 400px) minmax(300px, 400px);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-areas:
+    "header lineup bench"
+    "metrics lineup bench"
+    "tactics lineup bench"
+    "scout lineup bench";
+  align-items: start;
+  justify-content: center;
+  gap: 8px 16px;
+  height: var(--arena-management-pitch-height);
+  max-width: 1172px;
+  margin: 0 auto;
+  padding: 0;
+}
+.arena-opponent-board .opponent-report__header {
+  grid-area: header;
+  min-height: 64px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.arena-opponent-board .opponent-report__header > span {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+}
+.arena-opponent-board .opponent-report__metrics {
+  grid-area: metrics;
+  align-self: stretch;
+  margin: 0;
+  gap: 5px;
+}
+.arena-opponent-board .opponent-report__metrics > div {
+  display: flex;
+  min-height: 58px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px;
+}
+.arena-opponent-board .opponent-report__lineup {
+  grid-area: lineup;
+  min-width: 0;
+  height: var(--arena-management-pitch-height);
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+.arena-opponent-board .opponent-report__lineup .pitch.pitch--compact {
+  width: auto;
+  max-width: none;
+  height: var(--arena-management-pitch-height);
+  flex: 0 0 auto;
+  margin: 0 auto;
+  /* Letting the goalkeeper card overflow visibly (rather than clipping the
+     sliver the base .pitch rule cuts off at the rounded corners) assumed
+     there was spare room below this column — in the live match arena there
+     isn't, so the card bled down over the playback timeline. Clipping that
+     sliver reads better than covering unrelated controls. */
+  overflow: hidden;
+}
+.arena-opponent-board .pitch--compact .pitch-slot {
+  transform: translate(-50%, -50%);
+}
+.arena-opponent-board .pitch--compact .player-card--slot {
+  width: 60px;
+}
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__name,
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__sub {
+  max-width: 60px;
+}
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__ring {
+  width: 35px;
+  height: 35px;
+  border-width: 2px;
+}
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__name {
+  font-size: 9px;
+}
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__sub {
+  font-size: 8px;
+}
+.arena-opponent-board .pitch--compact .player-card--slot .player-card__condition {
+  width: 40px;
+  height: 4px;
+}
+.arena-opponent-board .opponent-lineup-dismissed {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  opacity: .48;
+  filter: grayscale(.65);
+  pointer-events: none;
+}
+.arena-opponent-board .opponent-lineup-dismissed > span {
+  position: absolute;
+  top: 29px;
+  z-index: 9;
+  padding: 1px 5px;
+  color: #fff;
+  background: #b91c1c;
+  border-radius: 999px;
+  font-size: 7px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+.arena-opponent-board .opponent-report__shape {
+  grid-area: tactics;
+  margin-top: 0;
+  padding: 10px 12px;
+}
+/* Scout notes and the formation evidence share this one flexible row and
+   scroll together as a unit — previously they were two separate grid rows
+   ("scout" sized minmax(0,1fr), "evidence" auto), so any opponent whose
+   header/metrics/tactics rows ran a little taller pushed evidence's fixed-
+   height row past the board's hard overflow:hidden bottom edge instead of
+   shrinking. A single scrollable group can't overflow the layout that way. */
+.arena-opponent-board .opponent-report__scout-group {
+  grid-area: scout;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 6px;
+  overflow-y: auto;
+}
+.arena-opponent-board .opponent-report__scout {
+  flex: 0 0 auto;
+  margin-top: 0;
+  gap: 6px;
+}
+.arena-opponent-board .opponent-report__scout > div { padding: 9px 10px; }
+.arena-opponent-board .opponent-report__evidence {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+.arena-opponent-board .opponent-report__bench {
+  grid-area: bench;
+  align-self: start;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  box-sizing: border-box;
+  margin-top: 0;
+  padding: 14px 12px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.arena-opponent-board .opponent-report__bench .opponent-lineup-list {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+@media (max-width: 1180px) {
+  .arena-squad-board,
+  .arena-opponent-board .opponent-report {
+    grid-template-columns: minmax(230px, 340px) minmax(280px, 1fr) minmax(280px, 1fr);
+    gap: 8px 12px;
+  }
+}
+@media (max-width: 900px) {
+  .match-center > .arena-squad-board,
+  .match-center > .arena-opponent-board { overflow-y: auto; }
+  .arena-squad-board {
+    display: block;
+    height: auto;
+    max-width: none;
+  }
+  .arena-squad-board__pitch { height: min(62vh, 548px); }
+  .arena-squad-board__controls { height: auto; margin-top: 10px; }
+  .arena-squad-board .bench { height: auto; max-height: 520px; margin-top: 10px; }
+  .arena-opponent-board .opponent-report {
+    display: block;
+  }
+  .arena-opponent-board .opponent-report__metrics,
+  .arena-opponent-board .opponent-report__lineup,
+  .arena-opponent-board .opponent-report__shape,
+  .arena-opponent-board .opponent-report__scout-group,
+  .arena-opponent-board .opponent-report__bench {
+    margin-top: 10px;
+  }
+  .arena-opponent-board .opponent-report__scout-group {
+    overflow-y: visible;
+  }
+  .arena-opponent-board .opponent-report__bench .opponent-lineup-list {
+    grid-template-columns: 1fr;
+  }
+}
+.arena-team-tactics {
+  position: relative;
+  padding: 18px 20px 20px;
+  background: #111513;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.arena-team-tactics__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.arena-team-tactics__head strong {
+  font-size: 22px;
+  font-weight: 900;
+}
+.arena-team-tactics__head span {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 700;
+}
+.arena-team-tactics__formation {
+  margin-bottom: 10px;
+  padding: 12px;
+  background: #252925;
+  color: #d9ddd9;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 900;
+}
+.arena-team-tactics__section {
+  margin: 18px 0 8px;
+  color: #d9ddd9;
+  font-size: 17px;
+  font-weight: 900;
+}
+.tactic-row-wrap {
+  position: relative;
+}
+.tactic-row {
+  width: 100%;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 34px auto minmax(190px, 2fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.025);
+  background: #171c19;
+  color: #f3f5f3;
+  font: inherit;
+}
+.tactic-row + .tactic-row,
+.tactic-row-wrap + .tactic-row,
+.tactic-row + .tactic-row-wrap,
+.tactic-row-wrap + .tactic-row-wrap {
+  margin-top: 8px;
+}
+.tactic-row--select {
+  grid-template-columns: minmax(120px, 1fr) minmax(130px, 1fr) auto;
+  cursor: pointer;
+  text-align: left;
+}
+.tactic-row span:first-child {
+  font-size: 15px;
+  font-weight: 900;
+}
+.tactic-row strong {
+  font-size: 17px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.tactic-row--select strong {
+  justify-self: end;
+  color: #e8ece8;
+  font-size: 15px;
+}
+.tactic-row__chevron {
+  justify-self: end;
+  color: #d6d9d6;
+  font-size: 26px;
+  line-height: 1;
+}
+.tactic-step {
+  width: 28px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.34);
+  font-size: 27px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tactic-meter {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+  min-width: 210px;
+}
+.tactic-meter span {
+  height: 10px;
+  background: #252a27;
+}
+.tactic-meter span:first-child { border-radius: 999px 0 0 999px; }
+.tactic-meter span:last-child { border-radius: 0 999px 999px 0; }
+.tactic-meter span[data-on] {
+  background: #159dea;
+}
+.tactic-menu {
+  position: absolute;
+  z-index: 5;
+  left: 4.5%;
+  right: 4.5%;
+  top: calc(100% + 8px);
+  background: #f7f7f1;
+  color: #161817;
+  box-shadow: 0 18px 35px rgba(0,0,0,0.36);
+}
+.tactic-menu__title {
+  position: relative;
+  padding: 18px 58px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+}
+.tactic-menu__title button {
+  position: absolute;
+  right: 18px;
+  top: 12px;
+  border: 0;
+  background: transparent;
+  color: #111;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tactic-menu__option {
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 24px;
+  border: 0;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  background: #f7f7f1;
+  color: #171817;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.tactic-menu__option span {
+  grid-column: 2;
+  text-align: center;
+}
+.tactic-menu__option strong {
+  justify-self: start;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #00e676;
+  color: #06231f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.halftime-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(79, 209, 197, 0.35);
+  border-bottom: 1px solid rgba(79, 209, 197, 0.35);
+  background: rgba(79, 209, 197, 0.1);
+  color: var(--text);
+  font-size: 13px;
+}
+.halftime-banner > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.halftime-banner__eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+.halftime-editor {
+  padding: 14px 16px 4px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.halftime-grid {
+  display: grid;
+  grid-template-columns: 240px minmax(280px, 430px) minmax(220px, 280px);
+  gap: 14px;
+  align-items: start;
+}
+.halftime-grid__tactics {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.halftime-grid__pitch,
+.halftime-grid__bench {
+  min-width: 0;
+}
+.halftime-grid .pitch {
+  border-radius: 10px;
+  max-height: 560px;
+}
+.halftime-grid .bench {
+  max-height: 560px;
+  overflow: auto;
+}
+@media (max-width: 980px) {
+  .arena-modal {
+    max-height: 94vh;
+  }
+  .arena-ctrl--skip {
+    margin-left: 0;
+  }
+  .arena-team-tactics {
+    padding: 16px 12px 18px;
+  }
+  .tactic-row {
+    grid-template-columns: minmax(86px, 1fr) 28px auto minmax(116px, 1.4fr) auto;
+    padding: 9px 10px;
+  }
+  .tactic-row--select {
+    grid-template-columns: minmax(98px, 1fr) minmax(104px, 1fr) auto;
+  }
+  .tactic-meter {
+    min-width: 116px;
+    gap: 2px;
+  }
+  .tactic-menu {
+    left: 2%;
+    right: 2%;
+  }
+  .halftime-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .halftime-grid {
+    grid-template-columns: 1fr;
+  }
+  .halftime-grid .pitch {
+    max-height: none;
+  }
+  .match-center__header { overflow-x: auto; padding: 0 12px; }
+  .match-center__header nav button { min-width: 92px; padding: 0 8px; }
+  .match-center__close { position: sticky; right: 0; min-width: 96px; }
+  .match-overview__content { grid-template-columns: 1fr; }
+  .match-stat-card { grid-row: auto; }
+  .player-ratings-board { grid-template-columns: 1fr; }
+  .match-analysis-board { grid-template-columns: 1fr; }
+  .match-tactics-editor { grid-template-columns: 1fr; }
+  .match-tactics-editor__summary {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .match-tactics-editor__team { margin-bottom: 0; }
+  .match-tactics-editor__summary .prematch-mini-pitch { width: 96px; flex-shrink: 0; }
+  .match-tactics-editor__body { padding: 0 12px 76px; }
+  .role-board { grid-template-columns: 1fr; }
+  .role-board__pitch { width: min(100%, 400px); }
+}
+/* ============ GOAL! overlay ============ */
+.arena-goal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(0,0,0,0.35), transparent 65%);
+}
+.arena-goal__big {
+  font-size: clamp(44px, 12vw, 92px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fde047;
+  text-shadow: 0 4px 0 #b45309, 0 0 26px rgba(253,224,71,0.6);
+  animation: goal-pulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes goal-pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+.arena-goal__scorer {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(0,0,0,0.55);
+  padding: 5px 16px;
+  border-radius: 999px;
+}
+.arena-opponent-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #eef3ea;
+}
+.arena-opponent-current span {
+  color: #687267;
+  font-size: 9px;
+  font-weight: 750;
+}
+.arena-opponent-current strong {
+  color: #27462e;
+  font-size: 9px;
+  text-align: right;
+}
+.arena-opponent-change {
+  margin: 0 0 12px;
+  padding: 11px 12px;
+  border: 1px solid #efc46f;
+  border-radius: 11px;
+  background: #fff8e8;
+}
+.arena-opponent-change span,
+.arena-opponent-change strong,
+.arena-opponent-change p {
+  display: block;
+}
+.arena-opponent-change span {
+  color: #9b6412;
+  font-size: 9px;
+  font-weight: 850;
+}
+.arena-opponent-change strong {
+  margin-top: 3px;
+  color: #5a390b;
+  font-size: 11px;
+}
+.arena-opponent-change p {
+  margin: 5px 0 0;
+  color: #745f3c;
+  font-size: 9px;
+  line-height: 1.4;
+}
+/* ============ Penalty shootout: taker order screen ============ */
+.pk-taker-select {
+  min-height: 540px;
+  display: flex;
+  flex-direction: column;
+  background: #f3f7f0;
+  border-bottom: 1px solid var(--border);
+}
+.pk-taker-select__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+.pk-taker-select__crumbs {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+.pk-taker-select__crumbs span {
+  margin: 0 4px;
+  opacity: 0.6;
+}
+.pk-taker-select__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pk-taker-select__title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+.pk-taker-select__add {
+  margin-left: auto;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+.pk-taker-select__table {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 22px;
+}
+.pk-taker-select__row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 90px 90px 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.pk-taker-select__row--head {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 800;
+  border-bottom-width: 2px;
+}
+.pk-taker-select__order {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 900;
+}
+.pk-taker-select__reorder {
+  display: flex;
+  flex-direction: column;
+}
+.pk-taker-select__reorder button {
+  width: 18px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pk-taker-select__reorder button:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+.pk-taker-select__player {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pk-taker-select__player strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pk-taker-select__player small {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.pk-taker-select__stat {
+  font-weight: 800;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.pk-taker-select__stat[data-high] {
+  color: var(--accent);
+}
+.pk-taker-select__remove {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--danger, #e5484d);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pk-taker-select__empty {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.pk-taker-select__footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 22px;
+  background: #fff;
+  border-top: 1px solid var(--border);
+}
+.pk-taker-select__footer p {
+  flex: 1;
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.pk-taker-select__footer .sim-btn {
+  flex: none;
+  padding: 10px 18px;
+}
+.arena-dismissal-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid #ef9a9a;
+  border-left: 5px solid #dc2626;
+  border-radius: 10px;
+  background: #fff1f1;
+  color: #8f1717;
+  font-size: 14px;
+  font-weight: 800;
+}
+.arena-dismissal-notice > span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+}
+.arena-dismissal-notice[data-side="opp"] {
+  border-color: #8dc9a0;
+  border-left-color: #087a35;
+  background: #edf8ef;
+  color: #075d2b;
+}
+.arena-dismissal-notice[data-side="opp"] > span { background: #087a35; }
+.arena-halftime-transition {
+  display: grid;
+  place-content: center;
+  min-height: 430px;
+  padding: 44px;
+  background: radial-gradient(circle at center, #f6faf2 0%, #edf4e9 68%, #e7eee3 100%);
+  color: #15251a;
+  text-align: center;
+}
+.arena-halftime-transition span {
+  color: #087333;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .12em;
+}
+.arena-halftime-transition strong {
+  margin: 12px 0;
+  font-size: 46px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.arena-halftime-transition p {
+  margin: 0;
+  color: #6a766a;
+  font-size: 13px;
+}
+
+/* Saved plans sit under the built-in instructions in the quick tab. */
+.saved-tactics {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+}
+.saved-tactics__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.saved-tactics__head strong { color: var(--text); font-size: 12px; }
+.saved-tactics__save { display: flex; gap: 8px; }
+.saved-tactics__save input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.saved-tactics__save button {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.saved-tactics__save button:disabled { opacity: .45; cursor: not-allowed; }
+.saved-tactics .quick-tactics__grid button { position: relative; }
+/* Doubled-up selector out-specifies pre-match.css's generic
+   `.quick-tactics__grid button em` badge rule (the green pill used for
+   "⭐ 추천" etc.), which would otherwise restyle this delete control too. */
+.quick-tactics__grid button em.saved-tactics__delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 9px;
+  background: #fdecec;
+  color: #c0392b;
+  font-style: normal;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.quick-tactics__grid button em.saved-tactics__delete svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.quick-tactics__grid button em.saved-tactics__delete:hover {
+  background: #f6d2cd;
+  color: #9a2434;
+}
