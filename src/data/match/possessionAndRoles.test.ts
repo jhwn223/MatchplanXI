@@ -130,3 +130,40 @@ describe("roles change what a player does, not only where he stands", () => {
     expect(playmakers.dribbles).toBeGreaterThan(holders.dribbles * 1.4);
   });
 });
+
+describe("sendings-off stay as rare as football's", () => {
+  const reds = (results: ReturnType<typeof run>) => {
+    let total = 0;
+    let secondBookings = 0;
+    for (const result of results) {
+      const booked = new Set<string>();
+      for (const event of result.events) {
+        const key = `${event.side}:${event.actorId}`;
+        if (event.type === "yellowCard") booked.add(key);
+        if (event.type === "redCard") {
+          total++;
+          if (booked.has(key)) secondBookings++;
+        }
+      }
+    }
+    return { perMatch: total / results.length, secondBookingShare: secondBookings / Math.max(1, total) };
+  };
+
+  test("a normal match sees one about every ten, and mostly a straight red", () => {
+    const { perMatch, secondBookingShare } = reds(run((seed) => testInput(seed), 120));
+    expect(perMatch).toBeGreaterThan(0.03);
+    expect(perMatch).toBeLessThan(0.22);
+    // Football's sendings-off are mostly direct. While they were mostly second
+    // bookings the count scaled with the square of the booking rate, and an
+    // aggressive plan finished a man down in nearly half its matches.
+    expect(secondBookingShare).toBeLessThan(0.5);
+  });
+
+  test("an aggressive tackling plan raises them without making them routine", () => {
+    const aggressive = testTactics({ tacklingBias: 1, pressBias: 0.6 });
+    const results = run((seed) => testInput(seed, 74, 74, aggressive, aggressive), 120);
+    const { perMatch } = reds(results);
+    expect(perMatch).toBeGreaterThan(reds(run((seed) => testInput(seed), 120)).perMatch);
+    expect(perMatch).toBeLessThan(0.55);
+  });
+});
