@@ -45,6 +45,14 @@ export const BALANCED_SHAPE_PROFILE: FormationShapeProfile = {
 interface FormationAnchorInput {
   direction: 1 | -1;
   role: ShapeRole;
+  /**
+   * How far the assigned player role pushes him up the pitch and how wide it
+   * asks him to sit. Roles reached the event model but never the shape, so on
+   * the pitch — and in the replay — an inverted full-back stood exactly where
+   * an overlapping one did.
+   */
+  roleAdvanceBonus?: number;
+  roleWidthScale?: number;
   /** Position measured from this team's own goal toward the opponent goal. */
   baseX: number;
   /** Absolute lateral lane in the shared pitch coordinate system. */
@@ -68,6 +76,8 @@ export function formationAnchor({
   ball,
   phase,
   hasBall,
+  roleAdvanceBonus = 0,
+  roleWidthScale = 1,
   profile = BALANCED_SHAPE_PROFILE,
 }: FormationAnchorInput): WorldPoint {
   const canonicalBallX = direction === 1 ? ball.x : 100 - ball.x;
@@ -114,6 +124,7 @@ export function formationAnchor({
         : role === "MID"
           ? profile.attackBias * 2.2 + profile.pressBias * 1.4 + tempoAdvance + engagementAdvance + restDefenseHold
           : profile.attackBias * 3 + tempoAdvance + engagementAdvance;
+  const assignedAdvance = role === "GK" ? 0 : roleAdvanceBonus;
   // Direct football stretches the side from back to front; a short passing
   // game squeezes the lines together to keep options close.
   // Compactness is the dedicated control for the gap between the lines;
@@ -135,7 +146,7 @@ export function formationAnchor({
   const structuredBaseX =
     role === "GK" ? baseX : 50 + (baseX - 50) * longitudinalScale;
   const linePosition = clamp(
-    structuredBaseX + (role === "GK" ? blockShift * 0.08 : blockShift) + roleAdvance,
+    structuredBaseX + (role === "GK" ? blockShift * 0.08 : blockShift) + roleAdvance + assignedAdvance,
     role === "GK" ? 2 : 5,
     role === "GK" ? 18 : 95,
   );
@@ -166,9 +177,10 @@ export function formationAnchor({
     ? centralFocus * (role === "FWD" ? 0.3 : role === "MID" ? 0.25 : role === "DEF" ? 0.1 : 0)
     : centralFocus * (role === "FWD" || role === "MID" ? 0.08 : 0.04);
   const widthScale = clamp(
-    widthBase + profile.widthBias * 0.2 + overlapWidth - centralNarrowing,
-    0.5,
-    1.26,
+    (widthBase + profile.widthBias * 0.2 + overlapWidth - centralNarrowing) *
+      (role === "GK" ? 1 : roleWidthScale),
+    0.42,
+    1.45,
   );
   const ballShift = hasBall ? 0.14 : 0.2;
   // Attacking down one side has to be legible on a heat map, so the shift is

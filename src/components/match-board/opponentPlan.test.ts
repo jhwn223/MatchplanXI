@@ -112,6 +112,31 @@ describe("opponent scouting report", () => {
 });
 
 describe("opponent in-match decisions", () => {
+  test("uses a supplied match-specific review minute instead of a fixed ten-minute cadence", () => {
+    const skipped = decideOpponentTacticChange({
+      minute: 20,
+      userGoals: 2,
+      oppGoals: 0,
+      current: DEFAULT_TEAM_TACTICS,
+      userTactics: DEFAULT_TEAM_TACTICS,
+      live: null,
+      reviewMinutes: [23, 37, 52],
+    });
+    const reviewed = decideOpponentTacticChange({
+      minute: 37,
+      userGoals: 3,
+      oppGoals: 0,
+      current: DEFAULT_TEAM_TACTICS,
+      userTactics: DEFAULT_TEAM_TACTICS,
+      live: null,
+      reviewMinutes: [23, 37, 52],
+    });
+
+    expect(skipped).toBeNull();
+    expect(reviewed?.minute).toBe(37);
+    expect(reviewed?.tactics.mentality).toBe("attacking");
+  });
+
   test("can chase early when the score deficit is already large", () => {
     const decision = decideOpponentTacticChange({
       minute: 40,

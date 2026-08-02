@@ -1,15 +1,18 @@
-import type { MatchEvent, PassType, PositionSample } from "../../data/matchSim";
+import type { MatchEvent, MatchSide, PassType, PositionSample } from "../../data/matchSim";
 import { ALL_PASS_TYPES, PASS_TYPE_META } from "./passMap";
 
-export type EventMapMode = "positions" | "shots" | "passes" | "turnovers";
+export type EventMapMode = "positions" | "ball" | "shots" | "passes" | "turnovers" | "recoveries";
 
 interface Props {
   events: MatchEvent[];
   minute: number;
   mode: EventMapMode;
+  /** Earliest minute to include; lets a tactical change be seen on its own. */
+  since?: number;
   player?: string;
   passTypes?: PassType[];
   positionSamples?: PositionSample[];
+  side?: MatchSide;
 }
 
 interface HeatPoint {
@@ -18,7 +21,7 @@ interface HeatPoint {
   intensity: number;
 }
 
-function buildHeatPoints(samples: PositionSample[]): HeatPoint[] {
+function buildHeatPoints(samples: Array<{ x: number; y: number }>): HeatPoint[] {
   const cells = new Map<string, { x: number; y: number; count: number }>();
   for (const sample of samples.slice(-2_500)) {
     const x = sample.x;
@@ -42,24 +45,42 @@ export function ArenaEventMap({
   events,
   minute,
   mode,
+  since = 0,
   player,
   passTypes = ALL_PASS_TYPES,
   positionSamples = [],
+  side = "user",
 }: Props) {
+  const eventSide = mode === "turnovers" ? (side === "user" ? "opp" : "user") : side;
   const elapsed = events
-    .filter((event) => event.minute <= minute)
-    .filter((event) => mode === "turnovers" ? event.side === "opp" : event.side === "user")
+    .filter((event) => event.minute <= minute && event.minute >= since)
+    .filter((event) => event.side === eventSide)
+    // A turnover is named for the player who lost the ball, so it is filtered
+    // by the victim; every other map belongs to whoever performed the action.
     .filter((event) => !player || (mode === "turnovers" ? event.target === player : event.actor === player));
   const visible = elapsed.filter((event) => {
     if (mode === "shots") return event.type === "shot";
     if (mode === "passes") return event.type === "pass" && passTypes.includes(event.passType ?? "normal");
-    if (mode === "turnovers") return event.type === "tackle" || event.type === "interception";
+    if (mode === "turnovers" || mode === "recoveries") {
+      return event.type === "tackle" || event.type === "interception" || event.type === "recovery";
+    }
     return true;
   });
   const heatSamples = positionSamples
-    .filter((sample) => sample.minute <= minute && sample.side === "user")
+    .filter((sample) => sample.minute <= minute && sample.minute >= since && sample.side === side)
     .filter((sample) => !player || sample.playerName === player);
-  const heatPoints = mode === "positions" ? buildHeatPoints(heatSamples) : [];
+  const ballSamples = elapsed.flatMap((event) => {
+    const points: Array<{ x: number; y: number }> = [];
+    if (event.x != null && event.y != null) points.push({ x: event.x, y: event.y });
+    if (event.endX != null && event.endY != null) points.push({ x: event.endX, y: event.endY });
+    return points;
+  });
+  const heatPoints = mode === "positions"
+    ? buildHeatPoints(heatSamples)
+    : mode === "ball"
+      ? buildHeatPoints(ballSamples)
+      : [];
+  const isHeatMap = mode === "positions" || mode === "ball";
 
   return (
     <div className={`arena-event-map-frame arena-event-map-frame--${mode}`}>
@@ -83,10 +104,10 @@ export function ArenaEventMap({
           data-alt={index % 2 || undefined}
         />
       ))}
-      {(mode === "positions" ? heatSamples.length === 0 : visible.length === 0) && (
+      {(isHeatMap ? heatPoints.length === 0 : visible.length === 0) && (
         <text x="50" y="34" textAnchor="middle">아직 기록이 없습니다</text>
       )}
-      {mode === "positions" && (
+      {isHeatMap && (
         <g className="arena-event-map__heat" filter="url(#heat-blur)" clipPath="url(#pitch-clip)">
           {heatPoints.map((point, index) => {
             const radius = 7 + point.intensity * 6;
@@ -105,13 +126,17 @@ export function ArenaEventMap({
           })}
         </g>
       )}
-      {mode !== "positions" && visible.slice(-300).map((event, index) => {
+      {!isHeatMap && visible.slice(-300).map((event, index) => {
         const x = event.x ?? 50;
         const y = ((event.y ?? 50) / 100) * 62 + 1;
         const endX = event.endX ?? x;
         const endY = ((event.endY ?? event.y ?? 50) / 100) * 62 + 1;
         const color = mode === "passes"
           ? PASS_TYPE_META[event.passType ?? "normal"].color
+          : mode === "turnovers"
+            ? "#ff6b72"
+            : mode === "recoveries"
+              ? "#35dc66"
           : event.side === "user" ? "#35dc66" : "#ff6b72";
         if (mode === "passes" || mode === "shots") {
           return (
@@ -129,10 +154,24 @@ export function ArenaEventMap({
             </g>
           );
         }
+        // Losing the ball is marked with a cross, winning it back with a
+        // filled disc, so the two maps stay readable on their own.
         return (
           <g key={index}>
-            <circle cx={x} cy={y} r="1.9" fill="none" stroke={color} strokeWidth="0.7" />
-            <path d={`M${x - 1.2} ${y - 1.2}l2.4 2.4m0-2.4l-2.4 2.4`} stroke={color} strokeWidth="0.5" />
+            <circle
+              cx={x}
+              cy={y}
+              r="1.15"
+              fill={mode === "recoveries" ? color : "none"}
+              fillOpacity={mode === "recoveries" ? 0.28 : undefined}
+              stroke={color}
+              strokeWidth="0.45"
+            />
+            {mode === "recoveries" ? (
+              <circle cx={x} cy={y} r="0.38" fill={color} />
+            ) : (
+              <path d={`M${x - 0.7} ${y - 0.7}l1.4 1.4m0-1.4l-1.4 1.4`} stroke={color} strokeWidth="0.38" />
+            )}
           </g>
         );
       })}

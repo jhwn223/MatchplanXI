@@ -13,7 +13,6 @@ export interface LiveIntensity {
 import type { SimTacticProfile } from "../../data/matchSim";
 
 export type DefenseStyle = "dropBack" | "balanced" | "errorPress" | "lossPress" | "constantPress";
-export type BuildUpPlay = "shortPass" | "balanced" | "longPass" | "fastBuildUp";
 export type ChanceCreation = "possession" | "balanced" | "directPassing" | "forwardRuns";
 export type Mentality = "defensive" | "cautious" | "balanced" | "positive" | "attacking";
 export type Tempo = "slow" | "balanced" | "fast";
@@ -23,7 +22,6 @@ export type Creativity = "disciplined" | "balanced" | "expressive";
 export type PassingStyle = "short" | "mixed" | "direct" | "long";
 export type AttackFocus = "left" | "balanced" | "right" | "central";
 export type ShootingInstruction = "patient" | "balanced" | "onSight";
-export type WidePlay = "mixed" | "overlap" | "earlyCross";
 export type DefensiveLine = "low" | "standard" | "high";
 export type PressingLevel = "low" | "standard" | "high";
 export type Marking = "zonal" | "man";
@@ -33,13 +31,10 @@ export type MidfieldRole = "hold" | "balanced" | "playmaker";
 export type FullbackRole = "stay" | "overlap" | "inverted";
 export type TeamWidth = "narrow" | "balanced" | "wide";
 export type LineOfEngagement = "deep" | "middle" | "high";
-export type Compactness = "compact" | "balanced" | "stretched";
 
 export interface TeamTactics {
   defenseStyle: DefenseStyle;
   width: TeamWidth;
-  depth: number;
-  buildUpPlay: BuildUpPlay;
   chanceCreation: ChanceCreation;
   mentality: Mentality;
   tempo: Tempo;
@@ -49,7 +44,6 @@ export interface TeamTactics {
   passingStyle: PassingStyle;
   attackFocus: AttackFocus;
   shooting: ShootingInstruction;
-  widePlay: WidePlay;
   defensiveLine: DefensiveLine;
   pressing: PressingLevel;
   marking: Marking;
@@ -59,15 +53,9 @@ export interface TeamTactics {
   fullbackRole: FullbackRole;
   /** Where the press starts, separate from how deep the back line sits. */
   lineOfEngagement: LineOfEngagement;
-  /** Distance between the defensive, midfield and attacking lines. */
-  compactness: Compactness;
-  /** Players held back while the team attacks (2–5). */
-  restDefense: number;
-  offsideTrap: boolean;
 }
 
-export type TacticSelectKey = "defenseStyle" | "buildUpPlay" | "chanceCreation";
-export type TacticMeterKey = "depth";
+export type TacticSelectKey = "defenseStyle" | "chanceCreation";
 
 /**
  * Frozen values for the three instructions that used to be adjustable
@@ -93,8 +81,6 @@ export const DEFAULT_LIVE_INTENSITY: LiveIntensity = {
 export const DEFAULT_TEAM_TACTICS: TeamTactics = {
   defenseStyle: "balanced",
   width: "balanced",
-  depth: 4,
-  buildUpPlay: "balanced",
   chanceCreation: "balanced",
   mentality: "balanced",
   tempo: "balanced",
@@ -104,7 +90,6 @@ export const DEFAULT_TEAM_TACTICS: TeamTactics = {
   passingStyle: "mixed",
   attackFocus: "balanced",
   shooting: "balanced",
-  widePlay: "mixed",
   defensiveLine: "standard",
   pressing: "standard",
   marking: "zonal",
@@ -113,9 +98,6 @@ export const DEFAULT_TEAM_TACTICS: TeamTactics = {
   midfieldRole: "balanced",
   fullbackRole: "overlap",
   lineOfEngagement: "middle",
-  compactness: "balanced",
-  restDefense: 3,
-  offsideTrap: false,
 };
 
 export const TACTIC_SELECTS: Record<
@@ -130,15 +112,6 @@ export const TACTIC_SELECTS: Record<
       { value: "errorPress", label: "볼 터치 실수 시 압박" },
       { value: "lossPress", label: "공 뺏긴 직후 압박" },
       { value: "constantPress", label: "지속적인 압박" },
-    ],
-  },
-  buildUpPlay: {
-    title: "빌드업 플레이",
-    options: [
-      { value: "shortPass", label: "짧은 패스" },
-      { value: "balanced", label: "밸런스" },
-      { value: "longPass", label: "긴 패스" },
-      { value: "fastBuildUp", label: "빠른 빌드업" },
     ],
   },
   chanceCreation: {
@@ -163,12 +136,6 @@ export function intensityFromTeamTactics(tactics: TeamTactics): LiveIntensity {
     errorPress: 48,
     lossPress: 64,
     constantPress: 84,
-  };
-  const buildPress: Record<BuildUpPlay, number> = {
-    shortPass: -4,
-    balanced: 0,
-    longPass: 4,
-    fastBuildUp: 12,
   };
   const chancePress: Record<ChanceCreation, number> = {
     possession: -4,
@@ -198,12 +165,6 @@ export function intensityFromTeamTactics(tactics: TeamTactics): LiveIntensity {
     direct: 74,
     long: 90,
   }[tactics.passingStyle];
-  const buildDirectness = {
-    shortPass: -14,
-    balanced: 0,
-    longPass: 18,
-    fastBuildUp: 9,
-  }[tactics.buildUpPlay];
   const focus: -1 | 0 | 1 =
     tactics.attackFocus === "left"
       ? -1
@@ -211,11 +172,9 @@ export function intensityFromTeamTactics(tactics: TeamTactics): LiveIntensity {
         ? 1
         : 0;
   return {
-    fluidDefense: clamp(88 - tactics.depth * 6 - linePush * 0.6 - (teamWidth - 50) * 0.12, 0, 100),
+    fluidDefense: clamp(64 - linePush * 0.6 - (teamWidth - 50) * 0.12, 0, 100),
     attackPress: clamp(
       stylePress[tactics.defenseStyle] +
-        tactics.depth * 2 +
-        buildPress[tactics.buildUpPlay] +
         chancePress[tactics.chanceCreation] +
         detailedPress +
         linePush * 0.45 +
@@ -224,16 +183,11 @@ export function intensityFromTeamTactics(tactics: TeamTactics): LiveIntensity {
       100
     ),
     teamWidth,
-    tempo: clamp(tempo + (tactics.buildUpPlay === "fastBuildUp" ? 10 : 0), 0, 100),
+    tempo: clamp(tempo, 0, 100),
     mentality,
-    directness: clamp(passingDirectness + buildDirectness, 0, 100),
+    directness: clamp(passingDirectness, 0, 100),
     focus,
-    defensiveLine: clamp(
-      { low: 24, standard: 50, high: 80 }[tactics.defensiveLine] +
-        (tactics.depth - 5) * 3,
-      10,
-      90,
-    ),
+    defensiveLine: { low: 24, standard: 50, high: 80 }[tactics.defensiveLine],
     counter: COUNTER_ATTACK_BONUS > 0 ? 100 : 25,
   };
 }
@@ -259,20 +213,12 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
     lossPress: 0.65,
     constantPress: 1,
   };
-  const buildDirectness: Record<BuildUpPlay, number> = {
-    shortPass: -0.8,
-    balanced: 0,
-    longPass: 0.72,
-    fastBuildUp: 0.45,
-  };
   const chanceAttack: Record<ChanceCreation, number> = {
     possession: -0.35,
     balanced: 0,
     directPassing: 0.48,
     forwardRuns: 0.78,
   };
-  const centered = (value: number) => (value - 5.5) / 4.5;
-  const depth = centered(tactics.depth);
   // Box runners, set-piece numbers and the counter-attack switch are no longer
   // manager-adjustable. They are pinned to what their old defaults produced so
   // dropping the controls does not quietly rebalance every match.
@@ -290,7 +236,6 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
   const tackling = { cautious: -1, balanced: 0, aggressive: 1 }[tactics.tackling];
   const focus = { left: -1, balanced: 0, right: 1, central: 0 }[tactics.attackFocus];
   const focusWidth = tactics.attackFocus === "central" ? -0.8 : tactics.attackFocus === "balanced" ? 0 : 0.65;
-  const widePlay = { mixed: 0, overlap: 0.8, earlyCross: 0.45 }[tactics.widePlay];
   const strikerAttack = { target: 0.1, poacher: 0.4, falseNine: -0.18 }[tactics.strikerRole];
   const strikerDirectness = { target: 0.55, poacher: 0.15, falseNine: -0.35 }[tactics.strikerRole];
   const midfieldCreativity = { hold: -0.4, balanced: 0, playmaker: 0.55 }[tactics.midfieldRole];
@@ -309,28 +254,29 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
       -1,
       1,
     ),
-    pressBias: clamp(defensePress[tactics.defenseStyle] * 0.45 + depth * 0.2 + pressing * 0.55 + workRate * 0.2, -1, 1),
+    pressBias: clamp(defensePress[tactics.defenseStyle] * 0.45 + pressing * 0.68 + workRate * 0.2, -1, 1),
     // Kept separate from `overlapBias`, which blends in team width and set
     // pieces and so never got near its extremes. How far a full-back runs is
     // decided by his own instruction, and it has to be able to reach the top
     // of the scale or the run never happens.
     fullbackPushBias: clamp(
-      fullbackOverlap * 1.15 + widePlay * 0.35 + teamWidth * 0.12,
+      fullbackOverlap * 1.4 + teamWidth * 0.14,
       -1,
       1,
     ),
     overlapBias: clamp(
-      teamWidth * 0.3 +
+      teamWidth * 0.4 +
         boxCommitment * 0.2 +
         setPieceCommitment * 0.1 +
-        widePlay * 0.35 +
-        fullbackOverlap * 0.35,
+        fullbackOverlap * 0.5,
       -1,
       1,
     ),
-    directnessBias: clamp(buildDirectness[tactics.buildUpPlay] * 0.4 + passing * 0.55 + strikerDirectness * 0.35, -1, 1),
+    directnessBias: clamp(passing * 0.8 + strikerDirectness * 0.35, -1, 1),
     counterBias: clamp(
-      (tactics.buildUpPlay === "fastBuildUp" ? 0.72 : tactics.buildUpPlay === "longPass" ? 0.4 : 0) +
+      // Direct and long passing is what springs a counter now that build-up
+      // play is no longer a separate control.
+      Math.max(0, passing) * 0.6 +
         (tactics.chanceCreation === "forwardRuns" ? 0.28 : tactics.chanceCreation === "possession" ? -0.35 : 0) +
         COUNTER_ATTACK_BONUS,
       -1,
@@ -339,26 +285,26 @@ export function simProfileFromTeamTactics(tactics: TeamTactics): SimTacticProfil
     tempoBias: clamp(tempo * 0.75 + workRate * 0.25, -1, 1),
     creativityBias: clamp(creativity * 0.55 + fluidity * 0.25 + midfieldCreativity * 0.45, -1, 1),
     shootingBias: shooting,
-    defensiveLineBias: clamp(defensiveLine * 0.75 + depth * 0.25, -1, 1),
+    defensiveLineBias: clamp(defensiveLine, -1, 1),
     tacklingBias: clamp(tackling * 0.8 + (tactics.marking === "man" ? 0.2 : -0.05), -1, 1),
-    widthBias: clamp(teamWidth * 0.6 + focusWidth * 0.25 + widePlay * 0.25, -1, 1),
+    widthBias: clamp(teamWidth * 0.78 + focusWidth * 0.25, -1, 1),
     centralFocusBias: tactics.attackFocus === "central" ? 1 : 0,
     focusBias: focus,
     setPieceBias: clamp(setPieceCommitment, -1, 1),
     engagementBias: { deep: -1, middle: 0, high: 1 }[tactics.lineOfEngagement],
-    compactnessBias: { compact: 1, balanced: 0, stretched: -1 }[tactics.compactness],
-    // Committing bodies forward is what makes an attacking plan risky, so the
-    // held-back count is combined with the instructions that pull players up
-    // the pitch.
+    // Team width is now the only control over how the block is spread, so how
+    // far the lines sit apart follows from the instructions that push players
+    // up the pitch rather than from a second, overlapping dial.
+    compactnessBias: clamp(-mentality * 0.4 - Math.max(0, passing) * 0.3, -1, 1),
+    // Committing bodies forward is what makes an attacking plan risky. Without
+    // a rest-defence dial it follows entirely from those instructions.
     restDefenseBias: clamp(
-      (tactics.restDefense - 3) / 2 -
-        mentality * 0.25 -
-        Math.max(0, fullbackOverlap) * 0.2 -
-        (tactics.chanceCreation === "forwardRuns" ? 0.2 : 0),
+      -mentality * 0.45 -
+        Math.max(0, fullbackOverlap) * 0.35 -
+        (tactics.chanceCreation === "forwardRuns" ? 0.3 : 0),
       -1,
       1,
     ),
-    offsideTrapBias: tactics.offsideTrap ? 1 : 0,
   };
 }
 
@@ -379,42 +325,79 @@ export type QuickTacticKey =
  * directly — they're just not surfaced as buttons here.
  */
 export const QUICK_TACTICS: Array<{ key: QuickTacticKey; label: string; description: string }> = [
-  { key: "defensive", label: "수비 지향", description: "낮은 블록과 안정적인 간격" },
+  { key: "defensive", label: "수비 지향", description: "낮은 블록으로 물러서서 역습" },
   { key: "balanced", label: "밸런스", description: "공수 균형을 유지하는 기본형" },
-  { key: "attacking", label: "공격 지향", description: "적극적인 전진과 박스 침투" },
+  { key: "attacking", label: "공격 지향", description: "높은 라인과 압박으로 주도" },
 ];
 
 export function applyQuickTactic(base: TeamTactics, key: QuickTacticKey): TeamTactics {
+  // The three orientations are whole plans, not patches. Layering a handful of
+  // overrides on whatever was set before left "수비 지향" still carrying an
+  // attacking side's roles and press, so the presets barely differed once the
+  // overlapping controls were removed.
   if (key === "defensive") return {
-    ...base, mentality: "defensive", tempo: "balanced", width: "narrow", defensiveLine: "low",
-    pressing: "low", tackling: "balanced", defenseStyle: "dropBack", depth: 3,
+    defenseStyle: "dropBack",
+    width: "narrow",
+    chanceCreation: "balanced",
+    mentality: "defensive",
+    tempo: "balanced",
+    fluidity: "rigid",
+    workRate: "balanced",
+    creativity: "disciplined",
+    passingStyle: "direct",
+    attackFocus: "balanced",
+    shooting: "patient",
+    defensiveLine: "low",
+    pressing: "low",
+    marking: "zonal",
+    tackling: "balanced",
+    strikerRole: "target",
+    midfieldRole: "hold",
+    fullbackRole: "stay",
+    lineOfEngagement: "deep",
   };
   if (key === "protectLead") return {
     ...base, mentality: "defensive", tempo: "slow", workRate: "conserve", defensiveLine: "low", width: "narrow",
-    pressing: "low", tackling: "cautious", shooting: "patient", depth: 2,
+    pressing: "low", tackling: "cautious", shooting: "patient",
   };
   if (key === "balanced") return {
     ...DEFAULT_TEAM_TACTICS,
   };
   if (key === "control") return {
-    ...base, mentality: "positive", tempo: "slow", creativity: "disciplined", passingStyle: "short", width: "balanced",
-    buildUpPlay: "shortPass", chanceCreation: "possession", pressing: "standard", shooting: "patient",
+    ...base, mentality: "positive", tempo: "slow", creativity: "disciplined", passingStyle: "short", width: "balanced", chanceCreation: "possession", pressing: "standard", shooting: "patient",
   };
   if (key === "attacking") return {
-    ...base, mentality: "attacking", tempo: "fast", width: "balanced", chanceCreation: "forwardRuns",
-    shooting: "balanced", defensiveLine: "high", pressing: "standard",
+    defenseStyle: "lossPress",
+    width: "wide",
+    chanceCreation: "forwardRuns",
+    mentality: "attacking",
+    tempo: "fast",
+    fluidity: "fluid",
+    workRate: "intense",
+    creativity: "expressive",
+    passingStyle: "mixed",
+    attackFocus: "balanced",
+    shooting: "onSight",
+    defensiveLine: "high",
+    pressing: "high",
+    marking: "zonal",
+    tackling: "aggressive",
+    strikerRole: "poacher",
+    midfieldRole: "playmaker",
+    fullbackRole: "overlap",
+    lineOfEngagement: "high",
   };
   if (key === "highPress") return {
     ...base, mentality: "positive", tempo: "fast", workRate: "intense", defenseStyle: "constantPress", width: "wide",
-    defensiveLine: "high", pressing: "high", tackling: "aggressive", depth: 8,
+    defensiveLine: "high", pressing: "high", tackling: "aggressive",
   };
   if (key === "overload") return {
-    ...base, mentality: "positive", tempo: "fast", width: "wide", widePlay: "overlap",
+    ...base, mentality: "positive", tempo: "fast", width: "wide",
     fullbackRole: "overlap", attackFocus: "balanced",
   };
   return {
     ...base, mentality: "attacking", tempo: "fast", fluidity: "fluid", creativity: "expressive", width: "wide",
-    passingStyle: "direct", chanceCreation: "forwardRuns", shooting: "onSight", widePlay: "overlap",
+    passingStyle: "direct", chanceCreation: "forwardRuns", shooting: "onSight",
     defensiveLine: "high", pressing: "high", workRate: "intense",
   };
 }

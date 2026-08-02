@@ -1,7 +1,7 @@
 import type { FormationKey, SlotPositions } from "../../data/formation";
 import type { Leaderboard } from "../../data/leaderboard";
 import type { SimResult } from "../../data/matchSim";
-import type { Slots, TacticStyleKey } from "../../data/tactics";
+import type { SetPieceAssignments, Slots, TacticStyleKey } from "../../data/tactics";
 import type { PlayedResult, TeamMatch } from "../../data/tournament";
 import type { Team, TournamentData } from "../../data/types";
 import type { SlotRoleAssignments } from "../../data/playerRoles";
@@ -21,6 +21,7 @@ export interface Lineup {
   teamTactics?: TeamTactics;
   /** Tactical instructions belong to formation slots, so substitutes inherit them. */
   slotRoles?: SlotRoleAssignments;
+  setPieces?: SetPieceAssignments;
 }
 
 export interface MatchBoardProps {

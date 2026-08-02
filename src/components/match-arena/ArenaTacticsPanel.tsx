@@ -4,7 +4,18 @@ import { tacticalCoordinate } from "../Pitch";
 import { TeamFlag } from "../TeamFlag";
 import type { Player } from "../../data/types";
 import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
+import {
+  EMPTY_SET_PIECE_ASSIGNMENTS,
+  type SetPieceAssignments,
+} from "../../data/tactics";
 import { RoleAssignmentBoard } from "./RoleAssignmentBoard";
+import {
+  deleteSavedTactic,
+  loadSavedTactics,
+  MAX_SAVED_TACTICS,
+  saveTactic,
+  type SavedTactic,
+} from "../../data/savedTactics";
 import {
   applyQuickTactic,
   QUICK_TACTICS,
@@ -12,7 +23,7 @@ import {
   type TeamTactics,
 } from "./tactics";
 
-type TacticsTab = "quick" | "roles" | "general" | "attack" | "defense";
+type TacticsTab = "quick" | "roles" | "general" | "attack" | "defense" | "setPieces";
 
 interface Props {
   userTeamName: string;
@@ -25,12 +36,13 @@ interface Props {
   playersById?: Map<number, Player>;
   slotRoles?: SlotRoleAssignments;
   onRoleChange?: (slotId: string, role: PlayerRole) => void;
+  setPieces?: SetPieceAssignments;
+  onSetPieceChange?: (assignments: SetPieceAssignments) => void;
   variant?: "match" | "prematch";
 }
 
 const OPTIONS = {
   defenseStyle: [["dropBack", "후퇴"], ["balanced", "밸런스"], ["errorPress", "터치 실수 시 압박"], ["lossPress", "뺏긴 직후 압박"], ["constantPress", "지속 압박"]],
-  buildUpPlay: [["shortPass", "짧은 패스"], ["balanced", "밸런스"], ["longPass", "긴 패스"], ["fastBuildUp", "빠른 빌드업"]],
   chanceCreation: [["possession", "점유율"], ["balanced", "밸런스"], ["forwardRuns", "전방 침투"]],
   mentality: [["defensive", "수비적"], ["cautious", "신중함"], ["balanced", "균형"], ["positive", "적극적"], ["attacking", "공격적"]],
   tempo: [["slow", "느림"], ["balanced", "보통"], ["fast", "빠름"]],
@@ -40,7 +52,6 @@ const OPTIONS = {
   passingStyle: [["short", "짧은 패스"], ["mixed", "혼합"], ["long", "롱 볼"]],
   attackFocus: [["left", "왼쪽 측면"], ["balanced", "균형"], ["right", "오른쪽 측면"], ["central", "중앙 돌파"]],
   shooting: [["patient", "침착하게 찬스"], ["balanced", "균형"], ["onSight", "보는 즉시 슈팅"]],
-  widePlay: [["mixed", "혼합"], ["overlap", "오버래핑"], ["earlyCross", "얼리 크로스"]],
   defensiveLine: [["low", "낮은 라인"], ["standard", "보통"], ["high", "높은 라인"]],
   pressing: [["standard", "상황별 압박"], ["high", "강한 압박"]],
   marking: [["zonal", "지역 방어"], ["man", "대인 방어"]],
@@ -50,8 +61,6 @@ const OPTIONS = {
   fullbackRole: [["stay", "수비 대기"], ["overlap", "오버래핑"], ["inverted", "인버티드"]],
   width: [["narrow", "좁게"], ["balanced", "중간"], ["wide", "넓게"]],
   lineOfEngagement: [["deep", "로우 블록"], ["middle", "미들 블록"], ["high", "하이 블록"]],
-  compactness: [["compact", "촘촘하게"], ["balanced", "보통"], ["stretched", "넓게 벌려"]],
-  offsideTrap: [["off", "사용 안 함"], ["on", "사용"]],
 } as const;
 
 export function ArenaTacticsPanel({
@@ -65,11 +74,16 @@ export function ArenaTacticsPanel({
   playersById = new Map(),
   slotRoles,
   onRoleChange,
+  setPieces = EMPTY_SET_PIECE_ASSIGNMENTS,
+  onSetPieceChange,
   variant = "match",
 }: Props) {
   const [draft, setDraft] = useState<TeamTactics>(tactics);
   const [tab, setTab] = useState<TacticsTab>("quick");
   const [selectedQuick, setSelectedQuick] = useState<QuickTacticKey | null>(null);
+  const [saved, setSaved] = useState<SavedTactic[]>(() => loadSavedTactics());
+  const [selectedSaved, setSelectedSaved] = useState<string | null>(null);
+  const [saveName, setSaveName] = useState("");
 
   useEffect(() => {
     setDraft(tactics);
@@ -80,6 +94,7 @@ export function ArenaTacticsPanel({
   function commit(next: TeamTactics, quick: QuickTacticKey | null = null) {
     setDraft(next);
     setSelectedQuick(quick);
+    if (quick) setSelectedSaved(null);
     onApply(next);
   }
 
@@ -108,6 +123,7 @@ export function ArenaTacticsPanel({
             ["general", "일반"],
             ["attack", "공격"],
             ["defense", "수비"],
+            ["setPieces", "세트피스"],
             ["roles", "역할"],
           ] as const).map(([key, label]) => (
             <button key={key} type="button" data-active={tab === key || undefined} onClick={() => setTab(key)}>
@@ -132,9 +148,68 @@ export function ArenaTacticsPanel({
                   </button>
                 ))}
               </div>
+              <div className="saved-tactics">
+                <div className="saved-tactics__head">
+                  <strong>내 전술</strong>
+                  <span>{saved.length}/{MAX_SAVED_TACTICS}</span>
+                </div>
+                {saved.length > 0 && (
+                  <div className="quick-tactics__grid">
+                    {saved.map((entry) => (
+                      <button
+                        type="button"
+                        key={entry.id}
+                        data-active={selectedSaved === entry.id || undefined}
+                        onClick={() => {
+                          setSelectedSaved(entry.id);
+                          commit(entry.tactics);
+                        }}
+                      >
+                        <strong>{entry.name}</strong>
+                        <span>저장한 전술 불러오기</span>
+                        <em
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${entry.name} 삭제`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSaved(deleteSavedTactic(entry.id));
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.stopPropagation();
+                            setSaved(deleteSavedTactic(entry.id));
+                          }}
+                        >
+                          삭제
+                        </em>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <form
+                  className="saved-tactics__save"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!saveName.trim()) return;
+                    setSaved(saveTactic(saveName, draft));
+                    setSaveName("");
+                  }}
+                >
+                  <input
+                    value={saveName}
+                    onChange={(event) => setSaveName(event.target.value)}
+                    placeholder="현재 설정을 이름 붙여 저장"
+                    maxLength={20}
+                    aria-label="전술 이름"
+                  />
+                  <button type="submit" disabled={!saveName.trim()}>저장</button>
+                </form>
+              </div>
               <p>
                 빠른 지시는 여러 세부 설정을 한 번에 변경합니다. 선택 즉시 저장되며,
-                경기 중에는 다음 플레이부터 반영됩니다.
+                경기 중에는 다음 플레이부터 반영됩니다. 직접 맞춘 설정은 이름을 붙여
+                저장해두면 다음 경기에서 그대로 불러올 수 있습니다.
               </p>
             </div>
           )}
@@ -159,13 +234,10 @@ export function ArenaTacticsPanel({
           )}
           {tab === "attack" && (
             <div className="tactic-field-grid">
-              <TacticSelect label="빌드업 플레이" value={draft.buildUpPlay} options={OPTIONS.buildUpPlay} onChange={(value) => patch("buildUpPlay", value as TeamTactics["buildUpPlay"])} />
               <TacticSelect label="기회 만들기" value={draft.chanceCreation} options={OPTIONS.chanceCreation} onChange={(value) => patch("chanceCreation", value as TeamTactics["chanceCreation"])} />
               <TacticSelect label="패싱 스타일" value={draft.passingStyle} options={OPTIONS.passingStyle} onChange={(value) => patch("passingStyle", value as TeamTactics["passingStyle"])} />
               <TacticSelect label="공격 방향" value={draft.attackFocus} options={OPTIONS.attackFocus} onChange={(value) => patch("attackFocus", value as TeamTactics["attackFocus"])} />
               <TacticSelect label="슈팅 지시" value={draft.shooting} options={OPTIONS.shooting} onChange={(value) => patch("shooting", value as TeamTactics["shooting"])} />
-              <TacticSelect label="와이드 플레이" value={draft.widePlay} options={OPTIONS.widePlay} onChange={(value) => patch("widePlay", value as TeamTactics["widePlay"])} />
-              <TacticMeter label="잔류 수비 인원" value={draft.restDefense} min={2} max={5} onChange={(value) => patch("restDefense", value)} />
             </div>
           )}
           {tab === "defense" && (
@@ -176,15 +248,123 @@ export function ArenaTacticsPanel({
               <TacticSelect label="마킹 방식" value={draft.marking} options={OPTIONS.marking} onChange={(value) => patch("marking", value as TeamTactics["marking"])} />
               <TacticSelect label="태클 강도" value={draft.tackling} options={OPTIONS.tackling} onChange={(value) => patch("tackling", value as TeamTactics["tackling"])} />
               <TacticSelect label="압박 시작 위치" value={draft.lineOfEngagement} options={OPTIONS.lineOfEngagement} onChange={(value) => patch("lineOfEngagement", value as TeamTactics["lineOfEngagement"])} />
-              <TacticSelect label="라인 간격" value={draft.compactness} options={OPTIONS.compactness} onChange={(value) => patch("compactness", value as TeamTactics["compactness"])} />
-              <TacticSelect label="오프사이드 트랩" value={draft.offsideTrap ? "on" : "off"} options={OPTIONS.offsideTrap} onChange={(value) => patch("offsideTrap", value === "on")} />
-              <TacticMeter label="수비 깊이" value={draft.depth} onChange={(value) => patch("depth", value)} />
             </div>
+          )}
+          {tab === "setPieces" && (
+            <SetPieceBoard
+              slots={slots}
+              playersById={playersById}
+              assignments={setPieces}
+              onChange={onSetPieceChange ?? (() => {})}
+            />
           )}
         </div>
       </div>
 
     </section>
+  );
+}
+
+function SetPieceBoard({
+  slots,
+  playersById,
+  assignments,
+  onChange,
+}: {
+  slots: Record<string, number | null>;
+  playersById: Map<number, Player>;
+  assignments: SetPieceAssignments;
+  onChange: (assignments: SetPieceAssignments) => void;
+}) {
+  const players = Object.values(slots)
+    .filter((id): id is number => id != null)
+    .map((id) => playersById.get(id))
+    .filter((player): player is Player => player != null);
+  const outfield = players.filter((player) => player.position !== "GK");
+  const selectValue = (value: number | undefined) => value == null ? "" : String(value);
+  const patch = (next: Partial<SetPieceAssignments>) => onChange({ ...assignments, ...next });
+  const toggleParticipant = (
+    key: "cornerParticipants" | "freeKickParticipants",
+    playerId: number,
+  ) => {
+    const current = assignments[key] ?? [];
+    if (current.includes(playerId)) {
+      patch({ [key]: current.filter((id) => id !== playerId) });
+      return;
+    }
+    if (current.length < 3) patch({ [key]: [...current, playerId] });
+  };
+
+  return (
+    <div className="set-piece-board">
+      <section className="set-piece-board__takers">
+        <h3>키커 지정</h3>
+        {([
+          ["penaltyTakerId", "페널티킥 키커"],
+          ["cornerTakerId", "코너킥 키커"],
+          ["freeKickTakerId", "프리킥 키커"],
+        ] as const).map(([key, label]) => (
+          <label key={key}>
+            <span>{label}</span>
+            <select
+              value={selectValue(assignments[key])}
+              onChange={(event) => {
+                const playerId = event.target.value ? Number(event.target.value) : undefined;
+                if (key === "cornerTakerId") {
+                  patch({
+                    [key]: playerId,
+                    cornerParticipants: assignments.cornerParticipants.filter((id) => id !== playerId),
+                  });
+                } else if (key === "freeKickTakerId") {
+                  patch({
+                    [key]: playerId,
+                    freeKickParticipants: assignments.freeKickParticipants.filter((id) => id !== playerId),
+                  });
+                } else {
+                  patch({ [key]: playerId });
+                }
+              }}
+            >
+              <option value="">자동 선택</option>
+              {(key === "penaltyTakerId" ? players : outfield).map((player) => (
+                <option key={player.player_id} value={player.player_id}>
+                  {player.player_name} · OVR {player.ability?.overall ?? 65}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </section>
+      {([
+        ["cornerParticipants", "코너킥 가담 선수"],
+        ["freeKickParticipants", "프리킥 가담 선수"],
+      ] as const).map(([key, label]) => (
+        <section className="set-piece-board__participants" key={key}>
+          <header><h3>{label}</h3><span>{assignments[key].length}/3</span></header>
+          <div>
+            {outfield
+              .filter((player) => player.player_id !== (
+                key === "cornerParticipants" ? assignments.cornerTakerId : assignments.freeKickTakerId
+              ))
+              .map((player) => {
+              const selected = assignments[key].includes(player.player_id);
+              return (
+                <button
+                  type="button"
+                  key={player.player_id}
+                  data-active={selected || undefined}
+                  disabled={!selected && assignments[key].length >= 3}
+                  onClick={() => toggleParticipant(key, player.player_id)}
+                >
+                  <strong>{player.player_name}</strong>
+                  <span>헤더 {player.ability?.headingAccuracy ?? 60} · 위치 {player.ability?.positioning ?? 60}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -262,14 +442,6 @@ export function TacticItemBoxSelect({
 
 const TacticSelect = TacticItemBoxSelect;
 
-function TacticMeter({ label, value, min = 1, max = 10, onChange }: { label: string; value: number; min?: number; max?: number; onChange: (value: number) => void }) {
-  return (
-    <label className="match-tactic-field match-tactic-field--range">
-      <span>{label}<strong>{value}</strong></span>
-      <input type="range" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} />
-    </label>
-  );
-}
 
 /**
  * Drawn from the selected formation's slots rather than a fixed set of points,

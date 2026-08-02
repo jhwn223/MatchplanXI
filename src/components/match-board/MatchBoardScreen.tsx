@@ -28,6 +28,7 @@ import { OpponentAnalysisPanel } from "./OpponentAnalysisPanel";
 import type { OpponentPlan } from "./opponentPlan";
 import type { Lineup, MatchPhase } from "./types";
 import type { PlayerDiscipline } from "../playerDiscipline";
+import type { SetPieceAssignments } from "../../data/tactics";
 
 interface Props {
   team: Team;
@@ -45,6 +46,7 @@ interface Props {
   teamTactics: TeamTactics;
   onTacticsChange: (tactics: TeamTactics) => void;
   onRoleChange: (slotId: string, role: PlayerRole) => void;
+  onSetPieceChange: (assignments: SetPieceAssignments) => void;
   teamIndex: number | null;
   conditions: Map<number, ConditionBreakdown>;
   playersById: Map<number, Player>;
@@ -92,6 +94,7 @@ export function MatchBoardScreen({
   teamTactics,
   onTacticsChange,
   onRoleChange,
+  onSetPieceChange,
   teamIndex,
   conditions,
   playersById,
@@ -128,7 +131,6 @@ export function MatchBoardScreen({
   const staminaRisk = intensity.attackPress >= 72 || teamTactics.workRate === "intense";
   const spaceRisk =
     teamTactics.defensiveLine === "high" ||
-    teamTactics.depth >= 8 ||
     teamTactics.mentality === "attacking";
 
   function updateTactics(next: TeamTactics) {
@@ -329,6 +331,8 @@ export function MatchBoardScreen({
                 slotRoles={lineup.slotRoles}
                 onRoleChange={onRoleChange}
                 onApply={updateTactics}
+                setPieces={lineup.setPieces}
+                onSetPieceChange={onSetPieceChange}
               />
             </section>
           )}
@@ -529,7 +533,7 @@ function FormationMiniMap({
 }) {
   const widthLabel = { narrow: "좁게", balanced: "중간", wide: "넓게" }[tactics.width];
   const lineLabel = { low: "낮은 라인", standard: "보통 라인", high: "높은 라인" }[tactics.defensiveLine];
-  const lineBottom = Math.max(13, Math.min(36, 19 + (tactics.depth - 4) * 1.7 + (tactics.defensiveLine === "high" ? 8 : tactics.defensiveLine === "low" ? -5 : 0)));
+  const lineBottom = 19 + (tactics.defensiveLine === "high" ? 8 : tactics.defensiveLine === "low" ? -5 : 0);
   return (
     <div
       className="prematch-mini-pitch"

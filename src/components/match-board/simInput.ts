@@ -59,6 +59,9 @@ export function toSimPlayer(
     aggression: ability?.aggression ?? ability?.physical ?? 62,
     stamina: ability?.stamina ?? ability?.physical ?? 65,
     penalties: ability?.penalties ?? ability?.finishing ?? 60,
+    crossing: ability?.crossing ?? ability?.passing ?? 60,
+    freeKickAccuracy: ability?.freeKickAccuracy ?? ability?.passing ?? 60,
+    headingAccuracy: ability?.headingAccuracy ?? ability?.physical ?? 60,
     gkDiving: ability?.gkDiving ?? gkBase,
     gkHandling: ability?.gkHandling ?? gkBase,
     gkPositioning: ability?.gkPositioning ?? gkBase,
@@ -132,6 +135,20 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     .filter((player): player is Player => player != null);
   const match = activeMatch.match;
   const opponentSlots = slotsOf(opponentFormation);
+  const unassignedOpponents = new Set(opponentEleven);
+  const assignedOpponents = opponentSlots.flatMap((slot) => {
+    const candidates = [...unassignedOpponents];
+    const player = candidates
+      .filter((candidate) => candidate.position === slot.position)
+      .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0]
+      ?? candidates
+        .filter((candidate) => slot.position !== "GK" && candidate.position !== "GK")
+        .sort((a, b) => (b.ability?.overall ?? 0) - (a.ability?.overall ?? 0))[0]
+      ?? candidates[0];
+    if (!player) return [];
+    unassignedOpponents.delete(player);
+    return [{ player, slot }];
+  });
 
   return {
     // Decisions change probabilities, not the random stream itself. This makes
@@ -147,23 +164,13 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     isHome: activeMatch.isHome,
     elevation: activeMatch.elevation,
     placed,
-    oppPlaced: opponentEleven.map((player, index) =>
+    oppPlaced: assignedOpponents.map(({ player, slot }) =>
       toSimPlayer(
         player,
-        opponentSlots[index] ?? {
-          id: `opp-${index}`,
-          label: player.position,
-          position: player.position,
-          x: 50,
-          y: player.position === "GK" ? 92 : player.position === "DEF" ? 75 : player.position === "MID" ? 50 : 20,
-        },
+        slot,
         opponentConditions.get(player.player_id)?.score ?? 72,
         0,
-        defaultRoleForSlot(opponentSlots[index] ?? {
-          id: `opp-${index}`,
-          label: player.position,
-          position: player.position,
-        }),
+        defaultRoleForSlot(slot),
       ),
     ),
     userAbility: buildTeamAbilityProfile(selectedPlayers, conditions),
@@ -174,5 +181,6 @@ export function buildMatchSimInput(options: BuildSimInputOptions): SimInput | nu
     oppTactics: opponentTactics
       ? simProfileFromTeamTactics(opponentTactics)
       : undefined,
+    userSetPieces: lineup.setPieces,
   };
 }

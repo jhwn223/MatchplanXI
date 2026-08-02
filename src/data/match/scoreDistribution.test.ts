@@ -70,7 +70,6 @@ describe("score distribution from the tactics shown in the UI", () => {
       pressing: "high",
       defensiveLine: "high",
       lineOfEngagement: "high",
-      restDefense: 2,
     });
     const balancedResults = sample(balanced, 24);
     const aggressiveResults = sample(aggressive, 24);

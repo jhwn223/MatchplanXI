@@ -52,6 +52,7 @@ import { useLineupDrag } from "./match-board/useLineupDrag";
 import {
   MAX_SUBS,
   MAX_SUBS_ET,
+  type Lineup,
   type MatchBoardProps,
   type MatchPhase,
 } from "./match-board/types";
@@ -140,6 +141,11 @@ export function MatchBoard({
   const [liveOpponentTactics, setLiveOpponentTactics] = useState<TeamTactics>(
     DEFAULT_TEAM_TACTICS
   );
+  const [managedOpponent, setManagedOpponent] = useState<{
+    players: Player[];
+    bench: Player[];
+    formation: FormationKey;
+  } | null>(null);
   const [startingXI, setStartingXI] = useState<Set<number> | null>(null);
   const [benchedOut, setBenchedOut] = useState<Set<number>>(new Set());
   const [dismissedUserIds, setDismissedUserIds] = useState<Set<number>>(new Set());
@@ -255,6 +261,13 @@ export function MatchBoard({
     const starters = new Set(opponentEleven.map((player) => player.player_id));
     return opponentSquad.filter((player) => !starters.has(player.player_id));
   }, [opponentEleven, opponentSquad]);
+  const liveOpponentPlayers = managedOpponent?.players ?? opponentEleven;
+  const liveOpponentBench = managedOpponent?.bench ?? opponentBench;
+  const liveOpponentFormation = managedOpponent?.formation ?? opponentPlan?.formation ?? "4-3-3";
+
+  useEffect(() => {
+    setManagedOpponent(null);
+  }, [activeMatch.match.match_id]);
   const isKnockout = match.stage_name !== "Group Stage";
   const tiedAfterRegulation = regSim != null && isKnockout && regSim.userGoals === regSim.oppGoals;
   const maxSubs = tiedAfterRegulation || phase === "etbreak" || phase === "extratime" ? MAX_SUBS_ET : MAX_SUBS;
@@ -350,6 +363,10 @@ export function MatchBoard({
     });
   }
 
+  function changeSetPieces(setPieces: NonNullable<Lineup["setPieces"]>) {
+    onChangeLineup({ ...lineup, setPieces });
+  }
+
   /**
    * When each player currently on the pitch came on, so fatigue is charged for
    * time played rather than time on the clock. Kickoff stamps the whole XI with
@@ -372,10 +389,10 @@ export function MatchBoard({
       playersById,
       conditions,
       entryMinutes: entryMinutesRef.current,
-      opponentEleven,
+      opponentEleven: liveOpponentPlayers,
       opponentConditions,
       opponentTactics: opponentPlan?.tactics,
-      opponentFormation: opponentPlan?.formation,
+      opponentFormation: liveOpponentFormation,
       activeMatch,
       team,
       opponent,
@@ -398,6 +415,7 @@ export function MatchBoard({
     setStartingXI(new Set(placedIds));
     setBenchedOut(new Set());
     setDismissedUserIds(new Set());
+    setManagedOpponent(null);
     setLiveOpponentTactics(opponentPlan?.tactics ?? DEFAULT_TEAM_TACTICS);
     setPhase("half1");
   }
@@ -437,12 +455,16 @@ export function MatchBoard({
             attackBias: refreshed.attackBias,
             placed: refreshed.placed,
             userAbility: refreshed.userAbility,
+            userSetPieces: refreshed.userSetPieces,
+            oppPlaced: refreshed.oppPlaced,
+            oppAbility: refreshed.oppAbility,
+            oppAttackBias: refreshed.oppAttackBias,
           }
         : current
     );
     // 경기 도중 포메이션·선수 배치가 바뀌면 다음 플레이부터 시뮬레이션 입력도 갱신한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineup.formation, lineup.positions, lineup.slotRoles, lineup.slots]);
+  }, [lineup.formation, lineup.positions, lineup.setPieces, lineup.slotRoles, lineup.slots, managedOpponent]);
 
   function startSecondHalf() {
     const input = buildSimInput();
@@ -507,6 +529,7 @@ export function MatchBoard({
     setStartingXI(null);
     setBenchedOut(new Set());
     setDismissedUserIds(new Set());
+    setManagedOpponent(null);
   }
 
   function handlePlayerDismissed(side: MatchSide, playerId: number) {
@@ -541,6 +564,7 @@ export function MatchBoard({
     maxSubs,
     onSelectPlayer: setSelectedPlayer,
     onResetPositions: () => onChangeLineup({ ...lineup, positions: {} }),
+    onAutoFill: autoFill,
     opponent,
     opponentConditions,
     opponentPlan,
@@ -572,9 +596,10 @@ export function MatchBoard({
         teamTactics={teamTactics}
         onTacticsChange={changePreMatchTactics}
         onRoleChange={changeSlotRole}
+        onSetPieceChange={changeSetPieces}
         opponent={opponent}
-        opponentPlayers={opponentEleven}
-        opponentBench={opponentBench}
+        opponentPlayers={liveOpponentPlayers}
+        opponentBench={liveOpponentBench}
         opponentConditions={opponentConditions}
         opponentPlan={opponentPlan}
         teamIndex={teamIndex}
@@ -631,17 +656,21 @@ export function MatchBoard({
         lineup={lineup}
         detectedFormation={detectedFormation}
         playersById={playersById}
-        opponentPlayers={opponentEleven}
-        opponentBench={opponentBench}
+        opponentPlayers={liveOpponentPlayers}
+        opponentBench={liveOpponentBench}
         leaderboard={leaderboard}
         liveTactics={teamTactics}
         opponentTactics={liveOpponentTactics}
-        opponentFormation={opponentPlan?.formation}
+        opponentFormation={liveOpponentFormation}
         squadControls={squadControls}
         onTacticChange={changeLiveTactics}
         onRoleChange={changeSlotRole}
         onOpponentTacticChange={setLiveOpponentTactics}
+        onOpponentManagementChange={(players, bench, nextFormation) => {
+          setManagedOpponent({ players, bench, formation: nextFormation });
+        }}
         onFormationChange={selectFormation}
+        onSetPieceChange={changeSetPieces}
         onPlayerDismissed={handlePlayerDismissed}
         onMinuteChange={(minute) => {
           liveMinuteRef.current = minute;

@@ -5,6 +5,19 @@ import type { Player, Position } from "./types";
 
 export type Slots = Record<string, number | null>;
 
+export interface SetPieceAssignments {
+  penaltyTakerId?: number;
+  cornerTakerId?: number;
+  freeKickTakerId?: number;
+  cornerParticipants: number[];
+  freeKickParticipants: number[];
+}
+
+export const EMPTY_SET_PIECE_ASSIGNMENTS: SetPieceAssignments = {
+  cornerParticipants: [],
+  freeKickParticipants: [],
+};
+
 /**
  * Whether a player of `playerPos` may be placed in a slot of `slotPos`.
  * GK is a wall (GK only in GK, GK can't go outfield); any outfield player
@@ -46,19 +59,38 @@ export function switchFormationKeepPlayers(
 ): Slots {
   const oldSlotDefs = slotsOf(oldFormation);
   const byPosition: Record<Position, number[]> = { GK: [], DEF: [], MID: [], FWD: [] };
+  const allPlayers: number[] = [];
   for (const def of oldSlotDefs) {
     const pid = oldSlots[def.id];
-    if (pid != null) byPosition[def.position].push(pid);
+    if (pid != null) {
+      byPosition[def.position].push(pid);
+      allPlayers.push(pid);
+    }
   }
   const next = emptySlots(newFormation);
   const cursor: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+  const assigned = new Set<number>();
   for (const def of slotsOf(newFormation)) {
     const pool = byPosition[def.position];
     const idx = cursor[def.position];
     if (idx < pool.length) {
       next[def.id] = pool[idx];
+      assigned.add(pool[idx]);
       cursor[def.position] = idx + 1;
     }
+  }
+
+  // Formations do not always contain the same number of DEF/MID/FWD slots.
+  // The old implementation silently discarded the surplus players whenever
+  // a line became smaller (for example 4-3-3 -> 3-5-2). Fill every remaining
+  // outfield slot with the still-unassigned XI so changing shape never sends
+  // somebody to the bench or makes a player disappear from the live arena.
+  const remaining = allPlayers.filter((playerId) => !assigned.has(playerId));
+  for (const def of slotsOf(newFormation)) {
+    if (next[def.id] != null || def.position === "GK") continue;
+    const playerId = remaining.shift();
+    if (playerId == null) break;
+    next[def.id] = playerId;
   }
   return next;
 }

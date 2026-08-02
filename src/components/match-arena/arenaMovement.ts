@@ -6,6 +6,7 @@ import {
   formationAnchor,
 } from "../../data/match/world/formationShape";
 import { attackFocusLaneY } from "../../data/match/world/perception";
+import { roleDefinition } from "../../data/playerRoles";
 import { clamp } from "./runtimeMath";
 import type { ArenaDot, ArenaMatchPhase, ArenaState } from "./runtimeTypes";
 
@@ -237,9 +238,19 @@ function relativeShapeTarget(
     ball: state.ball,
     phase,
     hasBall,
+    roleAdvanceBonus: roleDefinition(dot.tacticalRole).advance,
+    roleWidthScale: roleDefinition(dot.tacticalRole).widthScale,
     profile: state.shapeProfiles?.[dot.team] ?? BALANCED_SHAPE_PROFILE,
   });
   return sample ? blendPoint(anchor, sample, 0.18) : anchor;
+}
+
+/** Whether this player was picked to join the delivery. */
+function goesUp(state: ArenaState, dot: ArenaDot, kind: "corner" | "freeKick") {
+  const chosen = state.setPieceParticipants?.[kind];
+  // With nobody nominated the side attacks a set piece as it always did.
+  if (!chosen || chosen.length === 0) return true;
+  return chosen.includes(dot.playerId) || dot.role === "FWD";
 }
 
 function setPieceTarget(state: ArenaState, dot: ArenaDot, index: number): MovementTarget | null {
@@ -256,6 +267,9 @@ function setPieceTarget(state: ArenaState, dot: ArenaDot, index: number): Moveme
   }
   if (situation.type === "corner") {
     if (dot.role === "GK") return { x: ownGoalX(dot.team), y: 50, speed: 9, action: "move" };
+    // Only the players sent up attack the delivery; the rest hold their shape
+    // as the rest defence, which is what choosing them is for.
+    if (attacking && !goesUp(state, dot, "corner")) return null;
     return {
       x: clamp(goalX - dir * (attacking ? 10 + (index % 3) * 3 : 7 + (index % 4) * 2), 3, 97),
       y: clamp(50 + lane * (attacking ? 8 : 6), 16, 84),
@@ -291,6 +305,7 @@ function setPieceTarget(state: ArenaState, dot: ArenaDot, index: number): Moveme
   }
   if (situation.type === "freeKick") {
     if (dot.role === "GK") return { x: ownGoalX(dot.team), y: 50, speed: 9, action: "move" };
+    if (attacking && !goesUp(state, dot, "freeKick")) return null;
     return {
       x: clamp(situation.x + dir * (attacking ? 8 + (index % 4) * 4 : 10), 3, 97),
       y: clamp(50 + lane * 7, 14, 86),

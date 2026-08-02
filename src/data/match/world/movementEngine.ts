@@ -1,4 +1,5 @@
 import { actionPerformanceFactor } from "../playerRuntime";
+import { roleDefinition } from "../../playerRoles";
 import { clamp } from "../random";
 import type { MatchSide, PlacedPlayerLite, SimInput } from "../types";
 import {
@@ -83,6 +84,7 @@ function formationLineTarget(
   const { side, player } = state;
   const phase = world.phaseBySide[side];
   const hasBall = effectivePossessionSide(world) === side;
+  const assigned = roleDefinition(player.tacticalRole);
   return formationAnchor({
     direction: direction(side),
     role: player.position,
@@ -91,6 +93,8 @@ function formationLineTarget(
     ball: world.ball,
     phase,
     hasBall,
+    roleAdvanceBonus: assigned.advance,
+    roleWidthScale: assigned.widthScale,
     profile: tactics[side],
   });
 }

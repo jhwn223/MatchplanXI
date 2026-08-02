@@ -74,29 +74,39 @@ function playerRating(stat: PlayerMatchStats): number {
     stat.minutesPlayed >= 60 && stat.goalsConceded === 0 && (stat.position === "GK" || stat.position === "DEF")
       ? 0.15
       : 0;
-  const value = 6
-    + stat.goals * 1.2
-    + stat.assists * 0.65
-    + stat.keyPasses * 0.08
-    + stat.shotsOnTarget * 0.08
-    + stat.dribblesCompleted * 0.06
-    + stat.tacklesWon * 0.08
-    + stat.interceptions * 0.07
-    + stat.blocks * 0.08
-    + stat.saves * 0.09
+  const attackWeight = stat.position === "FWD" ? 1 : stat.position === "MID" ? 0.9 : 0.68;
+  const defenseWeight = stat.position === "DEF" ? 1 : stat.position === "MID" ? 0.82 : 0.48;
+  const involvement = clamp(stat.minutesPlayed / 60, 0.2, 1);
+  const decisiveActions = stat.goals + stat.assists + stat.saves + stat.tacklesWon + stat.interceptions;
+  let value = 6.15
+    + stat.goals * (stat.position === "GK" || stat.position === "DEF" ? 1.45 : 1.18)
+    + stat.assists * 0.72
+    + stat.keyPasses * 0.075 * attackWeight
+    + stat.shotsOnTarget * 0.055 * attackWeight
+    + stat.dribblesCompleted * 0.045 * attackWeight
+    + stat.tacklesWon * 0.075 * defenseWeight
+    + stat.interceptions * 0.075 * defenseWeight
+    + stat.blocks * 0.09 * defenseWeight
+    + stat.saves * (stat.position === "GK" ? 0.11 : 0.02)
     + (saveRate - 0.65) * Math.min(0.35, shotsFaced * 0.05)
-    + (passAccuracy - 0.78) * 0.8 * passConfidence
+    + (passAccuracy - 0.78) * 1.05 * passConfidence
     + cleanSheetBonus
-    - missedPasses * 0.004
-    - failedDribbles * 0.035
-    - missedShots * 0.03
-    - stat.bigChancesMissed * 0.2
-    - stat.foulsCommitted * 0.025
-    - stat.yellowCards * 0.15
-    - stat.redCards * 0.9
-    - stat.offsides * 0.035
+    - missedPasses * 0.0035
+    - failedDribbles * 0.03
+    - missedShots * 0.025
+    - stat.bigChancesMissed * 0.24
+    - stat.foulsCommitted * 0.04
+    - stat.yellowCards * 0.18
+    - stat.redCards * 1.65
+    - stat.offsides * 0.045
     - stat.injuries * 0.25
     - defensiveConcessionPenalty;
+  // A five-minute cameo with one safe pass should remain close to the neutral
+  // baseline; decisive actions (goal, save, tackle, interception) are allowed
+  // to break through the sample-size dampening immediately.
+  if (involvement < 1 && decisiveActions === 0) {
+    value = 6 + (value - 6) * involvement;
+  }
   return Math.round(clamp(value, 3.5, 10) * 10) / 10;
 }
 

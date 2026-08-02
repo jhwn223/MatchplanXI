@@ -10,6 +10,7 @@ import type {
   LiveMatchSnapshot,
   MatchEvent,
   MatchSide,
+  PlayerMatchStats,
   PenaltyResult,
   PositionSample,
   SimComparison,
@@ -17,6 +18,7 @@ import type {
   TeamStats,
 } from "../../data/matchSim";
 import type { TacticStyleKey } from "../../data/tactics";
+import type { SetPieceAssignments } from "../../data/tactics";
 import type { PlayerRole, SlotRoleAssignments } from "../../data/playerRoles";
 import type { Player } from "../../data/types";
 import type { TeamTactics } from "./tactics";
@@ -36,6 +38,7 @@ export interface ArenaSquadControls {
   maxSubs: number;
   onSelectPlayer: (player: Player) => void;
   onResetPositions: () => void;
+  onAutoFill: () => void;
   opponent?: Team;
   opponentConditions: Map<number, ConditionBreakdown>;
   opponentPlan?: OpponentPlan | null;
@@ -52,6 +55,7 @@ export interface ArenaSim {
   comparison?: SimComparison;
   teamStats?: { user: TeamStats; opp: TeamStats };
   liveSnapshots?: LiveMatchSnapshot[];
+  playerStats?: PlayerMatchStats[];
   wentToExtraTime?: boolean;
   penalties?: PenaltyResult | null;
   regulationUserGoals?: number;
@@ -95,7 +99,10 @@ export interface MatchArenaProps {
   opponentFormation?: FormationKey;
   onTacticChange?: (tactics: TeamTactics) => void;
   onRoleChange?: (slotId: string, role: PlayerRole) => void;
+  setPieces?: SetPieceAssignments;
+  onSetPieceChange?: (assignments: SetPieceAssignments) => void;
   onOpponentTacticChange?: (tactics: TeamTactics) => void;
+  onOpponentManagementChange?: (players: Player[], bench: Player[], formation: FormationKey) => void;
   onFormationChange?: (formation: FormationKey) => void;
   onPlayerDismissed?: (side: MatchSide, playerId: number) => void;
   /** Reports the clock so a substitution can be stamped with the minute it happened. */
