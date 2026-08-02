@@ -1992,6 +1992,13 @@
   margin-top: 13px;
 }
 
+/* Just a scroll/grid-area grouping hook for the in-match layout
+   (match-arena.css) — invisible here so the pre-match report keeps its
+   normal top-to-bottom flow. */
+.opponent-report__scout-group {
+  display: contents;
+}
+
 .opponent-report__section > h3,
 .opponent-report__scout h3 {
   margin: 0 0 8px;
