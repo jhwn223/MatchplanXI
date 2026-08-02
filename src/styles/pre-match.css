@@ -203,12 +203,14 @@
 }
 
 .board--prematch[data-workspace="lineup"] .formation-summary {
-  gap: 9px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
 }
 
 .board--prematch[data-workspace="lineup"] .formation-summary__col {
-  min-height: 132px;
-  padding: 12px;
+  min-height: 0;
+  padding: 13px 14px 14px;
+  gap: 7px;
   border-color: #d6e0d3;
   border-radius: 13px;
   background: #f1f5ee;
@@ -216,13 +218,22 @@
 
 .board--prematch[data-workspace="lineup"] .formation-summary__col strong {
   color: #253329;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .board--prematch[data-workspace="lineup"] .formation-summary__col ul {
-  padding-left: 15px;
+  padding-left: 18px;
   color: #687467;
-  font-size: 10px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.65;
+  gap: 5px;
+}
+
+.board--prematch[data-workspace="lineup"] .formation-summary__col li {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
 }
 
 .board--prematch .match-tactics-editor--prematch {
