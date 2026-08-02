@@ -469,10 +469,15 @@ export function simulatePeriodWithWorld(
     tactics: SimTacticProfile,
   ) => {
     const stats = playerStat(playerStats, offendingSide, offender);
+    // Football's sendings-off are mostly direct: violent conduct, a professional
+    // foul, denying a clear chance. The engine had it inverted — 86% of its reds
+    // were second bookings — which made the count scale with the square of the
+    // booking rate, so an aggressive tackling plan finished a man down in 46% of
+    // its matches.
     const directRedChance = clamp(
-      0.0016 + Math.max(0, tactics.tacklingBias) * 0.0011,
-      0.0016,
-      0.004,
+      0.0058 + Math.max(0, tactics.tacklingBias) * 0.0018,
+      0.0058,
+      0.009,
     );
     if (rng() < directRedChance) {
       running[offendingSide].redCards++;
@@ -494,16 +499,20 @@ export function simulatePeriodWithWorld(
     const bookingChance =
       clamp(
         0.2 +
-          Math.max(0, tactics.tacklingBias) * 0.09 +
+          // A card is for the kind of foul, not for the plan the manager
+          // picked. An aggressive side gives away more fouls; the referee does
+          // not also reach for his pocket half again as often.
+          Math.max(0, tactics.tacklingBias) * 0.065 +
           Math.max(0, tactics.pressBias) * 0.03 +
           Math.max(0, offender.aggression - 72) / 320,
         0.14,
-        0.42,
+        0.37,
       ) *
-      // A booked player pulls out of challenges he would otherwise make, so
-      // treating every foul alike produced far more second yellows than the
-      // real game sees.
-      (alreadyBooked ? 0.3 : 1);
+      // A booked player pulls out of challenges he would otherwise make, and
+      // his manager takes him off. At 0.3 that was nowhere near enough: in a
+      // bad-tempered match the second bookings compounded into a sending-off
+      // every other game.
+      (alreadyBooked ? 0.06 : 1);
     if (rng() >= bookingChance) return;
     if (alreadyBooked) {
       // Second caution: the referee sends him off rather than booking twice.
