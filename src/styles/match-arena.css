@@ -871,6 +871,12 @@
   height: var(--arena-management-pitch-height);
   display: flex;
   flex-direction: column;
+  /* A grid item with visible overflow contributes its content's min-content
+     size as an automatic minimum to the row's track sizing, regardless of
+     its own explicit height — that was inflating this auto row well past
+     var(--arena-management-pitch-height) even after the other two columns
+     were pinned to it. Non-visible overflow makes that minimum 0. */
+  overflow: hidden;
 }
 .arena-squad-board .pitch {
   width: auto;
@@ -935,7 +941,12 @@
   align-self: start;
   min-height: 0;
   width: 100%;
-  height: 100%;
+  /* Fixed, not 100%: see the comment on .arena-squad-board__controls above —
+     a percentage height here still lets this column's own (often much
+     taller) player list contribute its full max-content size to the grid's
+     auto row track, inflating every column again even after the middle one
+     is capped. Pin it to the same shared height and let it scroll instead. */
+  height: var(--arena-management-pitch-height);
   max-height: none;
   box-sizing: border-box;
   overflow-y: auto;
@@ -943,9 +954,17 @@
 .arena-squad-board__controls {
   display: flex;
   min-width: 0;
-  height: 100%;
+  /* Fixed (not 100%): this column's own content — team header, status
+     boxes, guide, buttons — runs taller than the shared pitch height for
+     some formations/states. With height:100% the row's implicit track
+     grew to fit it (the grid has overflow:visible for drag-overlay escape,
+     so nothing forced it back down), leaving the pitch column short of the
+     bottom edge and stretching the bench column past it. Scrolling this
+     column internally keeps all three at the same height instead. */
+  height: var(--arena-management-pitch-height);
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
 }
 .arena-squad-board__team {
   display: flex;
@@ -1147,27 +1166,37 @@
 .arena-opponent-board .pitch--compact .pitch-slot {
   transform: translate(-50%, -50%);
 }
+/* Sized to clear the tightest gap between adjacent formation rows (e.g. a
+   back-five's wing-backs sitting only slightly above the centre-backs) —
+   the previous 60px/35px-ring card ran taller than that gap in most
+   formations, so one row's card visually overlapped and obscured the row
+   below it (its OVR line looked like it was being clipped). */
 .arena-opponent-board .pitch--compact .player-card--slot {
-  width: 60px;
+  width: 48px;
+  gap: 0;
 }
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__name,
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__sub {
-  max-width: 60px;
+  max-width: 48px;
 }
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__ring {
-  width: 35px;
-  height: 35px;
-  border-width: 2px;
+  width: 24px;
+  height: 24px;
+  border-width: 1.5px;
 }
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__name {
-  font-size: 9px;
+  font-size: 8px;
+  line-height: 1.15;
 }
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__sub {
-  font-size: 8px;
+  font-size: 7px;
+  line-height: 1.15;
 }
+/* The condition bar isn't worth the extra vertical room it costs here —
+   this is a scouting glance, not the interactive squad board, and the same
+   condition figure is already on the metrics row above. */
 .arena-opponent-board .pitch--compact .player-card--slot .player-card__condition {
-  width: 40px;
-  height: 4px;
+  display: none;
 }
 .arena-opponent-board .opponent-lineup-dismissed {
   position: relative;
