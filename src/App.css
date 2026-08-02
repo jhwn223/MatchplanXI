@@ -1,0 +1,15 @@
+/* Ordered global style entry point. Feature work belongs in the matching module. */
+@import "./styles/app-shell.css";
+@import "./styles/pitch.css";
+@import "./styles/player.css";
+@import "./styles/bench.css";
+@import "./styles/condition-gauge.css";
+@import "./styles/country-hub.css";
+@import "./styles/match-board.css";
+@import "./styles/simulation-results.css";
+@import "./styles/fixture-states.css";
+@import "./styles/match-arena.css";
+@import "./styles/pre-match.css";
+@import "./styles/bracket.css";
+@import "./styles/light-theme.css";
+@import "./styles/dashboard-layouts.css";

@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-08-02T18:48:26.656Z",
+  "matched": 979,
+  "unmatched": 269,
+  "runFailureCount": 2,
+  "rosterPlayers": 1248,
+  "selectedPlayers": 2,
+  "completedPlayers": 2,
+  "addedThisRun": 0,
+  "failures": [
+    {
+      "playerId": 57,
+      "playerName": "Taehyeon Kim",
+      "reason": "wikidata-match-not-found"
+    },
+    {
+      "playerId": 75,
+      "playerName": "Jens Castrop",
+      "reason": "wikidata-match-not-found"
+    }
+  ]
+}
