@@ -181,7 +181,9 @@ export function ArenaTacticsPanel({
                         <em
                           role="button"
                           tabIndex={0}
+                          className="saved-tactics__delete"
                           aria-label={`${entry.name} 삭제`}
+                          title="삭제"
                           onClick={(event) => {
                             event.stopPropagation();
                             onDeleteTactic?.(entry.id);
@@ -192,7 +194,9 @@ export function ArenaTacticsPanel({
                             onDeleteTactic?.(entry.id);
                           }}
                         >
-                          삭제
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M9.5 3.5 10 3h4l.5.5V5H20v2h-1.1l-1 12.2a2 2 0 0 1-2 1.8H8.1a2 2 0 0 1-2-1.8L5.1 7H4V5h5.5V3.5zM7.1 7l.9 12h8l.9-12H7.1zM10 9.5h1.5V17H10V9.5zm2.5 0H14V17h-1.5V9.5z" />
+                          </svg>
                         </em>
                       </button>
                     ))}

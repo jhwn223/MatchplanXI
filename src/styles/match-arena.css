@@ -1844,13 +1844,31 @@
 }
 .saved-tactics__save button:disabled { opacity: .45; cursor: not-allowed; }
 .saved-tactics .quick-tactics__grid button { position: relative; }
-.saved-tactics .quick-tactics__grid em {
+/* Doubled-up selector out-specifies pre-match.css's generic
+   `.quick-tactics__grid button em` badge rule (the green pill used for
+   "⭐ 추천" etc.), which would otherwise restyle this delete control too. */
+.quick-tactics__grid button em.saved-tactics__delete {
   position: absolute;
-  top: 6px;
+  top: 8px;
   right: 8px;
-  color: var(--text-dim);
-  font-size: 10px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 9px;
+  background: #fdecec;
+  color: #c0392b;
   font-style: normal;
   cursor: pointer;
+  transition: background .15s ease, color .15s ease;
 }
-.saved-tactics .quick-tactics__grid em:hover { color: #f87171; }
+.quick-tactics__grid button em.saved-tactics__delete svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.quick-tactics__grid button em.saved-tactics__delete:hover {
+  background: #f6d2cd;
+  color: #9a2434;
+}
