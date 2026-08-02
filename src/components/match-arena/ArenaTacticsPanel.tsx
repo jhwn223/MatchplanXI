@@ -350,43 +350,47 @@ function SetPieceBoard({
     <div className="set-piece-board">
       <section className="set-piece-board__takers">
         <h3>키커 지정</h3>
-        {([
-          ["penaltyTakerId", "페널티킥 키커"],
-          ["cornerTakerId", "코너킥 키커"],
-          ["freeKickTakerId", "프리킥 키커"],
-        ] as const).map(([key, label]) => (
-          <label key={key}>
-            <span>{label}</span>
-            <select
-              value={selectValue(assignments[key])}
-              onChange={(event) => {
-                const playerId = event.target.value ? Number(event.target.value) : undefined;
-                if (key === "cornerTakerId") {
-                  patch({
-                    [key]: playerId,
-                    cornerParticipants: assignments.cornerParticipants.filter((id) => id !== playerId),
-                  });
-                } else if (key === "freeKickTakerId") {
-                  patch({
-                    [key]: playerId,
-                    freeKickParticipants: assignments.freeKickParticipants.filter((id) => id !== playerId),
-                  });
-                } else {
-                  patch({ [key]: playerId });
-                }
-              }}
-            >
-              <option value="">자동 선택</option>
-              {[...(key === "penaltyTakerId" ? players : outfield)]
+        <div className="set-piece-board__taker-fields">
+          {([
+            ["penaltyTakerId", "페널티킥 키커"],
+            ["cornerTakerId", "코너킥 키커"],
+            ["freeKickTakerId", "프리킥 키커"],
+          ] as const).map(([key, label]) => {
+            const options: (readonly [string, string])[] = [
+              ["", "자동 선택"],
+              ...[...(key === "penaltyTakerId" ? players : outfield)]
                 .sort((a, b) => kickerSortValue(key, b) - kickerSortValue(key, a))
-                .map((player) => (
-                  <option key={player.player_id} value={player.player_id}>
-                    {player.player_name} · {kickerStatLabel(key, player)}
-                  </option>
-                ))}
-            </select>
-          </label>
-        ))}
+                .map(
+                  (player) =>
+                    [String(player.player_id), `${player.player_name} · ${kickerStatLabel(key, player)}`] as const
+                ),
+            ];
+            return (
+              <TacticItemBoxSelect
+                key={key}
+                label={label}
+                value={selectValue(assignments[key])}
+                options={options}
+                onChange={(value) => {
+                  const playerId = value ? Number(value) : undefined;
+                  if (key === "cornerTakerId") {
+                    patch({
+                      [key]: playerId,
+                      cornerParticipants: assignments.cornerParticipants.filter((id) => id !== playerId),
+                    });
+                  } else if (key === "freeKickTakerId") {
+                    patch({
+                      [key]: playerId,
+                      freeKickParticipants: assignments.freeKickParticipants.filter((id) => id !== playerId),
+                    });
+                  } else {
+                    patch({ [key]: playerId });
+                  }
+                }}
+              />
+            );
+          })}
+        </div>
       </section>
       {([
         ["cornerParticipants", "코너킥 가담 선수"],
