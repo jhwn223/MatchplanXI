@@ -276,25 +276,27 @@ export function MatchBoardScreen({
           {workspaceMode === "lineup" ? (
             <>
               <div className="pitch-toolbar">
-              <div className="pitch-toolbar__context">
-                <span>선수 배치</span>
-                <strong>드래그하여 위치와 선발을 조정하세요</strong>
-              </div>
-                <div className="detected-formation" aria-live="polite">
-                  <span>현재 형태</span>
-                  <strong>{detectedFormation}</strong>
+                <div className="pitch-toolbar__context">
+                  <span>선수 배치</span>
+                  <strong>선수를 드래그하면 포메이션 감지와 선발 명단이 즉시 갱신됩니다.</strong>
                 </div>
-                <div className="pitch-toolbar__actions">
-                  <button
-                    type="button"
-                    className="pitch-reset"
-                    onClick={onResetPositions}
-                    disabled={!lineup.positions || Object.keys(lineup.positions).length === 0}
-                    aria-label="기본 위치로 되돌리기"
-                    title="기본 위치로 되돌리기"
-                  >
-                    ↺
-                  </button>
+                <div className="pitch-toolbar__meta">
+                  <div className="detected-formation" aria-live="polite">
+                    <span>현재 형태</span>
+                    <strong>{detectedFormation}</strong>
+                  </div>
+                  <div className="pitch-toolbar__actions">
+                    <button
+                      type="button"
+                      className="pitch-reset"
+                      onClick={onResetPositions}
+                      disabled={!lineup.positions || Object.keys(lineup.positions).length === 0}
+                      aria-label="기본 위치로 되돌리기"
+                      title="기본 위치로 되돌리기"
+                    >
+                      ↺
+                    </button>
+                  </div>
                 </div>
               </div>
               {lineupInteractive && (
@@ -310,11 +312,6 @@ export function MatchBoardScreen({
                   discipline={discipline}
                 />
               )}
-              <div className="pitch-tactic-caption pitch-tactic-caption--lineup">
-                <span>현재 포메이션</span>
-                <strong>{detectedFormation}</strong>
-                <small>선수를 드래그하면 포메이션 감지와 선발 명단이 즉시 갱신됩니다.</small>
-              </div>
             </>
           ) : (
             <section className="prematch-tactics-workspace">
