@@ -1,4 +1,6 @@
-import type { MatchEvent, MatchSide, PassType, PositionSample } from "../../data/matchSim";
+import { useMemo } from "react";
+import type { MatchEvent, MatchSide, PassType, TrackPoint, WorldTrack } from "../../data/matchSim";
+import { ballDwell, playerDwell } from "../../data/matchSim";
 import { ALL_PASS_TYPES, PASS_TYPE_META } from "./passMap";
 
 export type EventMapMode = "positions" | "ball" | "shots" | "passes" | "turnovers" | "recoveries";
@@ -10,8 +12,11 @@ interface Props {
   /** Earliest minute to include; lets a tactical change be seen on its own. */
   since?: number;
   player?: string;
+  /** The same player as `player`, for the position track, which stores ids. */
+  playerId?: number;
   passTypes?: PassType[];
-  positionSamples?: PositionSample[];
+  /** Clock-sampled positions; both heat maps are drawn from it. */
+  track?: WorldTrack;
   side?: MatchSide;
 }
 
@@ -21,23 +26,31 @@ interface HeatPoint {
   intensity: number;
 }
 
-function buildHeatPoints(samples: Array<{ x: number; y: number }>): HeatPoint[] {
-  const cells = new Map<string, { x: number; y: number; count: number }>();
-  for (const sample of samples.slice(-2_500)) {
+/**
+ * Bins samples by how much match time each one stands for.
+ *
+ * Time, not sample count, is what a heat map is supposed to show: a ball that
+ * sits in one channel for twenty seconds has to outweigh one that is played
+ * through the same channel twice.
+ */
+function buildHeatPoints(samples: TrackPoint[]): HeatPoint[] {
+  const cells = new Map<string, { x: number; y: number; weight: number }>();
+  for (const sample of samples) {
     const x = sample.x;
     const y = (sample.y / 100) * 62 + 1;
     const key = `${Math.round(x / 4)}:${Math.round(y / 4)}`;
-    const cell = cells.get(key) ?? { x: 0, y: 0, count: 0 };
-    cell.x += x;
-    cell.y += y;
-    cell.count++;
+    const cell = cells.get(key) ?? { x: 0, y: 0, weight: 0 };
+    cell.x += x * sample.seconds;
+    cell.y += y * sample.seconds;
+    cell.weight += sample.seconds;
     cells.set(key, cell);
   }
-  const maxCount = Math.max(1, ...Array.from(cells.values(), (cell) => cell.count));
+  let maxWeight = 0;
+  for (const cell of cells.values()) maxWeight = Math.max(maxWeight, cell.weight);
   return Array.from(cells.values(), (cell) => ({
-    x: cell.x / cell.count,
-    y: cell.y / cell.count,
-    intensity: Math.sqrt(cell.count / maxCount),
+    x: cell.x / cell.weight,
+    y: cell.y / cell.weight,
+    intensity: Math.sqrt(cell.weight / Math.max(maxWeight, 1e-6)),
   }));
 }
 
@@ -47,8 +60,9 @@ export function ArenaEventMap({
   mode,
   since = 0,
   player,
+  playerId,
   passTypes = ALL_PASS_TYPES,
-  positionSamples = [],
+  track,
   side = "user",
 }: Props) {
   const eventSide = mode === "turnovers" ? (side === "user" ? "opp" : "user") : side;
@@ -66,21 +80,16 @@ export function ArenaEventMap({
     }
     return true;
   });
-  const heatSamples = positionSamples
-    .filter((sample) => sample.minute <= minute && sample.minute >= since && sample.side === side)
-    .filter((sample) => !player || sample.playerName === player);
-  const ballSamples = elapsed.flatMap((event) => {
-    const points: Array<{ x: number; y: number }> = [];
-    if (event.x != null && event.y != null) points.push({ x: event.x, y: event.y });
-    if (event.endX != null && event.endY != null) points.push({ x: event.endX, y: event.endY });
-    return points;
-  });
-  const heatPoints = mode === "positions"
-    ? buildHeatPoints(heatSamples)
-    : mode === "ball"
-      ? buildHeatPoints(ballSamples)
-      : [];
   const isHeatMap = mode === "positions" || mode === "ball";
+  const heatPoints = useMemo(() => {
+    if (!track || !isHeatMap) return [];
+    const window = { fromMinute: since, toMinute: minute };
+    return buildHeatPoints(
+      mode === "positions"
+        ? playerDwell(track, { ...window, side, playerId })
+        : ballDwell(track, { ...window, side, playerId }),
+    );
+  }, [track, isHeatMap, mode, side, playerId, since, minute]);
 
   return (
     <div className={`arena-event-map-frame arena-event-map-frame--${mode}`}>

@@ -43,6 +43,7 @@ import type {
   SimTacticProfile,
 } from "./types";
 import type { MatchWorld } from "./world/types";
+import { createTrackRecorder, finishTrack } from "./world/worldTrack";
 import { roleDefinition } from "../playerRoles";
 
 export interface PeriodSimulation {
@@ -237,9 +238,16 @@ export function simulatePeriodWithWorld(
   if (world.elapsedSeconds < periodStartMinute * 60) {
     world.elapsedSeconds = periodStartMinute * 60;
   }
+  // Position sampling for the analysis screens. Sized for the period plus the
+  // stoppage time a last action can run into.
+  world.track = createTrackRecorder(
+    world,
+    world.elapsedSeconds,
+    (hi - periodStartMinute) * 60 + 120,
+  );
   const currentMinute = () => clamp(Math.floor(world.elapsedSeconds / 60) + 1, lo, hi);
   const currentTimestamp = () => clamp(world.elapsedSeconds / 60, lo - 1, hi - 0.001);
-  const advanceClock = (seconds: number) => {
+  const advanceClock = (seconds: number, inPlay = true) => {
     // Time passing between two recorded events repositions players, not the
     // ball: the event log has to stay one continuous ball path so the replay
     // never has to teleport it. A carry that really does move the ball is
@@ -250,14 +258,18 @@ export function simulatePeriodWithWorld(
     // stepped coarsely instead of at in-play resolution.
     const tickLength = seconds > 6 ? 2 : 0.5;
     let remaining = Math.max(0, seconds);
+    world.ballInPlay = inPlay;
     while (remaining > 0.001) {
       const slice = Math.min(12, remaining);
       advanceWorld(world, runtimeInput, tacticsBySide, slice, tickLength);
       remaining -= slice;
     }
+    world.ballInPlay = true;
     world.ball.x = ballX;
     world.ball.y = ballY;
   };
+  /** Time the clock runs while the ball is out of play. */
+  const advanceStoppage = (seconds: number) => advanceClock(seconds, false);
   /**
    * How much harder a pass is because of its length and because of who is
    * standing where it lands.
@@ -480,7 +492,7 @@ export function simulatePeriodWithWorld(
     const receiverStats = playerStat(playerStats, side, receiver);
     if (receiverStats) receiverStats.offsides++;
     addEvent(side, "offside", receiver, passer, false);
-    advanceClock(DEAD_BALL_SECONDS.offside);
+    advanceStoppage(DEAD_BALL_SECONDS.offside);
   };
 
   const resolveSetPiece = (
@@ -509,7 +521,7 @@ export function simulatePeriodWithWorld(
       );
     // Walking to the ball, forming a wall and waiting for the referee is a
     // real part of the ninety minutes, so a restart costs the clock.
-    advanceClock(DEAD_BALL_SECONDS[kind]);
+    advanceStoppage(DEAD_BALL_SECONDS[kind]);
     activePossessionId = `${currentMinute()}:restart:${events.length}`;
     // The ball is physically placed on the corner arc or the penalty spot
     // before it is struck, so the restart event and everything that follows
@@ -615,7 +627,7 @@ export function simulatePeriodWithWorld(
         true,
         shotXg,
       );
-      advanceClock(DEAD_BALL_SECONDS.goal);
+      advanceStoppage(DEAD_BALL_SECONDS.goal);
       return;
     }
     if (rng() < 0.45) {
@@ -625,10 +637,10 @@ export function simulatePeriodWithWorld(
       const keeperStats = playerStat(playerStats, defendingSide, keeperPlayer);
       if (keeperStats) keeperStats.saves++;
       addEvent(defendingSide, "save", keeperPlayer, shooter, true, shotXg);
-      advanceClock(DEAD_BALL_SECONDS.save);
+      advanceStoppage(DEAD_BALL_SECONDS.save);
     } else {
       addEvent(side, "miss", shooter, undefined, false, shotXg);
-      advanceClock(DEAD_BALL_SECONDS.goalKick);
+      advanceStoppage(DEAD_BALL_SECONDS.goalKick);
     }
   };
 
@@ -1459,7 +1471,7 @@ export function simulatePeriodWithWorld(
           assist,
         });
         addEvent(side, "goal", carrier, assist ? lastPasser : undefined, true, shotXg);
-        advanceClock(DEAD_BALL_SECONDS.goal);
+        advanceStoppage(DEAD_BALL_SECONDS.goal);
         break;
       }
 
@@ -1495,7 +1507,7 @@ export function simulatePeriodWithWorld(
         if (rng() < 0.18) {
           resolveSetPiece(side, "corner", lastPasser ?? carrier, keeperPlayer);
         } else {
-          advanceClock(DEAD_BALL_SECONDS.goalKick);
+          advanceStoppage(DEAD_BALL_SECONDS.goalKick);
         }
         break;
       }
@@ -1509,7 +1521,7 @@ export function simulatePeriodWithWorld(
       if (rng() < 0.42) {
         resolveSetPiece(side, "corner", lastPasser ?? carrier, keeperPlayer);
       } else {
-        advanceClock(DEAD_BALL_SECONDS.save);
+        advanceStoppage(DEAD_BALL_SECONDS.save);
       }
       break;
     }
@@ -1541,6 +1553,7 @@ export function simulatePeriodWithWorld(
       goals,
       events,
       positionSamples,
+      track: world.track ? finishTrack(world.track) : undefined,
       userGoals: goals.filter((goal) => goal.side === "user").length,
       oppGoals: goals.filter((goal) => goal.side === "opp").length,
       userXg: running.user.xg,

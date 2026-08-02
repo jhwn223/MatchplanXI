@@ -1,4 +1,5 @@
 import type { MatchSide, PlacedPlayerLite, SimTacticProfile } from "../types";
+import type { WorldTrackRecorder } from "./worldTrack";
 
 export type WorldIntent =
   | "holdShape"
@@ -69,6 +70,13 @@ export interface MatchWorld {
   elapsedSeconds: number;
   players: Record<MatchSide, Map<number, WorldPlayerState>>;
   ball: WorldBallState;
+  /**
+   * False while play is stopped. Only the recording uses it — dead time has to
+   * be told apart from play, or a goal celebration weighs on the heat maps.
+   */
+  ballInPlay: boolean;
+  /** Analysis recorder. Written to as the world is stepped, never read back. */
+  track?: WorldTrackRecorder;
   phaseBySide: Record<MatchSide, MatchPhase>;
   lastPossessionSide: MatchSide | null;
   previousPossessionSide: MatchSide | null;

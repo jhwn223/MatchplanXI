@@ -65,6 +65,14 @@ export type {
   WorldPlayerState,
   WorldPoint,
 } from "./match/world/types";
+export {
+  ballDwell,
+  combineTracks,
+  playerDwell,
+  sliceTrack,
+  trackPossession,
+} from "./match/world/worldTrack";
+export type { TrackPoint, WorldTrack } from "./match/world/worldTrack";
 export { BALANCED_SIM_TACTICS, normalizeSimTactics } from "./match/tactics";
 export type {
   GoalEvent,

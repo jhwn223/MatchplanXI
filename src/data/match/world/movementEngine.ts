@@ -17,6 +17,7 @@ import type {
   WorldPlayerState,
   WorldPoint,
 } from "./types";
+import { recordTrackFrames } from "./worldTrack";
 
 function otherSide(side: MatchSide): MatchSide {
   return side === "user" ? "opp" : "user";
@@ -539,6 +540,7 @@ export function advanceWorld(
       world.ball.y = owner.y;
     }
     world.elapsedSeconds += tick;
+    if (world.track) recordTrackFrames(world.track, world);
     remaining -= tick;
   }
 }

@@ -2,6 +2,7 @@ import type { TeamAbilityProfile } from "../playerAbility";
 import type { Position } from "../types";
 import type { PlayerRole } from "../playerRoles";
 import type { SetPieceAssignments } from "../tactics";
+import type { WorldTrack } from "./world/worldTrack";
 
 export interface PlacedPlayerLite {
   playerId: number;
@@ -270,6 +271,8 @@ export interface HalfResult {
   goals: GoalEvent[];
   events: MatchEvent[];
   positionSamples: PositionSample[];
+  /** Clock-sampled ball and player positions, for the analysis maps only. */
+  track?: WorldTrack;
   userGoals: number;
   oppGoals: number;
   userXg: number;
@@ -289,6 +292,8 @@ export interface SimResult {
   goals: GoalEvent[];
   events: MatchEvent[];
   positionSamples: PositionSample[];
+  /** Clock-sampled ball and player positions, for the analysis maps only. */
+  track?: WorldTrack;
   comparison: SimComparison;
   teamStats: { user: TeamStats; opp: TeamStats };
   playerStats: PlayerMatchStats[];

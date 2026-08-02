@@ -95,6 +95,7 @@ export function createMatchWorld(
       ownerSide: null,
       ownerId: null,
     },
+    ballInPlay: true,
     phaseBySide: {
       user: "middleThird",
       opp: "middleThird",
@@ -188,6 +189,8 @@ export function continueMatchWorld(
       ownerSide: ownerStillActive ? previous.ball.ownerSide : null,
       ownerId: ownerStillActive ? previous.ball.ownerId : null,
     },
+    // The recorder is per simulated chunk; the caller attaches a fresh one.
+    ballInPlay: previous.ballInPlay,
     phaseBySide: { ...previous.phaseBySide },
     lastPossessionSide: previous.lastPossessionSide,
     previousPossessionSide: previous.previousPossessionSide,

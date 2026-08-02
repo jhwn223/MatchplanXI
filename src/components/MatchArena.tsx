@@ -543,6 +543,7 @@ export function MatchArena({
       goals: period.goals,
       events: period.events,
       positionSamples: period.positionSamples,
+      track: period.track,
       userGoals: startScore[0] + period.userGoals,
       oppGoals: startScore[1] + period.oppGoals,
       userXg: period.userXg,

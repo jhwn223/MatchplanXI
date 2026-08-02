@@ -12,6 +12,7 @@ import type {
   MatchWorldSnapshot,
   TacticsBySide,
 } from "./types";
+import { noteBallFlight } from "./worldTrack";
 
 export interface WorldEventCoordinate {
   x: number;
@@ -75,6 +76,9 @@ export function coordinateFromWorld(
   };
 
   if (type === "pass") {
+    // Recorded before the ball changes hands, so the analysis track can draw
+    // the route instead of the two ends of it.
+    noteBallFlight(world, coordinate.x, coordinate.y, coordinate.endX, coordinate.endY);
     if (success) {
       moveBallOwner(world, side, target);
     } else {
