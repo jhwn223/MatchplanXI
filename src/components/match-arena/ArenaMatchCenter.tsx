@@ -116,6 +116,14 @@ export function ArenaMatchCenter({
     );
   }, [live?.players, squadControls]);
 
+  // What the lineup actually makes, which is the chosen formation until the
+  // manager drags someone out of shape.
+  const shownFormation = formationLabel ?? formation;
+  const draggedShape =
+    formationLabel && !FORMATION_KEYS.includes(formationLabel as FormationKey)
+      ? formationLabel
+      : undefined;
+
   return (
     <section className="match-center">
       <header className="match-center__header">
@@ -177,14 +185,24 @@ export function ArenaMatchCenter({
                 {onFormationChange ? (
                   <select
                     className="match-formation-select"
-                    value={formation}
-                    onChange={(event) => onFormationChange(event.target.value as FormationKey)}
+                    // Dragging a player reshapes the side without picking a new
+                    // preset, and the box should say what is on the pitch. A
+                    // shape the drag invented (4-2-4, say) is not one of the
+                    // presets, so it joins the list for as long as it lasts.
+                    value={shownFormation}
+                    onChange={(event) => {
+                      const next = event.target.value as FormationKey;
+                      if (FORMATION_KEYS.includes(next)) onFormationChange(next);
+                    }}
                     aria-label="경기 중 포메이션 변경"
                   >
+                    {draggedShape && (
+                      <option value={draggedShape}>{draggedShape} (직접 배치)</option>
+                    )}
                     {FORMATION_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
                   </select>
                 ) : (
-                  <strong>{formation}</strong>
+                  <strong>{shownFormation}</strong>
                 )}
               </label>
               <div>
