@@ -496,16 +496,18 @@ export function simulatePeriodWithWorld(
         ? assignments?.cornerTakerId
         : assignments?.freeKickTakerId;
     const activePlayers = activeSidePlayers(side);
+    // No random lottery here: with nobody assigned and no natural taker
+    // (requestedTaker is the keeper), the best-suited outfield player takes
+    // it, picked by the same stats the taker's quality is judged on above.
+    const setPieceWeight = (player: PlacedPlayerLite) => kind === "penaltyKick"
+      ? player.penalties
+      : kind === "corner"
+        ? player.crossing + player.longPassing * 0.5
+        : player.freeKickAccuracy + player.shotPower * 0.25;
     const taker = activePlayers.find((player) => player.playerId === assignedTakerId)
       ?? (requestedTaker.position !== "GK" ? requestedTaker : undefined)
-      ?? weightedPick(
-        outfield(activePlayers),
-        (player) => kind === "penaltyKick"
-          ? player.penalties
-          : kind === "corner"
-            ? player.crossing + player.longPassing * 0.5
-            : player.freeKickAccuracy + player.shotPower * 0.25,
-        rng,
+      ?? outfield(activePlayers).reduce((best, player) =>
+        setPieceWeight(player) > setPieceWeight(best) ? player : best
       );
     // Walking to the ball, forming a wall and waiting for the referee is a
     // real part of the ninety minutes, so a restart costs the clock.
