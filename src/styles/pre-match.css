@@ -1933,9 +1933,10 @@
 
 .opponent-tactic-facts dl > div {
   display: grid;
-  grid-template-columns: minmax(88px, 1fr) auto;
+  grid-template-columns: max-content max-content;
+  justify-content: start;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   min-height: 38px;
   padding: 7px 4px;
   border-bottom: 1px solid #e5ebe2;
@@ -1954,7 +1955,7 @@
   color: #12602c;
   font-size: 14px;
   font-weight: 850;
-  text-align: right;
+  text-align: left;
 }
 
 .opponent-report__evidence {
