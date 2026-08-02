@@ -25,6 +25,8 @@ import {
   defensiveLineHeight,
   defensiveThirdCover,
   isPlayerOffside,
+  localNumbers,
+  nearestOpponentDistance,
   offsideMargin,
   passOptionScore,
   worldDistance,
@@ -302,6 +304,44 @@ export function simulatePeriodWithWorld(
     passer: PlacedPlayerLite,
     receiver: PlacedPlayerLite,
   ) => clamp(0.9 + worldDistance(world, side, passer, side, receiver) / 17, 1, 4);
+  /**
+   * Whether a failed pass was cut out by a defender or simply misplaced.
+   *
+   * Every failed pass in an attacking move used to be credited as an
+   * interception, and 38% of the rest were, which put 223 of them in a match
+   * against the 40-50 a real one has. Most failed passes in football are
+   * overhit, underhit or dragged out of play; an interception is a defender
+   * reading the ball and taking it, and it is far rarer than a bad pass.
+   *
+   * It also decides who has the ball next: a cut-out pass is a clean turnover,
+   * a misplaced one leaves the ball loose to be contested.
+   */
+  const wasIntercepted = (
+    defender: PlacedPlayerLite,
+    defendingTactics: SimTacticProfile,
+  ) =>
+    rng() <
+    clamp(
+      0.16 +
+        (defender.interceptions + defender.defensiveAwareness - 140) / 900 +
+        Math.max(0, defendingTactics.pressBias) * 0.05 +
+        Math.max(0, defendingTactics.engagementBias) * 0.035,
+      0.04,
+      0.4,
+    );
+  /**
+   * How much room the man on the ball actually has, as a signed amount either
+   * side of a normal engagement.
+   *
+   * The engine did not read this at all. Pressure entered every decision as the
+   * nearest defender's attributes, never as how far away he was, so a player
+   * with five metres and a player with one played exactly the same ball. It is
+   * the quantity football is decided by, and leaving it out is why sending a
+   * man off cost so little: the space that opens up had nowhere to go.
+   */
+  const spaceOnBall = (side: MatchSide, player: PlacedPlayerLite) =>
+    clamp((nearestOpponentDistance(world, side, player) - 2.6) / 4.5, -0.45, 0.9);
+
   const DEAD_BALL_SECONDS = {
     goal: 52,
     penaltyKick: 45,
@@ -696,12 +736,21 @@ export function simulatePeriodWithWorld(
       // The better side wins more of the loose balls. Team strength used to
       // reach the match through the opening possession alone, which left a
       // two-hundred-point rating gap deciding almost nothing.
+      // Who has more bodies around the ball right now, not just who set up to
+      // have them there. Territory is what makes possession persist in real
+      // football: a side camped in the opponent's half wins the second ball
+      // there again and again, and a side pinned back keeps giving it away.
+      const here = localNumbers(world, "user", world.ball.x, world.ball.y, 22);
       const userShare = clamp(
         0.5 +
-          (userBodies - oppBodies) * 0.09 +
+          (userBodies - oppBodies) * 0.07 +
+          (here.own - here.opponents) * 0.055 +
           eloEdge * 0.11 +
           creativityEdge * 0.05 +
-          (previous === "user" ? -0.16 : 0.16),
+          // Losing the ball does hand the initiative over, but at -+0.16 this
+          // forced the two sides to alternate almost perfectly and pinned
+          // possession at fifty-fifty whatever either of them did.
+          (previous === "user" ? -0.05 : 0.05),
         0.12,
         0.88,
       );
@@ -841,7 +890,7 @@ export function simulatePeriodWithWorld(
     // now runs many more of them per match, so each one has to be brief for
     // the season-long totals to stay in a football-shaped range.
     const routinePassCount = possessionPlayers.length > 1
-      ? Math.round(clamp(1.35 - directness * 0.7 - sideTactics.tempoBias * 0.5 + (rng() - 0.5) * 3.4, 0, 6))
+      ? Math.round(clamp(1.0 - directness * 0.7 - sideTactics.tempoBias * 0.5 + (rng() - 0.5) * 3.4, 0, 6))
       : 0;
     // A possession has one authoritative carrier. Previously every routine
     // pass picked a fresh random passer, so A→B could be followed by C→D
@@ -897,7 +946,7 @@ export function simulatePeriodWithWorld(
             side,
             passer,
             player,
-            directness,
+            directness + roleDefinition(passer.tacticalRole).passRisk,
             sideTactics.focusBias,
             sideTactics.centralFocusBias,
           ) * offsideFit;
@@ -963,7 +1012,8 @@ export function simulatePeriodWithWorld(
           (passQuality - pressureQuality) / 500 -
           directness * 0.018 +
           matchupEdge * 0.35 -
-          laneRisk * 0.045 -
+          laneRisk * 0.045 +
+          spaceOnBall(side, passer) * 0.06 -
           defendingTactics.pressBias * 0.055 -
           defendingTactics.defensiveLineBias * 0.02 -
           trappedInBuildUp -
@@ -972,13 +1022,16 @@ export function simulatePeriodWithWorld(
         0.4,
         0.98
       );
+      // Real matches are stopped for a foul about twenty-two times. Both of the
+      // engine's two routes to one were set when the possession loop ran fewer
+      // times, and together they were producing fifteen.
       const pressingFoulChance = clamp(
-        0.004 +
-          (defendingTactics.pressBias + 1) * 0.009 +
-          (defendingTactics.tacklingBias + 1) * 0.003 +
-          Math.max(0, pressingDefender.aggression - 72) / 4000,
-        0.004,
-        0.032,
+        0.006 +
+          (defendingTactics.pressBias + 1) * 0.013 +
+          (defendingTactics.tacklingBias + 1) * 0.004 +
+          Math.max(0, pressingDefender.aggression - 72) / 3000,
+        0.006,
+        0.045,
       );
       // The restraint has to be judged on the same spot that decides the
       // restart, or the discount is applied to one place and the penalty
@@ -1022,20 +1075,7 @@ export function simulatePeriodWithWorld(
         addEvent(side, "pass", passer, receiver, true);
         advanceClock(passCost);
         possessionCarrier = receiver;
-      } else if (
-        rng() <
-        clamp(
-          0.38 +
-            defendingTactics.pressBias * 0.26 +
-            defendingTactics.defensiveLineBias * 0.03 +
-            // Engaging higher up wins the ball closer to the opponent goal;
-            // a compact block makes the interception itself more likely.
-            defendingTactics.engagementBias * 0.12 +
-            defendingTactics.compactnessBias * 0.01,
-          0.08,
-          0.78,
-        )
-      ) {
+      } else if (wasIntercepted(pressingDefender, defendingTactics)) {
         running[defendingSide].interceptions++;
         const defenderStats = playerStat(playerStats, defendingSide, pressingDefender);
         if (defenderStats) defenderStats.interceptions++;
@@ -1102,17 +1142,30 @@ export function simulatePeriodWithWorld(
         defendingTactics.pressBias * 0.045 +
         defendingTactics.tacklingBias * 0.06 +
         defendingTactics.defensiveLineBias * 0.025
-      );
-      const wantsDribble =
-        carrier.position === "FWD"
-          ? rng() < 0.32 + Math.max(0, carrier.dribbling - carrier.passing) / 180
-          : rng() < 0.16;
+      // A role that engages was only more likely to be picked as the defender;
+      // it made no difference to whether he won the ball. A ball-winner has to
+      // be better in the duel than the playmaker standing next to him or the
+      // instruction is decoration.
+      ) * (0.7 + roleDefinition(defender.tacticalRole).pressWeight * 0.3);
+      const carrierRole = roleDefinition(carrier.tacticalRole);
+      // A winger takes his man on; an anchor never does. Basing this on the
+      // position alone meant every midfielder dribbled at the same rate
+      // whatever the manager had asked of him.
+      const wantsDribble = rng() <
+        (carrier.position === "FWD"
+          ? 0.32 + Math.max(0, carrier.dribbling - carrier.passing) / 180
+          : 0.16) * carrierRole.dribbleIntent;
 
       if (wantsDribble) {
         if (carrierStats) carrierStats.dribblesAttempted++;
         // Beating one man is a duel; beating a crowd is not.
         const dribbleChance = clamp(
-          0.5 + (carrierDribble - defenderTackle) / 145 - Math.max(0, actionPressure - 1) * 0.1,
+          0.5 +
+            (carrierDribble - defenderTackle) / 145 +
+            // Beating a man who is already on top of you is not the same as
+            // beating one who has to close five metres first.
+            spaceOnBall(side, carrier) * 0.14 -
+            Math.max(0, actionPressure - 1) * 0.1,
           0.12,
           0.82,
         );
@@ -1125,13 +1178,16 @@ export function simulatePeriodWithWorld(
           const duelPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
           const duelX = side === "user" ? duelPoint.x : 100 - duelPoint.x;
           const foulChance = clamp(
-            0.06 +
-              Math.max(0, defendingTactics.tacklingBias) * 0.055 +
-              Math.max(0, defendingTactics.pressBias) * 0.035 +
-              Math.max(0, defender.aggression - 65) / 900,
-            0.035,
-            0.18,
-          ) * penaltyAreaRestraint(duelX);
+            0.085 +
+              Math.max(0, defendingTactics.tacklingBias) * 0.07 +
+              Math.max(0, defendingTactics.pressBias) * 0.045 +
+              Math.max(0, defender.aggression - 65) / 700,
+            0.05,
+            0.24,
+          ) * penaltyAreaRestraint(duelX) *
+          // Engaging harder wins more balls and concedes more free kicks; the
+          // trade is what makes the role a choice rather than a free upgrade.
+          clamp(roleDefinition(defender.tacticalRole).pressWeight, 0.7, 1.45);
           if (rng() < foulChance) {
             let setPieceTaker = carrier;
             running[defendingSide].fouls++;
@@ -1164,7 +1220,17 @@ export function simulatePeriodWithWorld(
           running[defendingSide].possessionTouches++;
           if (defenderStats) defenderStats.tacklesWon++;
           addEvent(defendingSide, "tackle", defender, carrier, true);
-          advanceClock(DEAD_BALL_SECONDS.tackle);
+          // A defender who wins it inside his own box under pressure does not
+          // always keep it in play — putting it behind is the safe option, and
+          // clearances are where most of football's corners actually come
+          // from. With blocked and saved shots as the only source the engine
+          // produced four corners a match against the nine to eleven a real one
+          // has, and no defensive plan could earn any.
+          if (duelX >= PENALTY_AREA_X - 6 && rng() < 0.3) {
+            resolveSetPiece(side, "corner", carrier, keeperPlayer);
+          } else {
+            advanceClock(DEAD_BALL_SECONDS.tackle);
+          }
           break;
         }
       } else {
@@ -1189,8 +1255,12 @@ export function simulatePeriodWithWorld(
               receiverHome.y - carrierHome.y,
             );
             // See passOptionScore: a neutral directness still means forward.
-            const forwardFit = clamp(1 + forwardDistance * (0.8 + directness) / 55, 0.45, 2.0);
-            const distanceFit = 1 / (1 + Math.max(0, distance - (22 + directness * 8)) / 22);
+            // A playmaker looks for the pass that breaks a line; a holder
+            // recycles it. Roles reached where a player stood and who he
+            // received from, but never the ball he actually played.
+            const ambition = directness + carrierRole.passRisk;
+            const forwardFit = clamp(1 + forwardDistance * (0.8 + ambition) / 55, 0.45, 2.0);
+            const distanceFit = 1 / (1 + Math.max(0, distance - (22 + ambition * 8)) / 22);
             const offsideFit = isPlayerOffside(world, side, player) ? 0.05 : 1;
             const focusFit = attackFocusLaneWeight(
               receiverHome.y,
@@ -1252,9 +1322,10 @@ export function simulatePeriodWithWorld(
           0.77 -
             compactnessResistance -
             congestion +
-            (passQuality - interceptionQuality) / 220 -
+            (passQuality - interceptionQuality) / 220 +
+            spaceOnBall(side, carrier) * 0.07 -
             progress * 0.012 -
-            directness * 0.025 -
+            (directness + carrierRole.passRisk * 0.8) * 0.025 -
             sideTactics.creativityBias * 0.018 +
             matchupEdge * 0.5 -
             laneRisk * 0.07 -
@@ -1284,7 +1355,7 @@ export function simulatePeriodWithWorld(
           advanceClock(passCost);
           lastPasser = carrier;
           carrier = receiver;
-        } else {
+        } else if (wasIntercepted(defender, defendingTactics)) {
           running[defendingSide].interceptions++;
           running[defendingSide].possessionTouches++;
           const defenderStats = playerStat(playerStats, defendingSide, defender);
@@ -1293,26 +1364,36 @@ export function simulatePeriodWithWorld(
           addEvent(defendingSide, "interception", defender, carrier, true);
           advanceClock(DEAD_BALL_SECONDS.turnover);
           break;
+        } else {
+          // Misplaced rather than cut out: the ball is loose where the pass
+          // was aimed, and whoever reacts first to it gets the next possession.
+          addEvent(side, "pass", carrier, receiver, false);
+          advanceClock(passCost);
+          break;
         }
       }
 
       // Attacking instructions buy attempts, but the shape now holds its lines
       // instead of collapsing onto the ball, so the same instruction reaches
       // the box far more often than it used to and needs a smaller premium.
+      // Attacking instructions stack: an emergency chase raises the attacking,
+      // shooting, tempo and rest-defence terms at once. With the base shot rate
+      // now at a realistic level each of them has to be worth less, or throwing
+      // everyone forward turns every match into a shootout.
       const tacticShotBias =
-        sideAttackBias * 0.017 +
-        sideTactics.overlapBias * 0.005 +
-        counterEdge * 0.009 +
-        sideTactics.tempoBias * 0.006 +
-        sideTactics.shootingBias * 0.016 +
+        sideAttackBias * 0.013 +
+        sideTactics.overlapBias * 0.004 +
+        counterEdge * 0.008 +
+        sideTactics.tempoBias * 0.0045 +
+        sideTactics.shootingBias * 0.012 +
         // Bodies sent forward instead of held back arrive in the box.
-        Math.max(0, -sideTactics.restDefenseBias) * 0.008 +
+        Math.max(0, -sideTactics.restDefenseBias) * 0.006 +
         matchupEdge * 0.1;
       // A possession reaching the final third is not automatically a shot.
       // These rates keep a normal match near 24-28 combined attempts while
       // preserving the relative effect of roles and attacking instructions.
       const roleShotChance =
-        (carrier.position === "FWD" ? 0.088 : carrier.position === "MID" ? 0.052 : 0.019) *
+        (carrier.position === "FWD" ? 0.098 : carrier.position === "MID" ? 0.058 : 0.021) *
         roleDefinition(carrier.tacticalRole).shotIntent;
       // Whether the defence is actually there. A packed box is why standing
       // strikers in it produces nothing, and an empty one is why a side that
@@ -1332,7 +1413,12 @@ export function simulatePeriodWithWorld(
       // building the move that would reach them — so stacking the attacking
       // third has to give diminishing returns rather than multiplying chances.
       const crowding = clamp(1 - Math.max(0, commitment(side)[2] - 4) * 0.13, 0.4, 1);
-      const spaceToShoot = (throughOnGoal ? 1.3 : 0.37 + openness * 0.54) * crowding;
+      // Bodies in the box decide whether there is a shot on; the room the
+      // shooter himself has decides whether he can get it away.
+      const spaceToShoot =
+        (throughOnGoal ? 1.3 : 0.37 + openness * 0.54) *
+        crowding *
+        clamp(1 + spaceOnBall(side, carrier) * 0.3, 0.85, 1.3);
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
       // The final touch has to reach the edge of the penalty area before a
@@ -1357,7 +1443,10 @@ export function simulatePeriodWithWorld(
           // possession's progress let a side manufacture chances simply by
           // stationing six forwards in the box: every one of them was a
           // shooter the moment the ball reached him. Progress has to earn it.
-          rng() < (roleShotChance * 0.43 + progress * 0.078 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.115) ||
+          // Ground taken is what earns the shot, and now that space on the ball
+          // feeds pass completion it accumulates faster, so it has to be worth
+          // less per unit or an all-out attacking plan runs away with the game.
+          rng() < (roleShotChance * 0.43 + progress * 0.086 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.115) ||
           (action === maxActions - 1 && rng() < 0.02 * spaceToShoot)
         );
       if (!shootNow) continue;
