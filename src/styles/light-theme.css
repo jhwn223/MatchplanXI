@@ -437,7 +437,6 @@
 .tournament-btn { border-radius: 10px; }
 .next-match { background: #fff; border-color: #a7d7b1; }
 .next-match__stage,
-.next-match__go,
 .bracket-col__title { color: var(--accent); }
 .ko-cell[data-user] { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(0, 101, 43, .12); }
 .ko-row[data-me] { background: var(--accent-soft); }

@@ -138,7 +138,7 @@ export function Bracket({ data, team, played, koResults, tournamentSeed, leaderb
 
       {nextMatch && (
         <div className="bracket-cta">
-          <NextMatchCard m={nextMatch} teamName={team.team_name} onPlay={() => onPlayKO(nextMatch)} />
+          <NextMatchCard m={nextMatch} teamName={team.team_name} teamCode={team.fifa_code} onPlay={() => onPlayKO(nextMatch)} />
         </div>
       )}
 
@@ -506,7 +506,20 @@ function MatchCell({
   );
 }
 
-function NextMatchCard({ m, teamName, onPlay }: { m: KOMatch; teamName: string; onPlay: () => void }) {
+// Mirrors the group-stage fixture card (TeamHub) — flags and codes instead
+// of bare team names, the same elevation badge, and a filled status pill —
+// so a knockout match reads as the same kind of card, not a plainer one-off.
+function NextMatchCard({
+  m,
+  teamName,
+  teamCode,
+  onPlay,
+}: {
+  m: KOMatch;
+  teamName: string;
+  teamCode: string;
+  onPlay: () => void;
+}) {
   const opp = m.a?.name === teamName ? m.b : m.a;
   const elevClass = m.venue.elevation_meters >= 2000 ? "high" : m.venue.elevation_meters >= 1000 ? "mid" : "low";
   return (
@@ -520,15 +533,23 @@ function NextMatchCard({ m, teamName, onPlay }: { m: KOMatch; teamName: string; 
       <div className="next-match__stage">
         {m.placement === "third" ? "3위 결정전" : KO_ROUND_KO[m.round]}
       </div>
-      <div className="next-match__teams">
-        {teamName} <span className="board__vs">vs</span> {opp?.name}
+      <div className="next-match__match">
+        <span className="next-match__team-code">
+          <TeamFlag fifaCode={teamCode} className="next-match__flag" />
+          <b>{teamCode}</b>
+        </span>
+        <span className="next-match__vs">VS</span>
+        <span className="next-match__team-code next-match__team-code--opp">
+          <TeamFlag fifaCode={opp?.code ?? ""} className="next-match__flag" />
+          <b>{opp?.code}</b>
+        </span>
       </div>
       <div className="next-match__venue">
         {m.venue.stadium_name.replace(/\s*\(.*\)/, "")} · {m.venue.city}
       </div>
       <div className="next-match__bottom">
         <span className={`elev-badge elev-badge--${elevClass}`}>⛰ {m.venue.elevation_meters}m</span>
-        <span className="next-match__go">전술 짜고 경기하기 →</span>
+        <span className="next-match__go">전술 설정 후 경기 진행</span>
       </div>
     </motion.button>
   );
