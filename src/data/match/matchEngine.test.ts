@@ -351,7 +351,11 @@ describe("match engine invariants", () => {
   });
 
   test("a clear Elo advantage improves results without pre-deciding them", () => {
-    const sampleSize = 24;
+    // Measured over 200 matches, a 250-point edge wins 64.5% of the time. At
+    // the 24 the assertions below used to run on, that leaves a one-in-ten
+    // chance of a majority failing to appear by luck alone, so any unrelated
+    // change that reshuffled the random stream could fail this.
+    const sampleSize = 48;
     const level = Array.from({ length: sampleSize }, (_, seed) =>
       simulatePeriod(input(seed + 1000), 1, 90, 0),
     );

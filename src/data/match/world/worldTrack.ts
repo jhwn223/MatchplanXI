@@ -1,4 +1,4 @@
-import type { MatchSide } from "../types";
+import type { MatchSide, PlacedPlayerLite } from "../types";
 import type { MatchWorld, WorldPlayerState } from "./types";
 
 /** Ball ownership stored per frame. */
@@ -38,9 +38,16 @@ export interface WorldTrack {
   playerInterval: number;
   playerFrames: number;
   /** Stable player order every player frame follows. */
-  players: { side: MatchSide; playerId: number }[];
+  players: TrackedPlayer[];
   /** Frame-major x/y pairs: frame f, player p at 2 * (f * players + p). */
   positions: Float32Array;
+}
+
+export interface TrackedPlayer {
+  side: MatchSide;
+  playerId: number;
+  /** Kept so a team heat map can leave the goalkeeper out. */
+  position: PlacedPlayerLite["position"];
 }
 
 interface BallFlight {
@@ -69,10 +76,14 @@ export function createTrackRecorder(
   ballInterval = 0.5,
   playerInterval = 1,
 ): WorldTrackRecorder {
-  const players: { side: MatchSide; playerId: number }[] = [];
+  const players: TrackedPlayer[] = [];
   for (const side of ["user", "opp"] as MatchSide[]) {
     for (const state of world.players[side].values()) {
-      players.push({ side, playerId: state.player.playerId });
+      players.push({
+        side,
+        playerId: state.player.playerId,
+        position: state.player.position,
+      });
     }
   }
   const ballCapacity = Math.max(1, Math.ceil(seconds / ballInterval) + 8);
@@ -324,18 +335,30 @@ export function ballDwell(
   return points;
 }
 
-/** Player positions, one point per player per recorded frame. */
+/**
+ * Player positions, one point per player per recorded frame.
+ *
+ * A whole-team map leaves the keeper out by default. He is a ninth of the
+ * samples packed into a fortieth of the pitch, so including him makes his six
+ * yard box the hottest place on any team's heat map and flattens everything
+ * the outfield players did.
+ */
 export function playerDwell(
   track: WorldTrack,
-  options: TrackWindow & { side?: MatchSide; playerId?: number } = {},
+  options: TrackWindow & {
+    side?: MatchSide;
+    playerId?: number;
+    includeKeeper?: boolean;
+  } = {},
 ): TrackPoint[] {
-  const { side, playerId, fromMinute = 0, toMinute = Infinity } = options;
+  const { side, playerId, includeKeeper = playerId != null, fromMinute = 0, toMinute = Infinity } = options;
   const count = track.players.length;
   const wanted: number[] = [];
   for (let index = 0; index < count; index++) {
     const entry = track.players[index];
     if (side && entry.side !== side) continue;
     if (playerId != null && entry.playerId !== playerId) continue;
+    if (!includeKeeper && entry.position === "GK") continue;
     wanted.push(index);
   }
   const points: TrackPoint[] = [];

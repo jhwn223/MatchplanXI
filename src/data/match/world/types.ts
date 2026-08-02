@@ -50,6 +50,15 @@ export interface WorldPlayerState extends WorldPoint {
   movementFactor?: number;
 }
 
+export type RestartKind = "corner" | "freeKick" | "penaltyKick";
+
+export interface RestartState {
+  /** The side taking it. */
+  side: MatchSide;
+  kind: RestartKind;
+  takerId: number;
+}
+
 export interface WorldBallState extends WorldPoint {
   ownerSide: MatchSide | null;
   ownerId: number | null;
@@ -77,6 +86,11 @@ export interface MatchWorld {
   ballInPlay: boolean;
   /** Analysis recorder. Written to as the world is stepped, never read back. */
   track?: WorldTrackRecorder;
+  /**
+   * Set while a restart is being taken, so the twenty-two players arrange
+   * themselves for it instead of standing in their open-play shape.
+   */
+  restart?: RestartState;
   phaseBySide: Record<MatchSide, MatchPhase>;
   lastPossessionSide: MatchSide | null;
   previousPossessionSide: MatchSide | null;

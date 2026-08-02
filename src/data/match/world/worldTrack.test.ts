@@ -77,8 +77,9 @@ describe("world track", () => {
     const points = ballDwell(track);
     const seconds = points.reduce((total, point) => total + point.seconds, 0);
     expect(seconds).toBeCloseTo(points.length * 0.5, 5);
+    // Ten, not eleven: a whole-team map leaves the keeper out.
     const perPlayer = playerDwell(track, { side: "user" });
-    expect(perPlayer).toHaveLength(track.playerFrames * 11);
+    expect(perPlayer).toHaveLength(track.playerFrames * 10);
     expect(perPlayer[0].seconds).toBe(1);
   });
 

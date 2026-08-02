@@ -17,6 +17,7 @@ import type {
   WorldPlayerState,
   WorldPoint,
 } from "./types";
+import { setPieceTarget } from "./setPieceShape";
 import { recordTrackFrames } from "./worldTrack";
 
 function otherSide(side: MatchSide): MatchSide {
@@ -219,6 +220,10 @@ function targetForPlayer(
   offsideLine: number,
 ): { point: WorldPoint; intent: WorldIntent } {
   const { side, player } = state;
+  // A restart overrides everything: the ball is dead, so nobody is pressing,
+  // supporting or holding a line — they are walking to their spot for it.
+  const restartPoint = setPieceTarget(world, state);
+  if (restartPoint) return { point: restartPoint, intent: "holdShape" };
   const dir = direction(side);
   const phase = world.phaseBySide[side];
   const hasBall = effectivePossessionSide(world) === side;
@@ -457,9 +462,14 @@ function enforceSpacingAndLines(
   }
   const lineStep = LINE_CATCHUP_SPEED * seconds;
   for (const side of ["user", "opp"] as MatchSide[]) {
-    const defenders = [...world.players[side].values()].filter(
-      (state) => state.player.position === "DEF",
-    );
+    const defenders = world.restart
+      ? []
+      : [...world.players[side].values()].filter(
+          // While a restart is being set up there is no offside line to hold,
+          // and banding the back four would drag defenders back out of the box
+          // they have just been sent into.
+          (state) => state.player.position === "DEF",
+        );
     if (defenders.length) {
       // A full-back who has been sent forward has left the back line; he is on
       // an overlap, not holding a position in it. Forcing every defender into

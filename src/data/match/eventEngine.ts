@@ -519,10 +519,6 @@ export function simulatePeriodWithWorld(
             : player.freeKickAccuracy + player.shotPower * 0.25,
         rng,
       );
-    // Walking to the ball, forming a wall and waiting for the referee is a
-    // real part of the ninety minutes, so a restart costs the clock.
-    advanceStoppage(DEAD_BALL_SECONDS[kind]);
-    activePossessionId = `${currentMinute()}:restart:${events.length}`;
     // The ball is physically placed on the corner arc or the penalty spot
     // before it is struck, so the restart event and everything that follows
     // read from there.
@@ -534,6 +530,15 @@ export function simulatePeriodWithWorld(
       world.ball.x = attackingRight ? 89 : 11;
       world.ball.y = 50;
     }
+    // Walking to the ball, forming a wall and waiting for the referee is a
+    // real part of the ninety minutes, so a restart costs the clock — and it is
+    // the time the twenty-two players spend arranging themselves for it, which
+    // is why the ball is placed first and the shape declared before the clock
+    // runs rather than after.
+    world.restart = { side, kind, takerId: taker.playerId };
+    advanceStoppage(DEAD_BALL_SECONDS[kind]);
+    world.restart = undefined;
+    activePossessionId = `${currentMinute()}:restart:${events.length}`;
     const sideTactics = side === "user" ? userTactics : oppTactics;
     const defendingSide = otherSide(side);
     const designatedParticipants = kind === "corner"
@@ -548,7 +553,6 @@ export function simulatePeriodWithWorld(
       .slice(0, 3);
     const candidates = selectedParticipants.length ? selectedParticipants : allCandidates;
     if (kind === "corner") running[side].corners++;
-    addEvent(side, kind, taker, keeperPlayer, true);
 
     const deliveryChance = kind === "penaltyKick"
       ? 1
@@ -559,23 +563,42 @@ export function simulatePeriodWithWorld(
           0.08,
           0.3,
         );
-    if (rng() >= deliveryChance || !candidates.length) return;
-
+    const delivered = rng() < deliveryChance && candidates.length > 0;
     // A goalkeeper can end up carrying the ball out of defence, and a foul on
     // him was handing him the resulting spot kick to take himself.
     const outfieldTaker =
-      taker.position === "GK"
+      delivered && taker.position === "GK"
         ? weightedPick(candidates, (player) => 0.5 + player.penalties / 100, rng)
         : taker;
-    const shooter = kind === "penaltyKick"
-      ? outfieldTaker
-      : weightedPick(
-          candidates,
-          (player) =>
-            (player.position === "FWD" ? 2.8 : player.position === "DEF" ? 1.5 : 1.1) *
-            (0.35 + (player.positioning + player.strength + player.finishing + player.headingAccuracy) / 400),
-          rng,
-        );
+    const shooter = !delivered
+      ? undefined
+      : kind === "penaltyKick"
+        ? outfieldTaker
+        : weightedPick(
+            candidates,
+            (player) =>
+              (player.position === "FWD" ? 2.8 : player.position === "DEF" ? 1.5 : 1.1) *
+              (0.35 + (player.positioning + player.strength + player.finishing + player.headingAccuracy) / 400),
+            rng,
+          );
+    // A corner or a wide free kick is a delivery: the recorded event runs from
+    // the spot to whoever meets it, so the ball path stays continuous into the
+    // header that follows. A penalty is struck from the spot itself.
+    addEvent(
+      side,
+      kind,
+      taker,
+      kind === "penaltyKick" ? keeperPlayer : shooter ?? keeperPlayer,
+      true,
+    );
+    if (!shooter) {
+      // The delivery is headed clear. Both sides have every outfield player in
+      // one penalty area at this moment, and it takes them real seconds to get
+      // out of it — resuming instantly handed whoever won the ball an empty
+      // pitch and made scoring bursts far more likely than they should be.
+      advanceClock(5);
+      return;
+    }
     const shotXg = kind === "penaltyKick"
       ? 0.76
       : clamp(
