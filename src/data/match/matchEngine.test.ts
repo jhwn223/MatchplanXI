@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { simulatePeriod, simulatePeriodWithWorld } from "./eventEngine";
 import { samplePlayerPositions } from "./spatial";
 import { BALANCED_SIM_TACTICS } from "./tactics";
-import { applyExtraTime, combineHalves } from "./result";
+import { applyExtraTime, combineHalves, combinePeriods } from "./result";
 import type { PlacedPlayerLite, SimInput, SimTacticProfile } from "./types";
 import type { MatchWorld } from "./world/types";
 
@@ -150,6 +150,29 @@ describe("match engine invariants", () => {
       expect(preserved?.x).toBe(position.x);
       expect(preserved?.y).toBe(position.y);
     }
+  });
+
+  test("one-minute live chunks accumulate real playing time for result ratings", () => {
+    let world: MatchWorld | undefined;
+    let accumulated = null;
+    const matchInput = input(46);
+
+    for (let minute = 1; minute <= 10; minute++) {
+      const step = simulatePeriodWithWorld(
+        matchInput,
+        minute,
+        minute,
+        minute * 999_983,
+        world,
+      );
+      world = step.world;
+      accumulated = combinePeriods(accumulated, step.result);
+    }
+
+    expect(accumulated).not.toBeNull();
+    expect(accumulated!.playerStats).toHaveLength(22);
+    expect(accumulated!.playerStats.every((player) => player.minutesPlayed === 10)).toBe(true);
+    expect(accumulated!.playerStats.some((player) => player.rating > 0)).toBe(true);
   });
 
   test("yellow cards persist across live chunks and can be inherited after half-time", () => {

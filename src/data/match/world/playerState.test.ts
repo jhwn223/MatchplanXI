@@ -49,6 +49,25 @@ describe("persistent player runtime state", () => {
     expect(world.fatigueByPlayer.user.get(playerId)!.condition).toBeLessThanOrEqual(beforeChange);
   });
 
+  test("fatigue updates never overwrite a player's actual entry minute", () => {
+    const input = testInput(75);
+    const tactics = { user: testTactics(), opp: testTactics() };
+    input.placed[6].enteredAtMinute = 17;
+    const playerId = input.placed[6].playerId;
+    const world = createMatchWorld(input, 18, tactics);
+
+    const runtime = runtimeInputForWorld(input, world);
+    const player = runtime.placed.find((candidate) => candidate.playerId === playerId)!;
+    accrueActiveFatigue(world, runtime, 19, tactics);
+
+    expect(player.enteredAtMinute).toBe(17);
+    expect(world.players.user.get(playerId)?.player.enteredAtMinute).toBe(17);
+    expect(runtimeInputForWorld(input, world).placed.find(
+      (candidate) => candidate.playerId === playerId,
+    )?.enteredAtMinute).toBe(17);
+    expect(world.fatigueByPlayer.user.get(playerId)?.updatedAtMinute).toBe(19);
+  });
+
   test.each(["dismissed", "injured"] as const)(
     "%s players stay unavailable when the next chunk supplies the original lineup",
     (reason) => {

@@ -1,13 +1,13 @@
 import { actionPerformanceFactor } from "../playerRuntime";
 import { roleDefinition } from "../../playerRoles";
 import { clamp } from "../random";
-import type { MatchSide, PlacedPlayerLite, SimInput } from "../types";
+import type { MatchSide, PlacedPlayerLite, SimInput, SimTacticProfile } from "../types";
 import {
   blendPoint,
   constrainToAnchor,
   formationAnchor,
 } from "./formationShape";
-import { attackFocusLaneY, offsideLineFor } from "./perception";
+import { attackFocusLaneY, localNumbers, offsideLineFor } from "./perception";
 import type {
   DefensiveRole,
   MatchPhase,
@@ -212,6 +212,33 @@ function supportIds(world: MatchWorld, side: MatchSide) {
   return secondId < 0 ? [firstId] : [firstId, secondId];
 }
 
+/**
+ * How close the defender pressing the ball can actually get.
+ *
+ * This was the constant 1.1 — barely a metre — so the man on the ball was
+ * glued at exactly the same range whatever was happening around him. Measured
+ * over a match the nearest opponent to a carrier had a median of 1.10 whether
+ * his side had eleven players or ten, which is why sending a man off cost
+ * almost nothing: the one quantity football is actually decided by, how much
+ * time the player on the ball has, never moved.
+ *
+ * A defender closing the ball is also responsible for the space behind him. The
+ * fewer team-mates he has around it, the more of that responsibility is his
+ * alone, and the less he can commit to the man in front of him.
+ */
+function engagementDistance(
+  world: MatchWorld,
+  side: MatchSide,
+  profile: SimTacticProfile,
+) {
+  const around = localNumbers(world, side, world.ball.x, world.ball.y, 20);
+  return clamp(
+    2.6 - profile.pressBias * 0.7 + (around.opponents - around.own) * 0.9,
+    1.3,
+    7,
+  );
+}
+
 function targetForPlayer(
   world: MatchWorld,
   state: WorldPlayerState,
@@ -307,7 +334,7 @@ function targetForPlayer(
     return {
       point: constrainToAnchor(
         shape,
-        { x: world.ball.x - dir * 1.2, y: world.ball.y },
+        { x: world.ball.x - dir * engagementDistance(world, side, profile), y: world.ball.y },
         player.position === "DEF" ? 11 : 15,
         player.position === "DEF" ? 13 : 17,
       ),
@@ -318,7 +345,7 @@ function targetForPlayer(
     return {
       point: constrainToAnchor(
         shape,
-        { x: world.ball.x - dir * 1.1, y: world.ball.y },
+        { x: world.ball.x - dir * engagementDistance(world, side, profile), y: world.ball.y },
         player.position === "DEF" ? 12 : player.position === "MID" ? 16 : 20,
         player.position === "DEF" ? 14 : 19,
       ),

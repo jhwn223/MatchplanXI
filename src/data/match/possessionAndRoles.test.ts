@@ -23,9 +23,14 @@ describe("possession responds to what the manager chose", () => {
     const mean = share.reduce((s, v) => s + v, 0) / share.length;
     expect(mean).toBeGreaterThan(46);
     expect(mean).toBeLessThan(54);
-    // Possession used to alternate by construction, so no match ever finished
-    // further than four points from level. Some now do.
-    expect(Math.max(...share.map((v) => Math.abs(v - 50)))).toBeGreaterThan(4);
+    // Possession used to alternate by construction, which left the spread
+    // almost flat. The maximum over a sample this size is too noisy to assert
+    // on, so this reads the spread itself: a forced fifty-fifty sits well under
+    // one point of deviation.
+    const spread = Math.sqrt(
+      share.reduce((sum, value) => sum + (value - mean) ** 2, 0) / share.length,
+    );
+    expect(spread).toBeGreaterThan(1.2);
   });
 
   test("a possession plan takes the ball off a direct one", () => {

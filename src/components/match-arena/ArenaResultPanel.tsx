@@ -79,6 +79,7 @@ export function ArenaResultPanel({
   const comparison = sim.comparison;
   const live = sim.liveSnapshots?.at(-1);
   const players = sim.playerStats?.length ? sim.playerStats : live?.players ?? [];
+  const eligiblePlayers = players.filter((player) => player.minutesPlayed > 0);
   const outcome = sim.userGoals > sim.oppGoals ? "승리" : sim.userGoals < sim.oppGoals ? "패배" : "무승부";
   return (
     <motion.div className="sim-compare sim-compare--final" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -106,7 +107,7 @@ export function ArenaResultPanel({
         </div>
       </section>
 
-      <div className="fulltime-grid" data-single={!players.length || undefined}>
+      <div className="fulltime-grid" data-single={!eligiblePlayers.length || undefined}>
         {sim.teamStats && (
           <FullTimeStatsPanel
             stats={sim.teamStats}
@@ -116,9 +117,9 @@ export function ArenaResultPanel({
             oppTeamName={oppTeamName}
           />
         )}
-        {players.length > 0 && (
+        {eligiblePlayers.length > 0 && (
           <TopPerformersPanel
-            players={players}
+            players={eligiblePlayers}
             userTeamName={userTeamName}
             oppTeamName={oppTeamName}
           />

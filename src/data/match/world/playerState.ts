@@ -39,7 +39,6 @@ function runtimePlayer(
   return {
     ...player,
     condition: fatigue.condition,
-    enteredAtMinute: fatigue.updatedAtMinute,
   };
 }
 
@@ -84,7 +83,6 @@ export function accruePlayerFatigue(
   state.totalLoss += breakdown.totalLoss;
   state.tacticalLoss += breakdown.tacticalLoss;
   player.condition = state.condition;
-  player.enteredAtMinute = minute;
 }
 
 export function accrueActiveFatigue(

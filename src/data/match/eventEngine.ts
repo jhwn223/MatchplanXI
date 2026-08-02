@@ -26,6 +26,7 @@ import {
   defensiveThirdCover,
   isPlayerOffside,
   localNumbers,
+  nearestOpponentDistance,
   offsideMargin,
   passOptionScore,
   worldDistance,
@@ -328,6 +329,19 @@ export function simulatePeriodWithWorld(
       0.04,
       0.4,
     );
+  /**
+   * How much room the man on the ball actually has, as a signed amount either
+   * side of a normal engagement.
+   *
+   * The engine did not read this at all. Pressure entered every decision as the
+   * nearest defender's attributes, never as how far away he was, so a player
+   * with five metres and a player with one played exactly the same ball. It is
+   * the quantity football is decided by, and leaving it out is why sending a
+   * man off cost so little: the space that opens up had nowhere to go.
+   */
+  const spaceOnBall = (side: MatchSide, player: PlacedPlayerLite) =>
+    clamp((nearestOpponentDistance(world, side, player) - 2.6) / 4.5, -0.45, 0.9);
+
   const DEAD_BALL_SECONDS = {
     goal: 52,
     penaltyKick: 45,
@@ -998,7 +1012,8 @@ export function simulatePeriodWithWorld(
           (passQuality - pressureQuality) / 500 -
           directness * 0.018 +
           matchupEdge * 0.35 -
-          laneRisk * 0.045 -
+          laneRisk * 0.045 +
+          spaceOnBall(side, passer) * 0.06 -
           defendingTactics.pressBias * 0.055 -
           defendingTactics.defensiveLineBias * 0.02 -
           trappedInBuildUp -
@@ -1145,7 +1160,12 @@ export function simulatePeriodWithWorld(
         if (carrierStats) carrierStats.dribblesAttempted++;
         // Beating one man is a duel; beating a crowd is not.
         const dribbleChance = clamp(
-          0.5 + (carrierDribble - defenderTackle) / 145 - Math.max(0, actionPressure - 1) * 0.1,
+          0.5 +
+            (carrierDribble - defenderTackle) / 145 +
+            // Beating a man who is already on top of you is not the same as
+            // beating one who has to close five metres first.
+            spaceOnBall(side, carrier) * 0.14 -
+            Math.max(0, actionPressure - 1) * 0.1,
           0.12,
           0.82,
         );
@@ -1302,7 +1322,8 @@ export function simulatePeriodWithWorld(
           0.77 -
             compactnessResistance -
             congestion +
-            (passQuality - interceptionQuality) / 220 -
+            (passQuality - interceptionQuality) / 220 +
+            spaceOnBall(side, carrier) * 0.07 -
             progress * 0.012 -
             (directness + carrierRole.passRisk * 0.8) * 0.025 -
             sideTactics.creativityBias * 0.018 +
@@ -1372,7 +1393,7 @@ export function simulatePeriodWithWorld(
       // These rates keep a normal match near 24-28 combined attempts while
       // preserving the relative effect of roles and attacking instructions.
       const roleShotChance =
-        (carrier.position === "FWD" ? 0.106 : carrier.position === "MID" ? 0.063 : 0.023) *
+        (carrier.position === "FWD" ? 0.098 : carrier.position === "MID" ? 0.058 : 0.021) *
         roleDefinition(carrier.tacticalRole).shotIntent;
       // Whether the defence is actually there. A packed box is why standing
       // strikers in it produces nothing, and an empty one is why a side that
@@ -1392,7 +1413,12 @@ export function simulatePeriodWithWorld(
       // building the move that would reach them — so stacking the attacking
       // third has to give diminishing returns rather than multiplying chances.
       const crowding = clamp(1 - Math.max(0, commitment(side)[2] - 4) * 0.13, 0.4, 1);
-      const spaceToShoot = (throughOnGoal ? 1.3 : 0.37 + openness * 0.54) * crowding;
+      // Bodies in the box decide whether there is a shot on; the room the
+      // shooter himself has decides whether he can get it away.
+      const spaceToShoot =
+        (throughOnGoal ? 1.3 : 0.37 + openness * 0.54) *
+        crowding *
+        clamp(1 + spaceOnBall(side, carrier) * 0.3, 0.85, 1.3);
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
       const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
       // The final touch has to reach the edge of the penalty area before a
@@ -1417,7 +1443,10 @@ export function simulatePeriodWithWorld(
           // possession's progress let a side manufacture chances simply by
           // stationing six forwards in the box: every one of them was a
           // shooter the moment the ball reached him. Progress has to earn it.
-          rng() < (roleShotChance * 0.43 + progress * 0.094 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.115) ||
+          // Ground taken is what earns the shot, and now that space on the ball
+          // feeds pass completion it accumulates faster, so it has to be worth
+          // less per unit or an all-out attacking plan runs away with the game.
+          rng() < (roleShotChance * 0.43 + progress * 0.086 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.115) ||
           (action === maxActions - 1 && rng() < 0.02 * spaceToShoot)
         );
       if (!shootNow) continue;
