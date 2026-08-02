@@ -428,15 +428,12 @@ export function MatchBoardScreen({
           <strong>{winEstimate}%</strong>
         </div>
         <div className="tactic-risk-list">
-          {!ready ? (
-            // Evaluating tactical balance against an incomplete XI is
-            // meaningless, so this replaces those badges instead of joining
-            // them — otherwise "전술 균형 양호" reads as reassurance while
-            // the lineup is still empty.
-            <span className="tactic-risk tactic-risk--warn">
-              ⚠ 선수를 배치하지 않았습니다 · 선수를 먼저 배치해주세요 ({placedCount}/{requiredPlayers})
-            </span>
-          ) : (
+          {/* Evaluating tactical balance against an incomplete XI is
+              meaningless, so nothing renders here until the lineup is full —
+              the set-piece tab's own overlay (and the 선발 명단 counter to
+              the left) already cover that case without repeating the same
+              warning down here too. */}
+          {ready && (
             <>
               {staminaRisk && <span className="tactic-risk tactic-risk--warn">△ 높은 체력 소모</span>}
               {spaceRisk && <span className="tactic-risk">ⓘ 뒷공간 위험</span>}
