@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import type { MatchEvent, MatchSide, PassType, TrackPoint, WorldTrack } from "../../data/matchSim";
+import type { MatchEvent, MatchSide, PassType, WorldTrack } from "../../data/matchSim";
 import { ballDwell, playerDwell } from "../../data/matchSim";
+import { buildHeatCells, heatColor } from "./heatMap";
 import { ALL_PASS_TYPES, PASS_TYPE_META } from "./passMap";
 
 export type EventMapMode = "positions" | "ball" | "shots" | "passes" | "turnovers" | "recoveries";
@@ -18,40 +19,6 @@ interface Props {
   /** Clock-sampled positions; both heat maps are drawn from it. */
   track?: WorldTrack;
   side?: MatchSide;
-}
-
-interface HeatPoint {
-  x: number;
-  y: number;
-  intensity: number;
-}
-
-/**
- * Bins samples by how much match time each one stands for.
- *
- * Time, not sample count, is what a heat map is supposed to show: a ball that
- * sits in one channel for twenty seconds has to outweigh one that is played
- * through the same channel twice.
- */
-function buildHeatPoints(samples: TrackPoint[]): HeatPoint[] {
-  const cells = new Map<string, { x: number; y: number; weight: number }>();
-  for (const sample of samples) {
-    const x = sample.x;
-    const y = (sample.y / 100) * 62 + 1;
-    const key = `${Math.round(x / 4)}:${Math.round(y / 4)}`;
-    const cell = cells.get(key) ?? { x: 0, y: 0, weight: 0 };
-    cell.x += x * sample.seconds;
-    cell.y += y * sample.seconds;
-    cell.weight += sample.seconds;
-    cells.set(key, cell);
-  }
-  let maxWeight = 0;
-  for (const cell of cells.values()) maxWeight = Math.max(maxWeight, cell.weight);
-  return Array.from(cells.values(), (cell) => ({
-    x: cell.x / cell.weight,
-    y: cell.y / cell.weight,
-    intensity: Math.sqrt(cell.weight / Math.max(maxWeight, 1e-6)),
-  }));
 }
 
 export function ArenaEventMap({
@@ -81,10 +48,10 @@ export function ArenaEventMap({
     return true;
   });
   const isHeatMap = mode === "positions" || mode === "ball";
-  const heatPoints = useMemo(() => {
+  const heatCells = useMemo(() => {
     if (!track || !isHeatMap) return [];
     const window = { fromMinute: since, toMinute: minute };
-    return buildHeatPoints(
+    return buildHeatCells(
       mode === "positions"
         ? playerDwell(track, { ...window, side, playerId })
         : ballDwell(track, { ...window, side, playerId }),
@@ -95,8 +62,9 @@ export function ArenaEventMap({
     <div className={`arena-event-map-frame arena-event-map-frame--${mode}`}>
     <svg className="arena-event-map" viewBox="0 0 100 64" role="img" aria-label="경기 이벤트 위치 지도">
       <defs>
+        {/* The grid is already smoothed; this only softens the cell edges. */}
         <filter id="heat-blur" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="1.8" />
+          <feGaussianBlur stdDeviation="1.1" />
         </filter>
         <clipPath id="pitch-clip"><rect x="1" y="1" width="98" height="62" rx="2" /></clipPath>
       </defs>
@@ -113,26 +81,23 @@ export function ArenaEventMap({
           data-alt={index % 2 || undefined}
         />
       ))}
-      {(isHeatMap ? heatPoints.length === 0 : visible.length === 0) && (
+      {(isHeatMap ? heatCells.length === 0 : visible.length === 0) && (
         <text x="50" y="34" textAnchor="middle">아직 기록이 없습니다</text>
       )}
       {isHeatMap && (
         <g className="arena-event-map__heat" filter="url(#heat-blur)" clipPath="url(#pitch-clip)">
-          {heatPoints.map((point, index) => {
-            const radius = 7 + point.intensity * 6;
-            return (
-              <g key={index}>
-                <circle cx={point.x} cy={point.y} r={radius} fill="#52d327" opacity={0.34 + point.intensity * 0.2} />
-                <circle cx={point.x} cy={point.y} r={radius * 0.72} fill="#ffe600" opacity={0.28 + point.intensity * 0.3} />
-                {point.intensity >= 0.34 && (
-                  <circle cx={point.x} cy={point.y} r={radius * 0.46} fill="#ff8118" opacity={0.3 + point.intensity * 0.36} />
-                )}
-                {point.intensity >= 0.62 && (
-                  <circle cx={point.x} cy={point.y} r={radius * 0.25} fill="#f2381b" opacity={0.4 + point.intensity * 0.4} />
-                )}
-              </g>
-            );
-          })}
+          {heatCells.map((cell, index) => (
+            <rect
+              key={index}
+              // Overlapped by a hair so the blur has no seams to reveal.
+              x={cell.x - 0.05}
+              y={cell.y - 0.05}
+              width={cell.width + 0.1}
+              height={cell.height + 0.1}
+              fill={heatColor(cell.intensity)}
+              opacity={0.18 + cell.intensity * 0.62}
+            />
+          ))}
         </g>
       )}
       {!isHeatMap && visible.slice(-300).map((event, index) => {
