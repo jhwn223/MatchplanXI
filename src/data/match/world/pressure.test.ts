@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { testInput, testTactics } from "../testFixtures";
 import { createMatchWorld } from "./createWorld";
 import { advanceWorld, beginPossession } from "./movementEngine";
-import { nearestOpponentDistance } from "./perception";
+import { defensiveThirdCover, nearestOpponentDistance } from "./perception";
 import type { SimInput } from "../types";
 
 const tactics = { user: testTactics(), opp: testTactics() };
@@ -71,5 +71,42 @@ describe("space on the ball", () => {
     world.ball.x = state.x;
     world.ball.y = state.y;
     expect(nearestOpponentDistance(world, "user", carrier)).toBeLessThan(pressed.mean);
+  });
+
+  it("leaves a side a man down with fewer bodies home to defend a break", () => {
+    // Counter-attack exposure used to be counted off the formation the manager
+    // drew, which inverted this: taking a midfielder away lowered the paper
+    // count of players committed upfield, so ten men were read as *less*
+    // exposed on the break than eleven. It is now read from who is actually
+    // home. A missing forward is left out: he was never one of the bodies
+    // covering his own goal, so losing him rightly costs his side in attack
+    // rather than here.
+    // The ball follows whoever owns it, so the sweep is over which player is
+    // carrying rather than over a ball position the world would overwrite.
+    const settle = (input: SimInput) => {
+      let total = 0;
+      let count = 0;
+      const outfield = input.placed.filter((player) => player.position !== "GK");
+      for (let seed = 0; seed < 30; seed++) {
+        const world = createMatchWorld({ ...input, seed }, 1, tactics);
+        const carrier = outfield[seed % outfield.length];
+        beginPossession(world, "user", carrier);
+        advanceWorld(world, input, tactics, 6);
+        for (let step = 0; step < 6; step++) {
+          advanceWorld(world, input, tactics, 2);
+          total += defensiveThirdCover(world, "opp");
+          count++;
+        }
+      }
+      return total / count;
+    };
+    const eleven = settle(full);
+    for (const index of [2, 6]) {
+      const short: SimInput = {
+        ...full,
+        oppPlaced: full.oppPlaced.filter((_, i) => i !== index),
+      };
+      expect(settle(short)).toBeLessThan(eleven);
+    }
   });
 });

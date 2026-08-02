@@ -778,9 +778,16 @@ export function simulatePeriodWithWorld(
      * committing players to defence was pure loss.
      */
     const possessionStartX = side === "user" ? world.ball.x : 100 - world.ball.x;
+    // How short the side that just lost the ball is of bodies in a position to
+    // defend. Read off the formation this could not tell a side committed
+    // forward from one sitting deep, and it got a sending-off backwards:
+    // losing a midfielder lowered the paper count of players upfield, so ten
+    // men were measured as *less* exposed on the break than eleven. Counting
+    // who is actually home means committing to an attack costs more when there
+    // is one fewer of you to recover with — the price a team a man down should
+    // pay for not dropping off, and did not.
     const opponentUpfield =
-      commitment(defendingSide)[2] +
-      commitment(defendingSide)[1] * 0.35 +
+      clamp(8 - defensiveThirdCover(world, defendingSide), 0, 8) * 0.9 +
       // A side that pushes its line up and keeps nobody home is committed just
       // as surely as one that fields extra forwards. Reading only the shape
       // meant an attacking plan was never punished on the break, so it beat
@@ -788,7 +795,7 @@ export function simulatePeriodWithWorld(
       Math.max(0, defendingTactics.defensiveLineBias) * 1.15 +
       Math.max(0, -defendingTactics.restDefenseBias) * 1.35;
     const counterAttack = clamp(
-      ((46 - possessionStartX) / 46) * (opponentUpfield - 2.4) * 0.55,
+      ((46 - possessionStartX) / 46) * (opponentUpfield - 2.4) * 0.47,
       0,
       1.2,
     );
@@ -1446,7 +1453,7 @@ export function simulatePeriodWithWorld(
           // Ground taken is what earns the shot, and now that space on the ball
           // feeds pass completion it accumulates faster, so it has to be worth
           // less per unit or an all-out attacking plan runs away with the game.
-          rng() < (roleShotChance * 0.43 + progress * 0.086 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.115) ||
+          rng() < (roleShotChance * 0.43 + progress * 0.080 + tacticShotBias) * spaceToShoot * (1 + counterAttack * 0.115) ||
           (action === maxActions - 1 && rng() < 0.02 * spaceToShoot)
         );
       if (!shootNow) continue;
