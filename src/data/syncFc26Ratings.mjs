@@ -7,6 +7,8 @@ const API_BASE = "https://api.msmc.cc/api/fc26";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const publicData = path.resolve(here, "../../public/data");
 const outputPath = path.join(here, "fc26PlayerRatings.json");
+const correctionsPath = path.join(here, "playerIdentityCorrections.json");
+const teamFilter = process.argv.find((argument) => argument.startsWith("--team="))?.split("=")[1]?.toUpperCase();
 
 const NATION_NAMES = {
   "South Korea": "Korea Republic",
@@ -203,17 +205,29 @@ async function fetchNation(name) {
 }
 
 async function main() {
-  const [teamsText, playersText] = await Promise.all([
+  const [teamsText, playersText, correctionsText] = await Promise.all([
     fs.readFile(path.join(publicData, "teams.csv"), "utf8"),
     fs.readFile(path.join(publicData, "squads_and_players.csv"), "utf8"),
+    fs.readFile(correctionsPath, "utf8"),
   ]);
   const teams = parseCsv(teamsText);
-  const players = parseCsv(playersText);
-  const output = {};
+  const corrections = JSON.parse(correctionsText);
+  const players = parseCsv(playersText).map((player) => ({
+    ...player,
+    player_name: corrections[String(player.player_id)] ?? player.player_name,
+  }));
+  let output = {};
+  if (teamFilter) {
+    try {
+      output = JSON.parse(await fs.readFile(outputPath, "utf8"));
+    } catch {
+      output = {};
+    }
+  }
   const unmatched = [];
   let matched = 0;
 
-  for (const team of teams) {
+  for (const team of teams.filter((item) => !teamFilter || String(item.fifa_code).toUpperCase() === teamFilter)) {
     const nation = NATION_NAMES[team.team_name] ?? team.team_name;
     let candidates = [];
     try {

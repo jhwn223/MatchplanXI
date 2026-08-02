@@ -19,6 +19,7 @@ import type {
 } from "./types";
 import { setPieceTarget } from "./setPieceShape";
 import { recordTrackFrames } from "./worldTrack";
+import { canonicalAttackX, isHalfSpaceY } from "../attackingPlay";
 
 function otherSide(side: MatchSide): MatchSide {
   return side === "user" ? "opp" : "user";
@@ -290,6 +291,73 @@ function targetForPlayer(
     };
   }
   if (hasBall) {
+    const canonicalBallX = canonicalAttackX(side, world.ball.x);
+    const finalThirdAttack = canonicalBallX >= 66;
+    const assignedRole = player.tacticalRole ?? (
+      player.position === "FWD" && Math.abs(player.baseY - 50) > 20
+        ? "winger"
+        : undefined
+    );
+    const laneSign = player.baseY < 50 ? -1 : 1;
+    const sameFlankAsBall = (player.baseY - 50) * (world.ball.y - 50) >= 0;
+
+    // In the final third the formation is an origin, not a parking spot.
+    // The near winger stretches the pitch and crosses, the far winger attacks
+    // the back post, a striker occupies the box and selected midfield roles
+    // arrive through the half-spaces. This creates distinct lines of movement
+    // without sending the whole team into the same penalty area.
+    if (finalThirdAttack) {
+      let canonicalRunX: number | null = null;
+      let runY = shape.y;
+      if (assignedRole === "winger") {
+        canonicalRunX = sameFlankAsBall ? 86 : 89;
+        runY = sameFlankAsBall ? (laneSign < 0 ? 13 : 87) : (laneSign < 0 ? 36 : 64);
+      } else if (assignedRole === "insideForward") {
+        canonicalRunX = 88;
+        runY = laneSign < 0 ? 35 : 65;
+      } else if (player.position === "FWD" && assignedRole !== "falseNine") {
+        canonicalRunX = assignedRole === "targetForward" ? 85 : 90;
+        runY = clamp(50 + laneSign * 7 + (world.ball.y - 50) * 0.12, 36, 64);
+      } else if (
+        assignedRole === "shadowStriker" ||
+        assignedRole === "advancedPlaymaker" ||
+        assignedRole === "boxToBox"
+      ) {
+        canonicalRunX = assignedRole === "shadowStriker" ? 85 : assignedRole === "advancedPlaymaker" ? 81 : 78;
+        runY = isHalfSpaceY(player.baseY)
+          ? player.baseY
+          : laneSign < 0 ? 36 : 64;
+      } else if (
+        player.position === "MID" &&
+        profile.attackBias > 0.55 &&
+        Math.abs(player.baseY - 50) > 9
+      ) {
+        // Forward-runs / attacking mentalities release the two outside
+        // midfielders into the half-spaces while the central midfielder stays
+        // underneath the ball. This is the extra box presence the riskier
+        // plan is meant to buy.
+        canonicalRunX = 77 + profile.attackBias * 5;
+        runY = laneSign < 0 ? 36 : 64;
+      }
+
+      if (canonicalRunX != null) {
+        let runX = side === "user" ? canonicalRunX : 100 - canonicalRunX;
+        if (player.position === "FWD" || assignedRole === "shadowStriker") {
+          const legalMargin = 1.7 + (100 - player.positioning) / 80;
+          runX = side === "user"
+            ? Math.min(runX, offsideLine - legalMargin)
+            : Math.max(runX, offsideLine + legalMargin);
+        }
+        return {
+          point: {
+            x: clamp(shape.x + (runX - shape.x) * 0.76, 3, 97),
+            y: clamp(shape.y + (runY - shape.y) * 0.76, 4, 96),
+          },
+          intent: "receive",
+        };
+      }
+    }
+
     const nearbySupportRank = nearbySupportIds.indexOf(player.playerId);
     // A full-back who has already gone past the ball is making an overlap, not
     // offering support behind it. Dragging him back to `ball.x - 7` because he

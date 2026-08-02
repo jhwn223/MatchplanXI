@@ -47,6 +47,14 @@ import type {
 import type { MatchWorld } from "./world/types";
 import { createTrackRecorder, finishTrack } from "./world/worldTrack";
 import { roleDefinition } from "../playerRoles";
+import {
+  canAttemptOpenPlayShot,
+  canDevelopOpenPlayShot,
+  canonicalAttackX,
+  isCrossingZone,
+  shotLocationXg,
+  shotTargetXForLane,
+} from "./attackingPlay";
 
 export interface PeriodSimulation {
   result: HalfResult;
@@ -388,23 +396,9 @@ export function simulatePeriodWithWorld(
       : coordinate.x - coordinate.endX;
     const lateralDistance = Math.abs(coordinate.endY - coordinate.y);
     const distance = Math.hypot(coordinate.endX - coordinate.x, lateralDistance);
-    const wideOrigin = coordinate.y <= 24 || coordinate.y >= 76;
-    const canonicalX = side === "user" ? coordinate.x : 100 - coordinate.x;
     const rollSeed = Math.abs(
       Math.sin((coordinate.x + coordinate.y * 3 + coordinate.endX * 5 + coordinate.endY * 7) * 12.9898)
     );
-
-    const crossChance =
-      0.38 +
-      Math.max(0, sideTactics.widthBias) * 0.18 +
-      Math.max(0, sideTactics.overlapBias) * 0.2;
-    if (
-      wideOrigin &&
-      canonicalX >= 48 &&
-      forwardDistance > 3 &&
-      target?.position === "FWD" &&
-      rollSeed < crossChance
-    ) return "cross";
 
     const throughChance =
       0.2 +
@@ -428,7 +422,12 @@ export function simulatePeriodWithWorld(
     actor: PlacedPlayerLite,
     target: PlacedPlayerLite | undefined,
     success: boolean,
-    xg?: number
+    xg?: number,
+    override?: {
+      passType?: PassType;
+      shotType?: "foot" | "header";
+      detail?: string;
+    },
   ) => {
     const coordinate = eventCoordinate(side, type, actor, target, success);
     events.push({
@@ -443,8 +442,11 @@ export function simulatePeriodWithWorld(
       target: target?.name,
       success,
       xg,
-      passType: type === "pass" ? classifyPass(side, actor, target, coordinate) : undefined,
-      detail: actionDetail(type, actor.name, target?.name),
+      passType: type === "pass"
+        ? override?.passType ?? classifyPass(side, actor, target, coordinate)
+        : undefined,
+      shotType: type === "shot" ? override?.shotType ?? "foot" : undefined,
+      detail: override?.detail ?? actionDetail(type, actor.name, target?.name),
       ...coordinate,
     });
     possessionBallPoint = {
@@ -1112,6 +1114,7 @@ export function simulatePeriodWithWorld(
     let carrier = possessionCarrier;
     let lastPasser: PlacedPlayerLite | undefined;
     let progress = 0;
+    let headedChance = false;
     const maxActions = Math.round(clamp(1 + Math.floor(rng() * 3) + sideTactics.tempoBias * 0.6, 1, 4));
 
     for (let action = 0; action < maxActions; action++) {
@@ -1164,15 +1167,131 @@ export function simulatePeriodWithWorld(
       // instruction is decoration.
       ) * (0.7 + roleDefinition(defender.tacticalRole).pressWeight * 0.3);
       const carrierRole = roleDefinition(carrier.tacticalRole);
+      const carrierPointNow = world.players[side].get(carrier.playerId) ??
+        possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
+      const inferredWinger =
+        carrier.position === "FWD" && Math.abs(carrier.baseY - 50) > 20;
+      const trueWinger = carrier.tacticalRole === "winger" || inferredWinger;
+      const crossingRole =
+        trueWinger || carrier.tacticalRole === "overlappingFullback";
+      if (!headedChance && crossingRole && isCrossingZone(side, carrierPointNow)) {
+        const boxTargets = attackers.filter((player) => {
+          if (player.playerId === carrier.playerId || player.position === "GK") return false;
+          const state = world.players[side].get(player.playerId);
+          if (!state) return false;
+          const targetX = canonicalAttackX(side, state.x);
+          return targetX >= 80 && state.y >= 27 && state.y <= 73;
+        });
+        const crossIntent = clamp(
+          0.22 +
+            (carrier.crossing - 65) / 260 +
+            Math.max(0, sideTactics.widthBias) * 0.12 +
+            Math.max(0, sideTactics.overlapBias) * 0.09 +
+            (trueWinger ? 0.16 : 0.04),
+          0.12,
+          0.68,
+        );
+        if (boxTargets.length && rng() < crossIntent) {
+          const receiver = weightedPick(
+            boxTargets,
+            (player) => {
+              const state = world.players[side].get(player.playerId);
+              const centrality = state ? clamp(1.35 - Math.abs(state.y - 50) / 45, 0.65, 1.35) : 1;
+              const roleWeight = player.tacticalRole === "targetForward"
+                ? 1.5
+                : player.position === "FWD" ? 1.25 : 0.82;
+              return roleWeight * centrality *
+                (0.35 + (player.headingAccuracy + player.positioning + player.strength) / 230);
+            },
+            rng,
+          );
+          const aerialDefender = weightedPick(
+            defenders,
+            (player) => {
+              const distance = worldDistance(world, defendingSide, player, side, receiver);
+              return (0.4 + (player.headingAccuracy + player.strength + player.defensiveAwareness) / 220) /
+                (1 + distance / 12);
+            },
+            rng,
+          );
+          const crossQuality = skill(carrier, minute, input.elevation, [
+            [carrier.crossing, 0.42],
+            [carrier.vision, 0.18],
+            [carrier.composure, 0.16],
+            [carrier.ballControl, 0.12],
+            [carrier.passing, 0.12],
+          ], "technical", sideTactics) * sideWorkRate * sideQualityMultiplier;
+          const attackingAerial = skill(receiver, minute, input.elevation, [
+            [receiver.headingAccuracy, 0.38],
+            [receiver.positioning, 0.25],
+            [receiver.strength, 0.2],
+            [receiver.reactions, 0.17],
+          ], "duel", sideTactics) * sideWorkRate * sideQualityMultiplier;
+          const defendingAerial = skill(aerialDefender, minute, input.elevation, [
+            [aerialDefender.headingAccuracy, 0.28],
+            [aerialDefender.defensiveAwareness, 0.3],
+            [aerialDefender.strength, 0.25],
+            [aerialDefender.reactions, 0.17],
+          ], "duel", defendingTactics) * defendingWorkRate * defendingQualityMultiplier;
+          const crossWonChance = clamp(
+            0.42 +
+              (crossQuality - 68) / 210 +
+              (attackingAerial - defendingAerial) / 180 -
+              Math.max(0, actionPressure - 1) * 0.06,
+            0.14,
+            0.78,
+          );
+          running[side].passesAttempted++;
+          if (carrierStats) carrierStats.passesAttempted++;
+          if (offsideAgainst(receiver)) {
+            recordOffside(side, receiver, carrier);
+            break;
+          }
+          const crossCost = Math.max(1.3, passSeconds(side, carrier, receiver));
+          if (rng() < crossWonChance) {
+            running[side].passesCompleted++;
+            if (carrierStats) carrierStats.passesCompleted++;
+            const receiverStats = playerStat(playerStats, side, receiver);
+            if (receiverStats) receiverStats.touches++;
+            addEvent(side, "pass", carrier, receiver, true, undefined, {
+              passType: "cross",
+              detail: `${carrier.name} 크로스 → ${receiver.name}`,
+            });
+            advanceClock(crossCost);
+            lastPasser = carrier;
+            carrier = receiver;
+            progress += 1.4;
+            headedChance = true;
+          } else {
+            addEvent(side, "pass", carrier, receiver, false, undefined, {
+              passType: "cross",
+              detail: `${carrier.name} 크로스 차단`,
+            });
+            running[defendingSide].interceptions++;
+            const aerialDefenderStats = playerStat(playerStats, defendingSide, aerialDefender);
+            if (aerialDefenderStats) aerialDefenderStats.interceptions++;
+            addEvent(defendingSide, "interception", aerialDefender, carrier, true, undefined, {
+              detail: `${aerialDefender.name} 공중볼 걷어냄`,
+            });
+            advanceClock(crossCost);
+            break;
+          }
+        }
+      }
       // A winger takes his man on; an anchor never does. Basing this on the
       // position alone meant every midfielder dribbled at the same rate
       // whatever the manager had asked of him.
-      const wantsDribble = rng() <
+      const wantsDribble = !headedChance && rng() <
         (carrier.position === "FWD"
-          ? 0.32 + Math.max(0, carrier.dribbling - carrier.passing) / 180
-          : 0.16) * carrierRole.dribbleIntent;
+          ? (trueWinger ? 0.46 : 0.32) + Math.max(0, carrier.dribbling - carrier.passing) / 180
+          : 0.16) *
+        (trueWinger ? Math.max(1.12, carrierRole.dribbleIntent) : carrierRole.dribbleIntent);
 
-      if (wantsDribble) {
+      if (headedChance) {
+        // The cross already moved the ball and selected its aerial winner.
+        // Resolve the header below instead of making the receiver take an
+        // unrelated dribble or ground pass first.
+      } else if (wantsDribble) {
         if (carrierStats) carrierStats.dribblesAttempted++;
         // Beating one man is a duel; beating a crowd is not.
         const dribbleChance = clamp(
@@ -1397,7 +1516,10 @@ export function simulatePeriodWithWorld(
       // now at a realistic level each of them has to be worth less, or throwing
       // everyone forward turns every match into a shootout.
       const tacticShotBias =
-        sideAttackBias * 0.013 +
+        // An aggressive plan sends more runners into the box; the location
+        // gate still prevents speculative touchline shots, so this term buys
+        // additional credible attempts rather than relaxing shot geometry.
+        sideAttackBias * 0.021 +
         sideTactics.overlapBias * 0.004 +
         counterEdge * 0.008 +
         sideTactics.tempoBias * 0.0045 +
@@ -1436,11 +1558,10 @@ export function simulatePeriodWithWorld(
         crowding *
         clamp(1 + spaceOnBall(side, carrier) * 0.3, 0.85, 1.3);
       const carrierPoint = possessionBallPoint ?? tacticalHome(carrier, side, sideTactics);
-      const canonicalShotX = side === "user" ? carrierPoint.x : 100 - carrierPoint.x;
-      // The final touch has to reach the edge of the penalty area before a
-      // shot can be recorded. 78 is also the lower bound used by the visual
-      // replay, so a shot never appears to come from midfield.
-      const targetShotX = 78;
+      const canonicalShotX = canonicalAttackX(side, carrierPoint.x);
+      const targetShotX = headedChance
+        ? canonicalShotX
+        : shotTargetXForLane(carrierPoint.y);
       // A runner who has beaten the last line is behind the defence by
       // definition, wherever his formation slot happens to sit. Judging him by
       // that static slot is why a side with no defenders could not be scored
@@ -1448,8 +1569,9 @@ export function simulatePeriodWithWorld(
       // ball never reached the shooting band at all.
       const shootNow =
         carrier.position !== "GK" &&
-        canonicalShotX >= 66 &&
+        (headedChance || canDevelopOpenPlayShot(side, carrierPoint)) &&
         (
+          headedChance ||
           // A runner who has beaten the last line shoots; he has only the
           // keeper in front of him. Leaving him on the ordinary per-touch
           // rate meant breaking a high line was worth almost nothing.
@@ -1489,6 +1611,16 @@ export function simulatePeriodWithWorld(
       if (approachX < targetShotX) {
         continue;
       }
+      const finalShotPoint = possessionBallPoint ?? carrierPoint;
+      const headerInBox =
+        canonicalAttackX(side, finalShotPoint.x) >= 80 &&
+        finalShotPoint.y >= 27 &&
+        finalShotPoint.y <= 73;
+      if (headedChance ? !headerInBox : !canAttemptOpenPlayShot(side, finalShotPoint)) {
+        // A winger who has reached the outside lane must cross or cut the ball
+        // back. Do not turn a promising move into a zero-angle touchline shot.
+        continue;
+      }
 
       const marker = weightedPick(
         defenders,
@@ -1500,7 +1632,7 @@ export function simulatePeriodWithWorld(
       // add 0.32 xG to every attempt. A saturating curve keeps exposed space
       // meaningful while preventing repeated 6-4 and 7-3 scorelines.
       const exposureChanceBoost =
-        0.011 * (1 - Math.exp(-Math.max(0, defendingExposure) * 1.25));
+        0.032 * (1 - Math.exp(-Math.max(0, defendingExposure) * 1.25));
       const matchupChanceBoost = clamp(matchupEdge * 0.04, -0.02, 0.03);
       // Urgency creates more attempts, not magically cleaner chances. Teams
       // throwing bodies forward or shooting on sight take a larger share of
@@ -1535,8 +1667,9 @@ export function simulatePeriodWithWorld(
         // A defence that has not reset yet is the whole value of a counter.
         counterAttack * 0.042 +
         (throughOnGoal ? 0.10 : 0);
-      const baseXg = carrier.position === "FWD" ? 0.058 : carrier.position === "MID" ? 0.035 : 0.020;
-      const shotXg = clamp(baseXg + chanceCreation + rng() * 0.03, 0.01, 0.45);
+      const locationXg = shotLocationXg(side, finalShotPoint, headedChance);
+      const baseXg = carrier.position === "FWD" ? 0.024 : carrier.position === "MID" ? 0.014 : 0.008;
+      const shotXg = clamp(baseXg + locationXg + chanceCreation + rng() * 0.025, 0.01, 0.48);
       running[side].shots++;
       running[side].xg += shotXg;
       const shooterStats = playerStat(playerStats, side, carrier);
@@ -1548,10 +1681,19 @@ export function simulatePeriodWithWorld(
       const recordBigChanceMiss = () => {
         if (shotXg >= 0.18 && shooterStats) shooterStats.bigChancesMissed++;
       };
-      addEvent(side, "shot", carrier, keeperPlayer, true, shotXg);
+      addEvent(side, "shot", carrier, keeperPlayer, true, shotXg, {
+        shotType: headedChance ? "header" : "foot",
+        detail: headedChance ? `${carrier.name} 헤더` : undefined,
+      });
       advanceClock(DEAD_BALL_SECONDS.shot);
 
-      const shootingTechnique = skill(carrier, minute, input.elevation, [
+      const shootingTechnique = skill(carrier, minute, input.elevation, headedChance ? [
+        [carrier.headingAccuracy, 0.42],
+        [carrier.positioning, 0.24],
+        [carrier.strength, 0.14],
+        [carrier.composure, 0.12],
+        [carrier.reactions, 0.08],
+      ] : [
         [carrier.shooting, 0.22],
         [carrier.finishing, 0.3],
         [carrier.shotPower, 0.13],
