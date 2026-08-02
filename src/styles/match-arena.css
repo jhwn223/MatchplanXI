@@ -995,12 +995,8 @@
   line-height: 1.1;
 }
 .arena-squad-board__status {
-  /* Two cells normally, three once the lineup has been dragged into a shape
-     that differs from the chosen formation. Auto columns keep them even
-     either way. */
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
 .arena-squad-board__status > label,
@@ -1016,13 +1012,6 @@
   border-radius: 11px;
   background: var(--panel);
 }
-/* The detected shape is a reading of the pitch, not a setting, so it is
-   tinted rather than boxed like the controls beside it. */
-.arena-squad-board__detected {
-  border-color: #c7dfc9 !important;
-  background: #edf8ed !important;
-}
-.arena-squad-board__detected strong { color: var(--accent); }
 .arena-squad-board__status span {
   margin-bottom: 5px;
   color: var(--text-dim);
