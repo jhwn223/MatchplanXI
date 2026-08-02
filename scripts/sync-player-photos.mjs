@@ -11,6 +11,7 @@ const MANIFEST_PATH = path.join(ROOT, "src", "assets", "player-photos", "manifes
 const REPORT_PATH = path.join(PHOTO_DIR, "sync-report.json");
 const ATTRIBUTION_PATH = path.join(PHOTO_DIR, "ATTRIBUTION.md");
 const CORRECTIONS_PATH = path.join(ROOT, "src", "data", "playerIdentityCorrections.json");
+const FC26_RATINGS_PATH = path.join(ROOT, "src", "data", "fc26PlayerRatings.json");
 
 const USER_AGENT = "AltitudeTactics/1.0 (https://github.com/jhwn223/altitude-tactics)";
 const ALLOWED_LICENSE = /^(CC0|Public domain|CC[- ]BY(?:[- ]SA)?(?: |$)|Creative Commons Attribution)/i;
@@ -142,7 +143,11 @@ function nameQueries(name) {
 async function findWikidataEntity(player) {
   const seenIds = new Set();
 
-  for (const query of nameQueries(player.player_name)) {
+  const queries = [
+    ...nameQueries(player.photo_search_name),
+    ...nameQueries(player.player_name),
+  ];
+  for (const query of new Set(queries)) {
     const search = await requestJson("https://www.wikidata.org/w/api.php", {
       action: "wbsearchentities",
       search: query,
@@ -328,15 +333,21 @@ async function main() {
   await fs.mkdir(PHOTO_DIR, { recursive: true });
   await fs.mkdir(path.dirname(MANIFEST_PATH), { recursive: true });
 
-  const [playersText, teamsText, correctionsText] = await Promise.all([
+  const [playersText, teamsText, correctionsText, ratingsText] = await Promise.all([
     fs.readFile(PLAYER_CSV, "utf8"),
     fs.readFile(TEAM_CSV, "utf8"),
     fs.readFile(CORRECTIONS_PATH, "utf8"),
+    fs.readFile(FC26_RATINGS_PATH, "utf8"),
   ]);
   const corrections = JSON.parse(correctionsText);
+  const ratings = JSON.parse(ratingsText);
   const players = parseCsv(playersText).map((player) => ({
     ...player,
     player_name: corrections[String(player.player_id)] ?? player.player_name,
+    photo_search_name:
+      ratings[String(player.player_id)]?.sourceName ??
+      corrections[String(player.player_id)] ??
+      player.player_name,
   }));
   const playerNameById = new Map(
     players.map((player) => [String(player.player_id), player.player_name])
