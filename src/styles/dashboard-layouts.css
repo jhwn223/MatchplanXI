@@ -176,7 +176,11 @@
 .arena-live-tactic strong { color: var(--text); font-size: 11px; }
 .arena-events { display: flex; flex-direction: column; background: #fff; border-left: 1px solid var(--border); }
 .arena-events h3 { margin: 0; padding: 18px; border-bottom: 1px solid var(--border); font-size: 14px; }
-.arena-events__list { flex: 1; min-height: 180px; display: flex; flex-direction: column; gap: 14px; padding: 18px; }
+/* Sized by its contents, not by the sidebar. Stretching it to fill left a
+   tall blank area under the last event whenever the match was young. It still
+   scrolls once the list outgrows the space. */
+.arena-events__list { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px; overflow-y: auto; }
+.arena-events:has(.arena-events__empty) .arena-events__list { flex: 1; min-height: 120px; }
 .arena-events__empty { margin: auto; color: var(--text-dim); font-size: 11px; text-align: center; }
 .arena-event { display: flex; align-items: flex-start; gap: 10px; }
 .arena-event > span { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; }
