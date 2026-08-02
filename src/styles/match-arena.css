@@ -271,7 +271,7 @@
 /* The panel is capped so the score header and playback controls stay visible;
    each tab scrolls inside it rather than running off the bottom of the modal. */
 .match-center {
-  --arena-management-pitch-height: min(62vh, 548px, calc(72vh - 152px));
+  --arena-management-pitch-height: min(62vh, 564px, calc(72vh - 136px));
   min-height: min(540px, 72vh);
   max-height: 72vh;
   display: flex;
@@ -860,7 +860,7 @@
   width: calc(100% - 44px);
   height: var(--arena-management-pitch-height);
   max-width: 1172px;
-  margin: 8px auto 28px;
+  margin: 8px auto 12px;
   padding: 0;
   min-height: 0;
   overflow: visible;
@@ -1031,7 +1031,7 @@
   min-height: 30px;
 }
 .arena-squad-board__guide {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   padding: 13px 14px;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1171,8 +1171,14 @@
 }
 .arena-opponent-board .opponent-report__scout {
   grid-area: scout;
+  min-height: 0;
   margin-top: 0;
   gap: 6px;
+  overflow-y: auto;
+}
+.arena-opponent-board .opponent-report__scout > div {
+  min-height: 0;
+  overflow-y: auto;
 }
 .arena-opponent-board .opponent-report__scout > div { padding: 9px 10px; }
 .arena-opponent-board .opponent-report__evidence {
