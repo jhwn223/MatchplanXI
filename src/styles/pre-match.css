@@ -1003,8 +1003,10 @@
    pre-kickoff sidebar doesn't have, which used to squash this flex-grown
    box shorter than the pre-kickoff one showing the exact same tactics. */
 .prematch-tactic-summary > .prematch-mini-pitch {
+  /* Taller than the base 1/1.12 to use the room freed by shrinking the
+     포메이션 itembox below (.match-tactic-itembox min-height). */
   flex: 0 0 auto;
-  width: 100%;
+  aspect-ratio: 1 / 1.22;
 }
 
 .prematch-tactic-summary__copy {
@@ -1631,7 +1633,10 @@
 
 .board--prematch[data-workspace="tactics"] .match-tactic-itembox,
 .board--prematch[data-workspace="tactics"] .match-tactic-field {
-  min-height: 86px;
+  /* Shrunk from 86px so the 포메이션 selector doesn't crowd out the pitch
+     preview below it, which gets that height back via a taller
+     aspect-ratio (see .prematch-tactic-summary > .prematch-mini-pitch). */
+  min-height: 64px;
 }
 
 .board--prematch[data-workspace="tactics"] .match-tactic-itembox {

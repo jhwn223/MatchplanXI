@@ -11,10 +11,11 @@ import type { Player, Team } from "../../data/types";
 import type { PlayerRole } from "../../data/playerRoles";
 import { AppTopbar } from "../AppTopbar";
 import { Bench } from "../Bench";
-import { Pitch, tacticalCoordinate } from "../Pitch";
+import { Pitch } from "../Pitch";
 import { TacticsPanel } from "../TacticsPanel";
 import {
   ArenaTacticsPanel,
+  FormationMiniMap,
   TacticItemBoxSelect,
 } from "../match-arena/ArenaTacticsPanel";
 import { MatchAnalysis } from "../match-arena/ArenaMatchCenter";
@@ -520,44 +521,6 @@ function HalftimeReviewOverlay({
           />
         )}
       </section>
-    </div>
-  );
-}
-
-function FormationMiniMap({
-  formation,
-  tactics,
-}: {
-  formation: FormationSlot[];
-  tactics: TeamTactics;
-}) {
-  const widthLabel = { narrow: "좁게", balanced: "중간", wide: "넓게" }[tactics.width];
-  const lineLabel = { low: "낮은 라인", standard: "보통 라인", high: "높은 라인" }[tactics.defensiveLine];
-  const lineBottom = 19 + (tactics.defensiveLine === "high" ? 8 : tactics.defensiveLine === "low" ? -5 : 0);
-  return (
-    <div
-      className="prematch-mini-pitch"
-      aria-label="현재 포메이션과 전술 미리보기"
-      data-pressing={tactics.pressing}
-    >
-      <div className="prematch-mini-pitch__line" />
-      <div className="prematch-mini-pitch__circle" />
-      <div className="prematch-mini-pitch__shape-line" style={{ bottom: `${lineBottom}%` }} />
-      <div className="prematch-mini-pitch__legend">
-        <span>폭 {widthLabel}</span>
-        <span>{lineLabel}</span>
-      </div>
-      {formation.map((slot) => {
-        const coordinate = tacticalCoordinate(slot, slot, tactics);
-        return (
-          <span
-            key={slot.id}
-            title={slot.label}
-            style={{ left: `${coordinate.x}%`, top: `${coordinate.y}%` }}
-            data-position={slot.position}
-          />
-        );
-      })}
     </div>
   );
 }

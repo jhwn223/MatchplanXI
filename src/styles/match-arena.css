@@ -623,14 +623,18 @@
   border-right: 1px solid var(--border);
   background: #e8f2e5;
 }
-.match-tactics-editor__summary > div {
+/* Scoped to this class (not a bare "> div") because .prematch-mini-pitch
+   (the pitch preview below) is also a direct-child div of the summary —
+   a generic child-div selector here was bleeding this badge styling onto
+   the pitch's own player-position dots. */
+.match-tactics-editor__team {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 2px 9px;
   margin-bottom: 18px;
 }
-.match-tactics-editor__summary > div span {
+.match-tactics-editor__team span {
   grid-row: span 2;
   width: 38px;
   height: 38px;
@@ -645,14 +649,9 @@
   font-size: 10px;
   font-weight: 900;
 }
-.match-tactics-editor__summary > div span small { color: #fff; font-size: 7px; line-height: 1; }
-.match-tactics-editor__summary > div strong { font-size: 13px; }
-.match-tactics-editor__summary > div small { color: var(--text-dim); font-size: 9px; }
-.tactic-shape { width: 100%; display: block; }
-.tactic-shape rect { fill: #d8ebda; stroke: #a9c9ae; }
-.tactic-shape line,
-.tactic-shape > circle:first-of-type { fill: none; stroke: rgba(8,117,45,.25); }
-.tactic-shape circle:not(:first-of-type) { fill: var(--accent); stroke: #fff; stroke-width: 1.2; }
+.match-tactics-editor__team span small { color: #fff; font-size: 7px; line-height: 1; }
+.match-tactics-editor__team strong { font-size: 13px; }
+.match-tactics-editor__team small { color: var(--text-dim); font-size: 9px; }
 .match-tactics-editor__body { min-width: 0; padding: 0 20px 76px; }
 .match-tactics-tabs { height: 56px; display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--border); }
 .match-tactics-tabs button {
@@ -1505,8 +1504,8 @@
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
-  .match-tactics-editor__summary > div { margin-bottom: 0; }
-  .match-tactics-editor__summary .tactic-shape { width: 96px; flex-shrink: 0; }
+  .match-tactics-editor__team { margin-bottom: 0; }
+  .match-tactics-editor__summary .prematch-mini-pitch { width: 96px; flex-shrink: 0; }
   .match-tactics-editor__body { padding: 0 12px 76px; }
   .role-board { grid-template-columns: 1fr; }
   .role-board__pitch { width: min(100%, 400px); }
