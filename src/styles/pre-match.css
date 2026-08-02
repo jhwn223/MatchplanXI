@@ -63,6 +63,18 @@
     min-height: 0;
     overflow: auto;
   }
+
+  /* The tactics rail's fixed budget is 100vh here, so on short windows the
+     mini pitch cedes height (by narrowing — the width cap keeps its
+     aspect-ratio identical everywhere, see .prematch-mini-pitch) instead of
+     pushing 현재 전술 below a scrollbar. ~540px is the rail's own non-pitch
+     content: topbar+header+title+tabs+readout+현재 전술 copy+paddings. On
+     normal-height screens the min() picks 100% and nothing changes. */
+  .board--prematch .prematch-tactic-summary > .prematch-mini-pitch {
+    width: min(100%, calc((100vh - 540px) / 1.22));
+    min-width: 150px;
+    margin-inline: auto;
+  }
 }
 
 .board--prematch .board__sidebar {
@@ -1018,7 +1030,35 @@
   padding: 22px 20px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
+}
+
+/* Read-only reminder of the formation picked on the 선수·포메이션 tab —
+   deliberately slimmer than the dropdown box it replaced, which is also
+   what lets the whole rail fit without scrolling. */
+.prematch-formation-readout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 15px;
+  border: 1px solid #cbd8c7;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8faf6 100%);
+  box-shadow: 0 5px 14px rgba(30, 69, 38, .055);
+}
+
+.prematch-formation-readout span {
+  color: #667265;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .025em;
+}
+
+.prematch-formation-readout strong {
+  color: #142019;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 /* A fixed ratio (not flex:1 1 auto) keeps this the same size regardless of
