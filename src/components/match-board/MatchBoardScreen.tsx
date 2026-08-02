@@ -463,10 +463,6 @@ function HalftimeCommandStrip({
       </div>
 
       <div className="halftime-command__review">
-        <div>
-          <small>전반 데이터</small>
-          <strong>기록을 확인하고 후반 계획을 직접 결정하세요</strong>
-        </div>
         <div className="halftime-command__actions">
           <button type="button" onClick={onOpenStats}>전반 경기 통계</button>
           <button type="button" onClick={onOpenAnalysis}>전반 경기 분석</button>
