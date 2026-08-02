@@ -1231,12 +1231,15 @@ export function MatchArena({
                 </button>
               ))}
             </div>
+            {/* Above the tab content rather than inside either panel: the two
+                panels pad their contents differently, which is what made the
+                same notice come out at two widths and two positions. */}
+            <OpponentTacticNotice
+              changes={opponentTacticChanges}
+              minute={hud.minute}
+            />
             {sidebarTab === "stats" ? (
               <div className="arena-live-stats">
-                <OpponentTacticNotice
-                  changes={opponentTacticChanges}
-                  minute={hud.minute}
-                />
                 <ArenaLiveStats
                   live={liveSnapshot}
                   userXg={observedUserXg}
@@ -1247,7 +1250,6 @@ export function MatchArena({
               <ArenaEventFeed
                 events={playedEvents}
                 minute={hud.minute}
-                opponentTacticChanges={opponentTacticChanges}
                 opponentTactics={opponentTactics}
               />
             )}

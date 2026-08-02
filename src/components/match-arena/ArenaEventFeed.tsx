@@ -1,7 +1,5 @@
 import type { MatchEvent } from "../../data/matchSim";
-import type { OpponentTacticChange } from "../match-board/opponentPlan";
 import { describeTeamTactics, type TeamTactics } from "./tactics";
-import { OpponentTacticNotice } from "./OpponentTacticNotice";
 
 const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = {
   pass: { icon: "↗", label: "패스" },
@@ -28,14 +26,12 @@ const EVENT_META: Record<MatchEvent["type"], { icon: string; label: string }> = 
 interface Props {
   events: MatchEvent[];
   minute: number;
-  opponentTacticChanges?: OpponentTacticChange[];
   opponentTactics?: TeamTactics;
 }
 
 export function ArenaEventFeed({
   events,
   minute,
-  opponentTacticChanges = [],
   opponentTactics,
 }: Props) {
   // The whole history stays in the list and the list scrolls, so the panel
@@ -58,7 +54,6 @@ export function ArenaEventFeed({
           <strong>{describeTeamTactics(opponentTactics)}</strong>
         </div>
       )}
-      <OpponentTacticNotice changes={opponentTacticChanges} minute={minute} />
       <h3>최근 경기 정보</h3>
       <div className="arena-events__list">
         {visible.length === 0 ? <p className="arena-events__empty">경기 흐름을 분석하고 있습니다.</p> : visible.map((event, index) => (
