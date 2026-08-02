@@ -489,6 +489,9 @@
    browser/OS's UI font regardless of the page's font-family, which is what
    made this one panel read as a different typeface from the rest. */
 .set-piece-board__taker-fields { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+/* A player name + stat ("손흥민 · PK 75") reads larger than every other
+   box's short value at the shared size, so this one is scaled down alone. */
+.set-piece-board__taker-fields .match-tactic-itembox > strong { font-size: 11px; }
 .set-piece-board__participants header { display: flex; justify-content: space-between; align-items: center; }
 .set-piece-board__participants header span { color: var(--accent); font-size: 10px; font-weight: 900; }
 .set-piece-board__participants > div { display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }

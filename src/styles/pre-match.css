@@ -1624,6 +1624,13 @@
   font-size: 14px;
 }
 
+/* The taker boxes show a player name + stat ("손흥민 · PK 75"), which reads
+   noticeably larger than every other box's short value here at the same
+   14px — scaled down on its own rather than shrinking that shared rule. */
+.board--prematch[data-workspace="tactics"] .set-piece-board__taker-fields .match-tactic-itembox > strong {
+  font-size: 11px;
+}
+
 .board--prematch[data-workspace="tactics"] .role-board {
   grid-template-columns: minmax(350px, 0.95fr) minmax(380px, 1.05fr);
   gap: 32px;
