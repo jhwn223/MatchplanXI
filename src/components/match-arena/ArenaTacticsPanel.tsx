@@ -9,13 +9,7 @@ import {
   type SetPieceAssignments,
 } from "../../data/tactics";
 import { RoleAssignmentBoard } from "./RoleAssignmentBoard";
-import {
-  deleteSavedTactic,
-  loadSavedTactics,
-  MAX_SAVED_TACTICS,
-  saveTactic,
-  type SavedTactic,
-} from "../../data/savedTactics";
+import { MAX_SAVED_TACTICS, type SavedTactic } from "../../data/savedTactics";
 import {
   applyQuickTactic,
   QUICK_TACTICS,
@@ -39,6 +33,11 @@ interface Props {
   setPieces?: SetPieceAssignments;
   onSetPieceChange?: (assignments: SetPieceAssignments) => void;
   variant?: "match" | "prematch";
+  /** Kept for the whole run (owned by the App root), not persisted storage —
+   *  see savedTactics.ts for why. */
+  savedTactics?: SavedTactic[];
+  onSaveTactic?: (name: string, tactics: TeamTactics) => void;
+  onDeleteTactic?: (id: string) => void;
 }
 
 const OPTIONS = {
@@ -77,11 +76,13 @@ export function ArenaTacticsPanel({
   setPieces = EMPTY_SET_PIECE_ASSIGNMENTS,
   onSetPieceChange,
   variant = "match",
+  savedTactics: saved = [],
+  onSaveTactic,
+  onDeleteTactic,
 }: Props) {
   const [draft, setDraft] = useState<TeamTactics>(tactics);
   const [tab, setTab] = useState<TacticsTab>("quick");
   const [selectedQuick, setSelectedQuick] = useState<QuickTacticKey | null>(null);
-  const [saved, setSaved] = useState<SavedTactic[]>(() => loadSavedTactics());
   const [selectedSaved, setSelectedSaved] = useState<string | null>(null);
   const [saveName, setSaveName] = useState("");
 
@@ -173,12 +174,12 @@ export function ArenaTacticsPanel({
                           aria-label={`${entry.name} 삭제`}
                           onClick={(event) => {
                             event.stopPropagation();
-                            setSaved(deleteSavedTactic(entry.id));
+                            onDeleteTactic?.(entry.id);
                           }}
                           onKeyDown={(event) => {
                             if (event.key !== "Enter" && event.key !== " ") return;
                             event.stopPropagation();
-                            setSaved(deleteSavedTactic(entry.id));
+                            onDeleteTactic?.(entry.id);
                           }}
                         >
                           삭제
@@ -192,7 +193,7 @@ export function ArenaTacticsPanel({
                   onSubmit={(event) => {
                     event.preventDefault();
                     if (!saveName.trim()) return;
-                    setSaved(saveTactic(saveName, draft));
+                    onSaveTactic?.(saveName, draft);
                     setSaveName("");
                   }}
                 >
@@ -322,7 +323,7 @@ function SetPieceBoard({
       patch({ [key]: current.filter((id) => id !== playerId) });
       return;
     }
-    if (current.length < 3) patch({ [key]: [...current, playerId] });
+    patch({ [key]: [...current, playerId] });
   };
 
   return (
@@ -372,7 +373,7 @@ function SetPieceBoard({
         ["freeKickParticipants", "프리킥 가담 선수"],
       ] as const).map(([key, label]) => (
         <section className="set-piece-board__participants" key={key}>
-          <header><h3>{label}</h3><span>{assignments[key].length}/3</span></header>
+          <header><h3>{label}</h3><span>{assignments[key].length}명 가담 중</span></header>
           <div>
             {outfield
               .filter((player) => player.player_id !== (
@@ -385,7 +386,6 @@ function SetPieceBoard({
                   type="button"
                   key={player.player_id}
                   data-active={selected || undefined}
-                  disabled={!selected && assignments[key].length >= 3}
                   onClick={() => toggleParticipant(key, player.player_id)}
                 >
                   <strong>{player.player_name}</strong>

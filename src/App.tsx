@@ -14,6 +14,8 @@ import { Bracket } from "./components/Bracket";
 import { MatchBoard } from "./components/MatchBoard";
 import type { Lineup } from "./components/match-board/types";
 import { emptySlots } from "./data/tactics";
+import { deleteSavedTactic, saveTactic, type SavedTactic } from "./data/savedTactics";
+import type { TeamTactics } from "./components/match-arena/tactics";
 
 type View = "select" | "hub" | "match" | "bracket" | "komatch";
 
@@ -43,6 +45,17 @@ function App() {
   const [koResults, setKoResults] = useState<KOResults>({});
   const [koLineups, setKoLineups] = useState<Record<string, Lineup>>({});
   const [activeKo, setActiveKo] = useState<KOMatch | null>(null);
+  // Kept for the whole run only — not persisted storage, so it resets like
+  // everything else on a full reload instead of surviving it.
+  const [savedTactics, setSavedTactics] = useState<SavedTactic[]>([]);
+
+  function handleSaveTactic(name: string, tactics: TeamTactics) {
+    setSavedTactics((prev) => saveTactic(prev, name, tactics));
+  }
+
+  function handleDeleteTactic(id: string) {
+    setSavedTactics((prev) => deleteSavedTactic(prev, id));
+  }
 
   const team = useMemo(
     () => (data && teamId != null ? data.teams.find((t) => t.team_id === teamId) ?? null : null),
@@ -234,6 +247,9 @@ function App() {
           onMatchSim={recordMatchStats}
           leaderboard={leaderboard}
           onNextMatch={goToNextMatch}
+          savedTactics={savedTactics}
+          onSaveTactic={handleSaveTactic}
+          onDeleteTactic={handleDeleteTactic}
         />
       );
     }
@@ -267,6 +283,9 @@ function App() {
           onMatchSim={recordMatchStats}
           leaderboard={leaderboard}
           onNextMatch={goToNextMatch}
+          savedTactics={savedTactics}
+          onSaveTactic={handleSaveTactic}
+          onDeleteTactic={handleDeleteTactic}
         />
       );
     }

@@ -653,7 +653,7 @@
 .match-tactics-editor__team strong { font-size: 13px; }
 .match-tactics-editor__team small { color: var(--text-dim); font-size: 9px; }
 .match-tactics-editor__body { min-width: 0; padding: 0 20px 76px; }
-.match-tactics-tabs { height: 56px; display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--border); }
+.match-tactics-tabs { height: 56px; display: grid; grid-template-columns: repeat(6, 1fr); border-bottom: 1px solid var(--border); }
 .match-tactics-tabs button {
   position: relative;
   border: 0;

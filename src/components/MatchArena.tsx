@@ -200,6 +200,9 @@ export function MatchArena({
   onRoleChange,
   setPieces,
   onSetPieceChange,
+  savedTactics,
+  onSaveTactic,
+  onDeleteTactic,
   onOpponentTacticChange,
   onOpponentManagementChange,
   onFormationChange,
@@ -1128,6 +1131,9 @@ export function MatchArena({
             dismissalNotice={dismissalNotice}
             discipline={discipline}
             opponentDiscipline={opponentDiscipline}
+            savedTactics={savedTactics}
+            onSaveTactic={onSaveTactic}
+            onDeleteTactic={onDeleteTactic}
           />
         )}
 
