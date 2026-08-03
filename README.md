@@ -1,8 +1,8 @@
-# 내가 감독이라면?
+# MatchplanXI
 
-**Altitude Tactics: 고도와 체력이 승부를 바꾸는 전술 시뮬레이터**
+**내가 감독이라면? 고도와 체력이 승부를 바꾸는 전술 시뮬레이터**
 
-**🔗 Live: https://jhwn223.github.io/altitude-tactics/**
+**Live: https://matchplanxi.vercel.app/**
 
 2026 월드컵 실제 데이터를 활용한 드래그 앤 드롭 전술보드입니다. 경기장 고도, 팀 휴식일, 최근 출전 시간, 국가대표 경험(caps)을 반영해 실시간으로 "고지대 컨디션 지수"를 계산하고, 실제 대진을 따라 조별리그부터 결승까지 플레이할 수 있습니다.
 
@@ -13,8 +13,8 @@
 **요구 사항**: Node.js 20 이상 (개발 환경 v24.18.0), npm
 
 ```bash
-git clone https://github.com/jhwn223/altitude-tactics.git
-cd altitude-tactics
+git clone https://github.com/jhwn223/MatchplanXI.git
+cd MatchplanXI
 npm install
 npm run dev            # 개발 서버 (http://localhost:5173)
 ```
@@ -30,7 +30,7 @@ npm run dev            # 개발 서버 (http://localhost:5173)
 | `npm run sync:player-photos` | Wikimedia Commons에서 선수 사진·출처 갱신 |
 | `npm run sync:player-photos -- --team=KOR` | 특정 대표팀만 갱신 |
 
-배포는 `npx gh-pages -d dist`로 GitHub Pages에 올립니다.
+`main` 브랜치가 갱신되면 Vercel에서 프로덕션 빌드를 배포합니다.
 
 ---
 

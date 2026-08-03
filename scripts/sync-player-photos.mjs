@@ -13,7 +13,7 @@ const ATTRIBUTION_PATH = path.join(PHOTO_DIR, "ATTRIBUTION.md");
 const CORRECTIONS_PATH = path.join(ROOT, "src", "data", "playerIdentityCorrections.json");
 const FC26_RATINGS_PATH = path.join(ROOT, "src", "data", "fc26PlayerRatings.json");
 
-const USER_AGENT = "AltitudeTactics/1.0 (https://github.com/jhwn223/altitude-tactics)";
+const USER_AGENT = "MatchplanXI/1.0 (https://github.com/jhwn223/MatchplanXI)";
 const ALLOWED_LICENSE = /^(CC0|Public domain|CC[- ]BY(?:[- ]SA)?(?: |$)|Creative Commons Attribution)/i;
 const DISALLOWED_LICENSE = /(?:NC|ND|NonCommercial|NoDerivatives)/i;
 
